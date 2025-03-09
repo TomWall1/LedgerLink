@@ -1,0 +1,48 @@
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f8f9fa;
+}
+
+.container {
+  flex: 1;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+.sidebar {
+  width: 250px;
+  min-height: calc(100vh - 64px);
+  background-color: #ffffff;
+  border-right: 1px solid #e0e0e0;
+}
+
+.content {
+  flex: 1;
+  padding: 20px;
+}
+
+.nav-item {
+  padding: 10px 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  margin: 4px 0;
+  border-radius: 4px;
+}
+
+.nav-item:hover {
+  background-color: #f0f0f0;
+}
+
+.nav-item.active {
+  background-color: #e8f0fe;
+  color: #1a73e8;
+}
+
+.nav-item svg {
+  margin-right: 10px;
+}
