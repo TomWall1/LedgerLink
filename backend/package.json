@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "node src/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -20,5 +20,8 @@
     "node-fetch": "^3.3.2",
     "papaparse": "^5.4.1",
     "xero-node": "^4.36.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
   }
 }
