@@ -7,7 +7,7 @@ const XeroCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState(null);
-  const { setIsAuthenticated, checkAuth, getApiUrl } = useXero();
+  const { setIsAuthenticated } = useXero();
   const handledCallback = useRef(false);
 
   useEffect(() => {
@@ -26,26 +26,13 @@ const XeroCallback = () => {
     const handleCallback = async () => {
       try {
         if (authenticated) {
-          // Set authentication state in localStorage immediately to prevent unnecessary API calls
-          localStorage.setItem('xeroAuth', 'true');
+          // Set authentication state immediately
           setIsAuthenticated(true);
           
           // Navigate immediately to avoid potential redirect loops
           navigate('/upload', { state: { xeroEnabled: true }, replace: true });
         } else {
-          // Double-check with the server
-          const isAuthenticated = await checkAuth();
-          
-          if (isAuthenticated) {
-            // Force authentication state to true
-            setIsAuthenticated(true);
-            localStorage.setItem('xeroAuth', 'true');
-            
-            // Redirect to upload page with Xero enabled
-            navigate('/upload', { state: { xeroEnabled: true }, replace: true });
-          } else {
-            throw new Error('Authentication failed');
-          }
+          throw new Error('Authentication failed');
         }
       } catch (error) {
         console.error('Xero callback error:', error);
@@ -54,7 +41,7 @@ const XeroCallback = () => {
     };
 
     handleCallback();
-  }, [searchParams, navigate, setIsAuthenticated, checkAuth]);
+  }, [searchParams, navigate, setIsAuthenticated]);
 
   if (error) {
     return (
