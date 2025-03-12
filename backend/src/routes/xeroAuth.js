@@ -8,6 +8,14 @@ import { tokenStore } from '../utils/tokenStore.js';
 const router = express.Router();
 const pendingStates = new Set();
 
+// Define allowed origins list for specific route handling
+const allowedOrigins = [
+  'https://lledgerlink.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002'
+];
+
 // Create the xero client
 const xero = new XeroClient({
   clientId: process.env.XERO_CLIENT_ID,
@@ -141,14 +149,43 @@ async function callXeroApi(url, options = {}) {
   }
 }
 
+// Explicitly handle OPTIONS request for the status endpoint for CORS preflight
+router.options('/xero/status', (req, res) => {
+  const origin = req.headers.origin;
+  console.log('OPTIONS request for /xero/status from:', origin);
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Max-Age', '86400'); // 24 hours
+  }
+  
+  res.status(204).end();
+});
+
 // Check authentication status
-router.get('/xero/status', async (req, res) => {
+router.get('/xero/status', (req, res) => {
   try {
     // Log the request origin for debugging
-    console.log('Status check request origin:', req.headers.origin);
+    const origin = req.headers.origin;
+    console.log('Status check request from origin:', origin);
     
-    const tokens = await tokenStore.getValidTokens();
-    res.json({ isAuthenticated: !!tokens });
+    // Explicitly set CORS headers for this specific route
+    if (allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    }
+    
+    // Add cache control headers to prevent caching
+    res.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.header('Pragma', 'no-cache');
+    res.header('Expires', '0');
+    
+    // Check for token synchronously to avoid race conditions
+    const isAuthenticated = tokenStore.hasTokens();
+    res.json({ isAuthenticated });
   } catch (error) {
     console.error('Error checking authentication status:', error);
     res.status(500).json({
