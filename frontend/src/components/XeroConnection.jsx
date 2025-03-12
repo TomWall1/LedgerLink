@@ -8,7 +8,7 @@ const XeroConnection = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const { isAuthenticated, checkAuth, error: xeroError } = useXero();
+  const { isAuthenticated, checkAuth, error: xeroError, getApiUrl } = useXero();
 
   useEffect(() => {
     // Check the authentication status when component mounts
@@ -61,10 +61,11 @@ const XeroConnection = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+      const apiUrl = getApiUrl();
       
       const response = await axios.get(`${apiUrl}/auth/xero/connect`, {
-        timeout: 10000 // 10 second timeout
+        timeout: 10000, // 10 second timeout
+        withCredentials: true // Add credentials
       });
       
       if (response.data && response.data.authUrl) {
@@ -90,10 +91,11 @@ const XeroConnection = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+      const apiUrl = getApiUrl();
       
       await axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
-        timeout: 10000 // 10 second timeout
+        timeout: 10000, // 10 second timeout
+        withCredentials: true // Add credentials
       });
       
       // Clear local authentication state
