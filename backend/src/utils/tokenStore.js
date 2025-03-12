@@ -44,12 +44,27 @@ class TokenStore {
 
     return this.tokens;
   }
+  
+  // Synchronous check for tokens existence (useful for status check)
+  hasTokens() {
+    if (!this.tokens || !this.expiry) {
+      return false;
+    }
+    
+    // Check if tokens are expired
+    if (new Date() > this.expiry) {
+      return false;
+    }
+    
+    return true;
+  }
 
   // Clear stored tokens
   clearTokens() {
     this.tokens = null;
     this.expiry = null;
     console.log('Tokens cleared from store');
+    return true;
   }
 }
 
