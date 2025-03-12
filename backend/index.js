@@ -10,31 +10,8 @@ dotenv.config();
 
 const app = express();
 
-// Define allowed origins with the exact frontend URL
-const allowedOrigins = [
-  'https://lledgerlink.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002'
-];
-
-// Simpler and more direct CORS configuration
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, origin); // Use the specific origin in the response
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-CSRF-Token', 'X-Auth-Token'],
-  exposedHeaders: ['Content-Type', 'Authorization']
-}));
+// Set up CORS middleware
+app.use(cors());
 
 // Body parsing middleware
 app.use(express.json());
@@ -62,6 +39,11 @@ app.use('/match-data', processRoutes);
 app.use('/link', accountLinkRoutes);
 // Add direct mount for the /api path as well to handle /api/match requests
 app.use('/api', processRoutes);
+
+// Create a simple non-authenticated status endpoint
+app.get('/xero-public-status', (req, res) => {
+  res.json({ serverRunning: true });
+});
 
 // Root endpoint
 app.get('/', (req, res) => {
