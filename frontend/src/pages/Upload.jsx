@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const Upload = () => {
   const [arFile, setArFile] = useState(null);
   const [apFile, setApFile] = useState(null);
+  const [dateFormat1, setDateFormat1] = useState('YYYY-MM-DD');
+  const [dateFormat2, setDateFormat2] = useState('YYYY-MM-DD');
+  const [useHistoricalData, setUseHistoricalData] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const navigate = useNavigate();
 
   const handleARFileChange = (e) => {
@@ -24,20 +29,42 @@ const Upload = () => {
       return;
     }
     
+    if (!apFile) {
+      setError('Please select an AP file');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
+    setUploadProgress(0);
     
     try {
-      // For demo purposes, we'll simulate a successful upload
-      // In production, you would send the files to the backend
+      const formData = new FormData();
+      if (arFile) formData.append('arFile', arFile);
+      if (apFile) formData.append('apFile', apFile);
       
-      // Mock delay to simulate processing
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Add date formats and historical data flag
+      formData.append('dateFormat1', dateFormat1);
+      formData.append('dateFormat2', dateFormat2);
+      formData.append('useHistoricalData', useHistoricalData);
       
-      // Navigate to results page
-      navigate('/results');
+      const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+      
+      const response = await axios.post(`${apiUrl}/api/match`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
+      });
+      
+      // Navigate to results page with the data
+      navigate('/results', { state: { results: response.data } });
     } catch (err) {
-      setError('Error uploading files: ' + err.message);
+      console.error('Error uploading files:', err);
+      setError('Error uploading files: ' + (err.response?.data?.error || err.message));
     } finally {
       setIsLoading(false);
     }
@@ -82,6 +109,19 @@ const Upload = () => {
                   </div>
                 )}
                 
+                <div className="mt-2">
+                  <label className="text-sm text-gray-700 block mb-1">Date format</label>
+                  <select
+                    className="block w-full text-sm border border-gray-300 rounded p-1.5"
+                    value={dateFormat1}
+                    onChange={(e) => setDateFormat1(e.target.value)}
+                  >
+                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                  </select>
+                </div>
+                
                 <p className="text-sm text-gray-500 mt-2">
                   CSV format: Transaction number, Type, Amount, Issue date, Due date, Status, Reference
                 </p>
@@ -114,12 +154,65 @@ const Upload = () => {
                   </div>
                 )}
                 
+                <div className="mt-2">
+                  <label className="text-sm text-gray-700 block mb-1">Date format</label>
+                  <select
+                    className="block w-full text-sm border border-gray-300 rounded p-1.5"
+                    value={dateFormat2}
+                    onChange={(e) => setDateFormat2(e.target.value)}
+                  >
+                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                  </select>
+                </div>
+                
                 <p className="text-sm text-gray-500 mt-2">
                   CSV format: Transaction number, Type, Amount, Issue date, Due date, Status, Reference
                 </p>
               </div>
             </div>
           </div>
+          
+          <div className="mb-6">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="useHistoricalData"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                checked={useHistoricalData}
+                onChange={(e) => setUseHistoricalData(e.target.checked)}
+              />
+              <label htmlFor="useHistoricalData" className="ml-2 block text-sm text-gray-700">
+                Use historical data (if available) for enhanced matching
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 mt-1 ml-6">
+              This will use historical invoice data to help identify previously resolved matches.
+            </p>
+          </div>
+          
+          {isLoading && uploadProgress > 0 && (
+            <div className="mb-4">
+              <div className="relative pt-1">
+                <div className="flex mb-2 items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-600 bg-blue-200">
+                      Uploading
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-semibold inline-block text-blue-600">
+                      {uploadProgress}%
+                    </span>
+                  </div>
+                </div>
+                <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-200">
+                  <div style={{ width: `${uploadProgress}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500"></div>
+                </div>
+              </div>
+            </div>
+          )}
           
           <div className="flex justify-center mt-6">
             <button 
