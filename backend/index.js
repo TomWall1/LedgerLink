@@ -10,7 +10,7 @@ dotenv.config();
 
 const app = express();
 
-// Define allowed origins
+// Define allowed origins with the exact frontend URL
 const allowedOrigins = [
   'https://lledgerlink.vercel.app',
   'http://localhost:3000',
@@ -18,62 +18,23 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
-// Custom CORS middleware
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  // Check if the origin is in our allowed list
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-  } else {
-    // For requests without origin header (like from Postman or curl)
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRF-Token, X-Auth-Token');
-  res.header('Access-Control-Expose-Headers', 'Content-Type, Authorization');
-  
-  if (req.method === 'OPTIONS') {
-    // Pre-flight request
-    return res.status(200).end();
-  }
-  next();
-});
-
-// Configure CORS options for the cors middleware
-const corsOptions = {
+// Simpler and more direct CORS configuration
+app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl requests)
+    // Allow requests with no origin (like mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
+      callback(null, origin); // Use the specific origin in the response
     } else {
-      callback(null, false);
+      callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With',
-    'Content-Type',
-    'Accept',
-    'Authorization',
-    'X-CSRF-Token',
-    'X-Auth-Token'
-  ],
-  exposedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  maxAge: 86400 // Cache preflight requests for 24 hours
-};
-
-// Apply the CORS middleware
-app.use(cors(corsOptions));
-
-// Handle OPTIONS preflight requests
-app.options('*', cors(corsOptions));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-CSRF-Token', 'X-Auth-Token'],
+  exposedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Body parsing middleware
 app.use(express.json());
@@ -84,9 +45,8 @@ app.use((req, res, next) => {
   console.log('Request received:', {
     method: req.method,
     path: req.path,
-    headers: req.headers,
-    query: req.query,
-    body: req.body
+    origin: req.headers.origin,
+    headers: req.headers
   });
   next();
 });
