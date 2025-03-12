@@ -43,7 +43,8 @@ try {
 }
 
 // Process CSV files (Advanced version with direct memory processing)
-router.post('/api/match', upload.fields([
+// Fixed: Changed from '/api/match' to just '/match' since the router is already mounted at '/api'
+router.post('/match', upload.fields([
   { name: 'arFile', maxCount: 1 },
   { name: 'apFile', maxCount: 1 }
 ]), async (req, res) => {
@@ -58,7 +59,7 @@ router.post('/api/match', upload.fields([
     const dateFormat2 = req.body.dateFormat2 || 'YYYY-MM-DD';
 
     // Handle AR data (either from file or Xero)
-    if (req.files.arFile) {
+    if (req.files && req.files.arFile) {
       const arBuffer = req.files.arFile[0].buffer;
       const arCsv = iconv.decode(arBuffer, 'utf-8');
       
@@ -89,13 +90,16 @@ router.post('/api/match', upload.fields([
         throw new Error('Invalid arData format');
       }
     } else {
-      throw new Error('No AR data provided');
+      // Default to empty array if no AR data
+      arData = [];
+      console.log('No AR data provided - using empty array');
     }
 
     // Process AP data
-    if (!req.files.apFile || !req.files.apFile[0]) {
+    if (!req.files || !req.files.apFile || !req.files.apFile[0]) {
       throw new Error('No AP file provided');
     }
+    
     const apBuffer = req.files.apFile[0].buffer;
     const apCsv = iconv.decode(apBuffer, 'utf-8');
     
@@ -278,12 +282,6 @@ function generateMockMatchingResults(arData, apData) {
 router.get('/match', (req, res) => {
   // In a real implementation, this would retrieve saved matching results
   // For now, return mock data
-  const mockResults = generateMockMatchingResults([], []);
-  res.json(mockResults);
-});
-
-// API endpoint for match data
-router.get('/api/match', (req, res) => {
   const mockResults = generateMockMatchingResults([], []);
   res.json(mockResults);
 });
