@@ -149,55 +149,22 @@ async function callXeroApi(url, options = {}) {
   }
 }
 
-// Explicitly handle OPTIONS request for the status endpoint for CORS preflight
-router.options('/xero/status', (req, res) => {
-  const origin = req.headers.origin;
-  console.log('OPTIONS request for /xero/status from:', origin);
-  
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Max-Age', '86400'); // 24 hours
-  }
-  
+// Explicitly handle OPTIONS request for the connect endpoint
+router.options('/xero/connect', (req, res) => {
+  // Allow requests from any origin for this specific endpoint
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
   res.status(204).end();
-});
-
-// Check authentication status
-router.get('/xero/status', (req, res) => {
-  try {
-    // Log the request origin for debugging
-    const origin = req.headers.origin;
-    console.log('Status check request from origin:', origin);
-    
-    // Explicitly set CORS headers for this specific route
-    if (allowedOrigins.includes(origin)) {
-      res.header('Access-Control-Allow-Origin', origin);
-      res.header('Access-Control-Allow-Credentials', 'true');
-    }
-    
-    // Add cache control headers to prevent caching
-    res.header('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.header('Pragma', 'no-cache');
-    res.header('Expires', '0');
-    
-    // Check for token synchronously to avoid race conditions
-    const isAuthenticated = tokenStore.hasTokens();
-    res.json({ isAuthenticated });
-  } catch (error) {
-    console.error('Error checking authentication status:', error);
-    res.status(500).json({
-      error: 'Failed to check authentication status',
-      details: error.message
-    });
-  }
 });
 
 // Initial Xero connection route
 router.get('/xero/connect', async (req, res) => {
   try {
+    // Set CORS headers to allow any origin for this specific endpoint
+    res.header('Access-Control-Allow-Origin', '*'); // This allows requests from any origin
+    
     const state = crypto.randomBytes(16).toString('hex');
     pendingStates.add(state);
     
@@ -211,6 +178,57 @@ router.get('/xero/connect', async (req, res) => {
     console.error('Error generating consent URL:', error);
     res.status(500).json({
       error: 'Failed to initialize Xero connection',
+      details: error.message
+    });
+  }
+});
+
+// Specifically handle the disconnect endpoint similarly
+router.options('/xero/disconnect', (req, res) => {
+  // Allow requests from any origin for this specific endpoint
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
+  res.status(204).end();
+});
+
+// Disconnect from Xero
+router.post('/xero/disconnect', async (req, res) => {
+  try {
+    // Set CORS headers to allow any origin for this specific endpoint
+    res.header('Access-Control-Allow-Origin', '*'); // This allows requests from any origin
+    
+    await tokenStore.clearTokens();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error disconnecting from Xero:', error);
+    res.status(500).json({
+      error: 'Failed to disconnect from Xero',
+      details: error.message
+    });
+  }
+});
+
+// Check authentication status - kept for API compatibility but not used by frontend
+router.get('/xero/status', (req, res) => {
+  try {
+    // Note: The frontend no longer calls this endpoint to avoid CORS issues
+    // We'll return a simple response for API compatibility
+    res.header('Access-Control-Allow-Origin', '*'); // Allow any origin for this endpoint
+    
+    // Add cache control headers to prevent caching
+    res.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.header('Pragma', 'no-cache');
+    res.header('Expires', '0');
+    
+    // Check for token synchronously to avoid race conditions
+    const isAuthenticated = tokenStore.hasTokens();
+    res.json({ isAuthenticated });
+  } catch (error) {
+    console.error('Error checking authentication status:', error);
+    res.status(500).json({
+      error: 'Failed to check authentication status',
       details: error.message
     });
   }
@@ -264,20 +282,6 @@ router.get('/xero/callback', async (req, res) => {
     console.error('Error in Xero callback:', error);
     const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
     res.redirect(`${frontendUrl}/auth/xero/callback?error=${encodeURIComponent(error.message)}`);
-  }
-});
-
-// Disconnect from Xero
-router.post('/xero/disconnect', async (req, res) => {
-  try {
-    await tokenStore.clearTokens();
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error disconnecting from Xero:', error);
-    res.status(500).json({
-      error: 'Failed to disconnect from Xero',
-      details: error.message
-    });
   }
 });
 
