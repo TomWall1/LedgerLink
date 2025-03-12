@@ -144,6 +144,9 @@ async function callXeroApi(url, options = {}) {
 // Check authentication status
 router.get('/xero/status', async (req, res) => {
   try {
+    // Log the request origin for debugging
+    console.log('Status check request origin:', req.headers.origin);
+    
     const tokens = await tokenStore.getValidTokens();
     res.json({ isAuthenticated: !!tokens });
   } catch (error) {
