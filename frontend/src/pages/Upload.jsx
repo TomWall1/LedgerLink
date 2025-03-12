@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { useXero } from '../context/XeroContext';
+import XeroConnection from '../components/XeroConnection';
 
 const Upload = () => {
   const [arFile, setArFile] = useState(null);
@@ -11,7 +13,19 @@ const Upload = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [xeroData, setXeroData] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated } = useXero();
+  
+  // Check if we're coming from Xero connection
+  useEffect(() => {
+    if (location.state?.xeroEnabled && isAuthenticated) {
+      // TODO: Fetch Xero data when enabled
+      console.log('Xero integration enabled');
+      // For now, just log it
+    }
+  }, [location.state, isAuthenticated]);
 
   const handleARFileChange = (e) => {
     setArFile(e.target.files[0]);
@@ -24,8 +38,8 @@ const Upload = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!arFile && !apFile) {
-      setError('Please select at least one file to upload');
+    if (!arFile && !apFile && !xeroData) {
+      setError('Please select at least one file to upload or connect to Xero');
       return;
     }
     
@@ -42,6 +56,11 @@ const Upload = () => {
       const formData = new FormData();
       if (arFile) formData.append('arFile', arFile);
       if (apFile) formData.append('apFile', apFile);
+      
+      // Add Xero data if available
+      if (xeroData) {
+        formData.append('arData', JSON.stringify(xeroData));
+      }
       
       // Add date formats and historical data flag
       formData.append('dateFormat1', dateFormat1);
@@ -99,6 +118,7 @@ const Upload = () => {
                       file:bg-blue-50 file:text-blue-700
                       hover:file:bg-blue-100"
                     onChange={handleARFileChange}
+                    disabled={xeroData !== null}
                   />
                 </label>
                 
@@ -106,6 +126,13 @@ const Upload = () => {
                   <div className="text-sm bg-blue-50 p-2 rounded">
                     <p className="font-medium">{arFile.name}</p>
                     <p className="text-gray-500">{(arFile.size / 1024).toFixed(2)} KB</p>
+                  </div>
+                )}
+                
+                {xeroData && (
+                  <div className="text-sm bg-green-50 p-2 rounded">
+                    <p className="font-medium">Using Xero Data</p>
+                    <p className="text-gray-500">{xeroData.length} records from Xero</p>
                   </div>
                 )}
                 
@@ -235,18 +262,8 @@ const Upload = () => {
         </form>
       </div>
       
-      <div className="mt-8 bg-gray-50 p-6 rounded-lg">
-        <h2 className="text-lg font-semibold mb-4">Connect with Xero</h2>
-        <p className="text-gray-600 mb-4">
-          You can also import your ledger data directly from Xero. This allows for seamless integration without manual CSV exports.
-        </p>
-        <button 
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium"
-          onClick={() => alert('Xero integration would open an authorization window here')}
-        >
-          Connect to Xero
-        </button>
-      </div>
+      {/* Xero Integration */}
+      <XeroConnection />
     </div>
   );
 };
