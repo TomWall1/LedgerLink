@@ -54,25 +54,51 @@ export const XeroProvider = ({ children }) => {
           return false;
         }
         
-        // Create a custom axios instance with specific config for this request
+        // Try the proxy endpoint first to avoid CORS issues
+        try {
+          console.log('Trying proxy endpoint for Xero auth status');
+          // Using relative URL to ensure we're calling our own domain
+          const proxyResponse = await axios.get('/api/xero-status', {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache'
+            }
+          });
+          
+          console.log('Xero proxy authentication status:', proxyResponse.data);
+          setIsAuthenticated(proxyResponse.data.isAuthenticated);
+          
+          // Also update localStorage to keep state consistent
+          if (proxyResponse.data.isAuthenticated) {
+            localStorage.setItem('xeroAuth', 'true');
+          } else {
+            localStorage.removeItem('xeroAuth');
+          }
+          
+          return proxyResponse.data.isAuthenticated;
+        } catch (proxyError) {
+          console.warn('Proxy endpoint failed, falling back to direct API call:', proxyError);
+          // Fall back to direct API call if proxy fails
+        }
+        
+        // Fallback: Try direct API call
+        console.log('Making direct API call to Xero auth status');
         const axiosInstance = axios.create({
           baseURL: getApiUrl(),
           withCredentials: true,
           timeout: 8000
         });
         
-        // Add explicit headers that might help with CORS
         const response = await axiosInstance.get('/auth/xero/status', {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            // Add cache control to prevent caching
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache'
           }
         });
         
-        console.log('Xero authentication status:', response.data);
+        console.log('Xero direct authentication status:', response.data);
         setIsAuthenticated(response.data.isAuthenticated);
         
         // Also update localStorage to keep state consistent
