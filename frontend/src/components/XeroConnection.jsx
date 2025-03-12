@@ -4,33 +4,18 @@ import axios from 'axios';
 import { useXero } from '../context/XeroContext';
 
 const XeroConnection = () => {
-  const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const { isAuthenticated, setIsAuthenticated, error: xeroError, getApiUrl } = useXero();
-
-  useEffect(() => {
-    // Update local state to match context
-    setIsConnected(isAuthenticated);
-  }, [isAuthenticated]);
-
-  // Use the error from XeroContext if available
-  useEffect(() => {
-    if (xeroError) {
-      setError(xeroError);
-    }
-  }, [xeroError]);
+  const { isAuthenticated, setIsAuthenticated, getApiUrl } = useXero();
 
   // For development: mock Xero connection to avoid API calls
   const mockXeroConnect = () => {
     setIsAuthenticated(true);
-    setIsConnected(true);
   };
 
   const mockXeroDisconnect = () => {
     setIsAuthenticated(false);
-    setIsConnected(false);
   };
 
   const handleConnect = async () => {
@@ -43,10 +28,11 @@ const XeroConnection = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const apiUrl = getApiUrl();
       
-      // Get the authorization URL from the server
-      const response = await axios.get(`${apiUrl}/auth/xero/connect`);
+      // Try to get authorization URL without credentials
+      const response = await axios.get(`${getApiUrl()}/auth/xero/connect`, {
+        withCredentials: false // Don't send credentials
+      });
       
       if (response.data && response.data.authUrl) {
         // Redirect to Xero for authentication
@@ -61,36 +47,27 @@ const XeroConnection = () => {
     }
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = () => {
     // For development, use the mock disconnection
     if (process.env.NODE_ENV === 'development') {
       mockXeroDisconnect();
       return;
     }
 
+    // Simply disconnect locally
+    setIsAuthenticated(false);
+    
+    // Try to notify server (but don't require success)
     try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Set the authentication state to false locally
-      // This helps us avoid CORS issues with the server
-      setIsAuthenticated(false);
-      setIsConnected(false);
-      
-      // Try to disconnect from the server if possible
-      try {
-        const apiUrl = getApiUrl();
-        await axios.post(`${apiUrl}/auth/xero/disconnect`);
-      } catch (apiError) {
-        // Even if the server request fails, continue with local disconnect
-        console.warn('Could not notify server about disconnect:', apiError);
-      }
-      
-      setIsLoading(false);
+      const apiUrl = getApiUrl();
+      axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
+        withCredentials: false // Don't send credentials
+      }).catch(err => {
+        console.warn('Failed to notify server about disconnect:', err);
+        // This is non-critical, so we're just logging it
+      });
     } catch (error) {
-      console.error('Error disconnecting from Xero:', error);
-      setError(`Failed to disconnect from Xero: ${error.message}. Please try again.`);
-      setIsLoading(false);
+      console.warn('Error trying to disconnect on server:', error);
     }
   };
 
@@ -126,7 +103,7 @@ const XeroConnection = () => {
       )}
 
       <div className="space-y-6">
-        {!isConnected ? (
+        {!isAuthenticated ? (
           <div>
             <p className="text-gray-600 mb-4">
               Connect your Xero account to import Accounts Receivable data directly from your organization.
