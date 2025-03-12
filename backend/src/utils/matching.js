@@ -58,7 +58,7 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
     // New array to track historical insights for unmatched AP items
     const historicalInsights = [];
     
-    // Array to track date mismatches in otherwise perfect matches
+    // NEW: Array to track date mismatches in otherwise perfect matches
     const dateMismatches = [];
 
     // Calculate totals
@@ -78,7 +78,7 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
           console.log(`Perfect match found for transaction: ${item1.transactionNumber}`);
           perfectMatches.push({ company1: item1, company2: match });
           
-          // Check for date mismatches in perfect matches
+          // NEW: Check for date mismatches in perfect matches
           const dateMismatch = findDateMismatch(item1, match);
           if (dateMismatch) {
             console.log(`Date mismatch found for transaction: ${item1.transactionNumber}`);
@@ -133,8 +133,7 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
           historicalInsights.push({
             apItem: apItem,
             historicalMatch: bestHistoricalMatch,
-            insight: determineHistoricalInsight(apItem, bestHistoricalMatch),
-            linkedAccountId: bestHistoricalMatch.linked_account_id || null
+            insight: determineHistoricalInsight(apItem, bestHistoricalMatch)
           });
         }
       }
@@ -158,7 +157,7 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
       mismatches,
       unmatchedItems,
       historicalInsights,
-      dateMismatches,
+      dateMismatches, // NEW: Include date mismatches in the results
       totals: {
         company1Total,
         company2Total,
@@ -331,11 +330,6 @@ const determineHistoricalInsight = (apItem, historicalItem) => {
     insight.severity = 'info';
   }
   
-  // Add linked account info if available
-  if (historicalItem.linked_account_id) {
-    insight.message += ` (Linked Account ID: ${historicalItem.linked_account_id})`;
-  }
-  
   return insight;
 };
 
@@ -402,9 +396,7 @@ const normalizeData = (data, dateFormat) => {
       // Add part payment fields
       is_partially_paid: record.is_partially_paid || false,
       original_amount: parseAmount(record.original_amount || record.amount),
-      amount_paid: parseAmount(record.amount_paid || 0),
-      // Add linked account ID if available
-      linked_account_id: record.linked_account_id || null
+      amount_paid: parseAmount(record.amount_paid || 0)
     };
     
     return normalized;
@@ -545,3 +537,5 @@ const removeFromUnmatched = (unmatchedItems, item1, item2) => {
     return JSON.stringify(item) !== JSON.stringify(item2);
   });
 };
+
+export default matchRecords;
