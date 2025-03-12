@@ -21,88 +21,23 @@ export const XeroProvider = ({ children }) => {
     // Only do the initial auth check once
     if (!initialCheckDone.current) {
       initialCheckDone.current = true;
-      checkApiConnection(); // First check if the API is reachable
-      checkAuth(); // Then check authentication
-    }
-  }, []);
-  
-  // Check if the API is reachable at all
-  const checkApiConnection = async () => {
-    try {
-      // Simple connectivity check without credentials
-      const response = await axios.get(`${getApiUrl()}/xero-public-status`);
-      console.log('API connectivity check:', response.data);
-      return true;
-    } catch (error) {
-      console.error('API connectivity check failed:', error);
-      setError('Unable to connect to the LedgerLink server. Please try again later.');
-      return false;
-    }
-  };
-
-  const checkAuth = async () => {
-    // Prevent multiple simultaneous auth checks
-    if (isCheckingAuth) return isAuthenticated;
-    
-    try {
-      setIsCheckingAuth(true);
-      setLoading(true);
-      
-      // First try to get from localStorage to avoid unnecessary API calls
+      // Check the local auth state only - don't try to connect to server yet
       const storedAuth = localStorage.getItem('xeroAuth') === 'true';
-      if (storedAuth) {
-        setIsAuthenticated(true);
-        setLoading(false);
-        setIsCheckingAuth(false);
-        return true;
-      }
-      
-      // For development, always return false to avoid API calls
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Development mode: Skipping Xero API call');
-        setIsAuthenticated(false);
-        localStorage.removeItem('xeroAuth');
-        setLoading(false);
-        setIsCheckingAuth(false);
-        return false;
-      }
-      
-      // For now, let's rely on localStorage only due to CORS issues
-      // This simplifies the authentication flow
       setIsAuthenticated(storedAuth);
       setLoading(false);
-      setIsCheckingAuth(false);
-      return storedAuth;
-      
-      // When we're ready to re-enable server authentication checks, uncomment this:
-      /*
-      try {
-        const response = await axios.get(`${getApiUrl()}/auth/xero/status`);
-        setIsAuthenticated(response.data.isAuthenticated);
-        
-        if (response.data.isAuthenticated) {
-          localStorage.setItem('xeroAuth', 'true');
-        } else {
-          localStorage.removeItem('xeroAuth');
-        }
-        
-        return response.data.isAuthenticated;
-      } catch (error) {
-        console.error('Error fetching auth status:', error);
-        return storedAuth;
-      }
-      */
-    } catch (error) {
-      console.error('Error checking Xero auth:', error);
-      setError(`Authentication error: ${error.message}`);
-      setLoading(false);
-      setIsCheckingAuth(false);
-      return false;
     }
+  }, []);
+
+  // This function is only used internally
+  const checkAuth = async () => {
+    // Just check local storage and return the value
+    // We're not making server calls due to CORS issues
+    const storedAuth = localStorage.getItem('xeroAuth') === 'true';
+    return storedAuth;
   };
 
-  // Function to manually set authentication state
-  const setAuthenticated = (value) => {
+  // Function to set authentication state
+  const setAuth = (value) => {
     if (value) {
       localStorage.setItem('xeroAuth', 'true');
     } else {
@@ -113,8 +48,8 @@ export const XeroProvider = ({ children }) => {
 
   return (
     <XeroContext.Provider value={{
-      isAuthenticated,
-      setIsAuthenticated: setAuthenticated,
+      isAuthenticated, 
+      setIsAuthenticated: setAuth,
       customerData,
       setCustomerData,
       checkAuth,
