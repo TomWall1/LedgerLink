@@ -1,6 +1,7 @@
 {
+    "outputDirectory": "build",
     "rewrites": [
-        { "source": "/api/(.*)", "destination": "/api/$1" },
+        { "source": "/api/:path*", "destination": "/api/:path*" },
         { "source": "/(.*)", "destination": "/index.html" }
     ],
     "headers": [
@@ -13,5 +14,10 @@
                 { "key": "Access-Control-Allow-Headers", "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" }
             ]
         }
+    ],
+    "routes": [
+        { "src": "/api/(.*)", "dest": "/api/$1" },
+        { "handle": "filesystem" },
+        { "src": "/(.*)", "dest": "/index.html" }
     ]
 }
