@@ -10,9 +10,27 @@ dotenv.config();
 
 const app = express();
 
-// CORS middleware - Allow all origins in development for troubleshooting
+// Define allowed origins
+const allowedOrigins = [
+  'https://lledgerlink.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002'
+];
+
+// Custom CORS middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  
+  // Check if the origin is in our allowed list
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  } else {
+    // For requests without origin header (like from Postman or curl)
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRF-Token, X-Auth-Token');
   res.header('Access-Control-Expose-Headers', 'Content-Type, Authorization');
@@ -24,9 +42,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// Standard CORS configuration - keep as fallback
+// Configure CORS options for the cors middleware
 const corsOptions = {
-  origin: '*', // Allow all origins temporarily to fix CORS issues
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Origin',
@@ -42,7 +69,7 @@ const corsOptions = {
   maxAge: 86400 // Cache preflight requests for 24 hours
 };
 
-// Regular CORS middleware
+// Apply the CORS middleware
 app.use(cors(corsOptions));
 
 // Handle OPTIONS preflight requests
