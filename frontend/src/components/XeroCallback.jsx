@@ -7,7 +7,7 @@ const XeroCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState(null);
-  const { setIsAuthenticated, checkAuth } = useXero();
+  const { setIsAuthenticated, checkAuth, getApiUrl } = useXero();
   const handledCallback = useRef(false);
 
   useEffect(() => {
