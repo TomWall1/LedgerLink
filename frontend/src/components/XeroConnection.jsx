@@ -8,26 +8,12 @@ const XeroConnection = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const { isAuthenticated, checkAuth, error: xeroError, getApiUrl } = useXero();
+  const { isAuthenticated, setIsAuthenticated, error: xeroError, getApiUrl } = useXero();
 
   useEffect(() => {
-    // Check the authentication status when component mounts
-    const checkConnection = async () => {
-      setIsLoading(true);
-      try {
-        // Use the context's checkAuth function to verify status with the server
-        const authStatus = await checkAuth();
-        setIsConnected(authStatus || isAuthenticated);
-      } catch (error) {
-        console.error('Error checking connection:', error);
-        setError('Failed to check Xero connection status');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkConnection();
-  }, [checkAuth, isAuthenticated]);
+    // Update local state to match context
+    setIsConnected(isAuthenticated);
+  }, [isAuthenticated]);
 
   // Use the error from XeroContext if available
   useEffect(() => {
@@ -38,17 +24,13 @@ const XeroConnection = () => {
 
   // For development: mock Xero connection to avoid API calls
   const mockXeroConnect = () => {
-    // Set a local storage flag
-    localStorage.setItem('xeroAuth', 'true');
-    // Reload to update state
-    window.location.reload();
+    setIsAuthenticated(true);
+    setIsConnected(true);
   };
 
   const mockXeroDisconnect = () => {
-    // Remove local storage flag
-    localStorage.removeItem('xeroAuth');
-    // Reload to update state
-    window.location.reload();
+    setIsAuthenticated(false);
+    setIsConnected(false);
   };
 
   const handleConnect = async () => {
@@ -63,12 +45,11 @@ const XeroConnection = () => {
       setError(null);
       const apiUrl = getApiUrl();
       
-      const response = await axios.get(`${apiUrl}/auth/xero/connect`, {
-        timeout: 10000, // 10 second timeout
-        withCredentials: true // Add credentials
-      });
+      // Get the authorization URL from the server
+      const response = await axios.get(`${apiUrl}/auth/xero/connect`);
       
       if (response.data && response.data.authUrl) {
+        // Redirect to Xero for authentication
         window.location.href = response.data.authUrl;
       } else {
         throw new Error('No authorization URL received from server');
@@ -76,7 +57,6 @@ const XeroConnection = () => {
     } catch (error) {
       console.error('Error connecting to Xero:', error);
       setError(`Failed to connect to Xero: ${error.message}. Please try again.`);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -91,23 +71,25 @@ const XeroConnection = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const apiUrl = getApiUrl();
       
-      await axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
-        timeout: 10000, // 10 second timeout
-        withCredentials: true // Add credentials
-      });
-      
-      // Clear local authentication state
-      localStorage.removeItem('xeroAuth');
+      // Set the authentication state to false locally
+      // This helps us avoid CORS issues with the server
+      setIsAuthenticated(false);
       setIsConnected(false);
       
-      // Refresh the page to ensure all components update
-      window.location.reload();
+      // Try to disconnect from the server if possible
+      try {
+        const apiUrl = getApiUrl();
+        await axios.post(`${apiUrl}/auth/xero/disconnect`);
+      } catch (apiError) {
+        // Even if the server request fails, continue with local disconnect
+        console.warn('Could not notify server about disconnect:', apiError);
+      }
+      
+      setIsLoading(false);
     } catch (error) {
       console.error('Error disconnecting from Xero:', error);
       setError(`Failed to disconnect from Xero: ${error.message}. Please try again.`);
-    } finally {
       setIsLoading(false);
     }
   };
