@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useXero } from '../context/XeroContext';
 
 const XeroConnection = () => {
@@ -35,27 +36,42 @@ const XeroConnection = () => {
     }
   }, [xeroError]);
 
+  // For development: mock Xero connection to avoid API calls
+  const mockXeroConnect = () => {
+    // Set a local storage flag
+    localStorage.setItem('xeroAuth', 'true');
+    // Reload to update state
+    window.location.reload();
+  };
+
+  const mockXeroDisconnect = () => {
+    // Remove local storage flag
+    localStorage.removeItem('xeroAuth');
+    // Reload to update state
+    window.location.reload();
+  };
+
   const handleConnect = async () => {
+    // For development, use the mock connection
+    if (process.env.NODE_ENV === 'development') {
+      mockXeroConnect();
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
       const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
       
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      const response = await fetch(`${apiUrl}/auth/xero/connect`, {
-        signal: controller.signal
+      const response = await axios.get(`${apiUrl}/auth/xero/connect`, {
+        timeout: 10000 // 10 second timeout
       });
       
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to initiate Xero connection: ${response.status} ${response.statusText}`);
+      if (response.data && response.data.authUrl) {
+        window.location.href = response.data.authUrl;
+      } else {
+        throw new Error('No authorization URL received from server');
       }
-
-      const data = await response.json();
-      window.location.href = data.authUrl;
     } catch (error) {
       console.error('Error connecting to Xero:', error);
       setError(`Failed to connect to Xero: ${error.message}. Please try again.`);
@@ -65,25 +81,21 @@ const XeroConnection = () => {
   };
 
   const handleDisconnect = async () => {
+    // For development, use the mock disconnection
+    if (process.env.NODE_ENV === 'development') {
+      mockXeroDisconnect();
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
       const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
       
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      const response = await fetch(`${apiUrl}/auth/xero/disconnect`, {
-        method: 'POST',
-        signal: controller.signal
+      await axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
+        timeout: 10000 // 10 second timeout
       });
       
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to disconnect from Xero: ${response.status} ${response.statusText}`);
-      }
-
       // Clear local authentication state
       localStorage.removeItem('xeroAuth');
       setIsConnected(false);
@@ -152,6 +164,13 @@ const XeroConnection = () => {
                 <>Connect to Xero</>
               )}
             </button>
+            
+            {/* Only show this message in development mode */}
+            {process.env.NODE_ENV === 'development' && (
+              <p className="text-xs text-gray-400 mt-2">
+                Running in development mode. Xero connection will be simulated locally.
+              </p>
+            )}
           </div>
         ) : (
           <div>
@@ -176,6 +195,13 @@ const XeroConnection = () => {
                 {isLoading ? 'Disconnecting...' : 'Disconnect'}
               </button>
             </div>
+            
+            {/* Only show this message in development mode */}
+            {process.env.NODE_ENV === 'development' && (
+              <p className="text-xs text-gray-400 mt-2">
+                Running in development mode. Xero connection is simulated locally.
+              </p>
+            )}
           </div>
         )}
       </div>
