@@ -1,43 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { useXero } from '../context/XeroContext';
 
-const XeroConnection = ({ onDataReceived, onError, company1Data, setCompany1Data }) => {
+const XeroConnection = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [tenantId, setTenantId] = useState('');
-  const [tenants, setTenants] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('invoices');
-  
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+  const { isAuthenticated, checkAuth, error: xeroError } = useXero();
 
   useEffect(() => {
-    // Check if already authenticated with Xero
-    const checkAuth = async () => {
+    // Check the authentication status when component mounts
+    const checkConnection = async () => {
+      setIsLoading(true);
       try {
-        const response = await axios.get(`${apiUrl}/auth/xero/status`);
-        if (response.data.authenticated) {
-          setIsConnected(true);
-          setTenants(response.data.tenants || []);
-          if (response.data.tenants && response.data.tenants.length > 0) {
-            setTenantId(response.data.tenants[0].tenantId);
-          }
-        }
+        // Use the context's checkAuth function to verify status with the server
+        const authStatus = await checkAuth();
+        setIsConnected(authStatus || isAuthenticated);
       } catch (error) {
-        console.error('Error checking Xero authentication status:', error);
+        console.error('Error checking connection:', error);
+        setError('Failed to check Xero connection status');
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    checkAuth();
-  }, [apiUrl]);
+    checkConnection();
+  }, [checkAuth, isAuthenticated]);
+
+  // Use the error from XeroContext if available
+  useEffect(() => {
+    if (xeroError) {
+      setError(xeroError);
+    }
+  }, [xeroError]);
 
   const handleConnect = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get(`${apiUrl}/auth/xero/auth-url`);
-      window.location.href = response.data.url;
+      setError(null);
+      const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(`${apiUrl}/auth/xero/connect`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to initiate Xero connection: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      window.location.href = data.authUrl;
     } catch (error) {
-      console.error('Error getting Xero auth URL:', error);
-      onError('Failed to connect to Xero: ' + (error.response?.data?.error || error.message));
+      console.error('Error connecting to Xero:', error);
+      setError(`Failed to connect to Xero: ${error.message}. Please try again.`);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -45,156 +67,118 @@ const XeroConnection = ({ onDataReceived, onError, company1Data, setCompany1Data
   const handleDisconnect = async () => {
     try {
       setIsLoading(true);
-      await axios.get(`${apiUrl}/auth/xero/disconnect`);
+      setError(null);
+      const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(`${apiUrl}/auth/xero/disconnect`, {
+        method: 'POST',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to disconnect from Xero: ${response.status} ${response.statusText}`);
+      }
+
+      // Clear local authentication state
+      localStorage.removeItem('xeroAuth');
       setIsConnected(false);
-      setTenants([]);
-      setTenantId('');
-      setCompany1Data(null);
-      setIsLoading(false);
+      
+      // Refresh the page to ensure all components update
+      window.location.reload();
     } catch (error) {
       console.error('Error disconnecting from Xero:', error);
-      onError('Failed to disconnect from Xero: ' + (error.response?.data?.error || error.message));
+      setError(`Failed to disconnect from Xero: ${error.message}. Please try again.`);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const fetchXeroData = async () => {
-    if (!tenantId) {
-      onError('Please select an organization first');
-      return;
-    }
+  const handleContinue = () => {
+    navigate('/upload', { state: { xeroEnabled: true } });
+  };
 
-    try {
-      setIsLoading(true);
-      const response = await axios.get(`${apiUrl}/auth/xero/${selectedCategory}?tenantId=${tenantId}`);
-      
-      let formattedData = [];
-      
-      if (selectedCategory === 'invoices') {
-        // Format invoice data to match our expected format
-        formattedData = response.data.invoices.map(invoice => ({
-          transaction_number: invoice.invoiceNumber,
-          transaction_type: invoice.type,
-          amount: invoice.total,
-          issue_date: invoice.date,
-          due_date: invoice.dueDate,
-          status: invoice.status,
-          reference: invoice.reference || '',
-          linked_account_id: invoice.contact?.contactID || null
-        }));
-      } else if (selectedCategory === 'contacts') {
-        // Format contacts data
-        formattedData = response.data.contacts;
-      }
-      
-      setCompany1Data(formattedData);
-      onDataReceived(formattedData);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error fetching data from Xero:', error);
-      onError('Failed to fetch data from Xero: ' + (error.response?.data?.error || error.message));
-      setIsLoading(false);
-    }
+  const handleTryAgain = () => {
+    setError(null);
+    window.location.reload();
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-      <h2 className="text-xl font-semibold mb-4">Xero Connection</h2>
+    <div className="bg-white rounded-lg shadow-md p-6 my-4">
+      <h2 className="text-xl font-semibold mb-4">Xero Integration</h2>
       
-      {isLoading ? (
-        <div className="flex justify-center my-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
-      ) : isConnected ? (
-        <div>
-          <div className="mb-4 flex items-center text-green-600">
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <div className="flex items-center mb-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
-            <span>Connected to Xero</span>
+            <span className="font-medium">Connection Error</span>
           </div>
-          
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select Organization
-            </label>
-            <select
-              className="w-full p-2 border rounded"
-              value={tenantId}
-              onChange={(e) => setTenantId(e.target.value)}
-            >
-              <option value="">Select an organization</option>
-              {tenants.map((tenant) => (
-                <option key={tenant.tenantId} value={tenant.tenantId}>
-                  {tenant.tenantName}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select Data Type
-            </label>
-            <div className="flex">
-              <button
-                className={`px-4 py-2 rounded-l ${selectedCategory === 'invoices' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-                onClick={() => setSelectedCategory('invoices')}
-              >
-                Invoices
-              </button>
-              <button
-                className={`px-4 py-2 rounded-r ${selectedCategory === 'contacts' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-                onClick={() => setSelectedCategory('contacts')}
-              >
-                Contacts
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={fetchXeroData}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-              disabled={!tenantId}
-            >
-              Fetch {selectedCategory === 'invoices' ? 'Invoices' : 'Contacts'}
-            </button>
-            
-            <button
-              onClick={handleDisconnect}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded"
-            >
-              Disconnect
-            </button>
-          </div>
-          
-          {company1Data && (
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
-              <div className="flex items-center text-green-700">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="font-medium">
-                  {company1Data.length} records loaded from Xero
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div>
-          <p className="mb-4 text-gray-600">
-            Connect to your Xero account to import AR ledger data directly.
-          </p>
-          <button
-            onClick={handleConnect}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+          <p>{error}</p>
+          <button 
+            onClick={handleTryAgain}
+            className="mt-2 px-3 py-1 bg-red-100 text-red-800 rounded-md hover:bg-red-200 transition-colors text-sm"
           >
-            Connect to Xero
+            Try Again
           </button>
         </div>
       )}
+
+      <div className="space-y-6">
+        {!isConnected ? (
+          <div>
+            <p className="text-gray-600 mb-4">
+              Connect your Xero account to import Accounts Receivable data directly from your organization.
+            </p>
+            <button
+              onClick={handleConnect}
+              disabled={isLoading}
+              className={`flex items-center px-4 py-2 rounded-lg transition-colors ${isLoading ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white font-medium`}
+            >
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Connecting to Xero...
+                </>
+              ) : (
+                <>Connect to Xero</>
+              )}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center text-green-600 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              Connected to Xero
+            </div>
+            <div className="flex space-x-4">
+              <button
+                onClick={handleContinue}
+                className="flex items-center px-4 py-2 rounded-lg transition-colors bg-blue-600 hover:bg-blue-700 text-white font-medium"
+              >
+                Use Xero Data
+              </button>
+              <button
+                onClick={handleDisconnect}
+                disabled={isLoading}
+                className={`flex items-center px-4 py-2 rounded-lg transition-colors ${isLoading ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white font-medium`}
+              >
+                {isLoading ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
