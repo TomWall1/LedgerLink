@@ -12,6 +12,11 @@ export const XeroProvider = ({ children }) => {
   // Use a ref to track if we've already performed the initial check
   const initialCheckDone = useRef(false);
 
+  // Get the API URL once to ensure consistency
+  const getApiUrl = () => {
+    return process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+  };
+
   useEffect(() => {
     // Only do the initial auth check once
     if (!initialCheckDone.current) {
@@ -49,7 +54,7 @@ export const XeroProvider = ({ children }) => {
           return false;
         }
         
-        const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+        const apiUrl = getApiUrl();
         const response = await axios.get(`${apiUrl}/auth/xero/status`, {
           timeout: 8000, // 8 second timeout
           withCredentials: true // Include cookies if any
@@ -102,7 +107,8 @@ export const XeroProvider = ({ children }) => {
       setCustomerData,
       checkAuth,
       loading,
-      error
+      error,
+      getApiUrl
     }}>
       {children}
     </XeroContext.Provider>
