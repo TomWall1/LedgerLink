@@ -28,6 +28,7 @@ const XeroCallback = () => {
       // Handle error
       setStatus('Authentication failed');
       setError(decodeURIComponent(error));
+      console.log('Xero callback error:', new Error(decodeURIComponent(error)));
     }
   }, [router.isReady, router.query]);
   
@@ -43,6 +44,11 @@ const XeroCallback = () => {
               <h1 className="text-xl font-semibold">{status}</h1>
             </div>
             <p className="mb-6 text-gray-600">{error}</p>
+            <div className="flex justify-center">
+              <Link href="/" className="text-blue-600 hover:underline">
+                Return to Homepage
+              </Link>
+            </div>
           </>
         ) : (
           <>
@@ -53,14 +59,13 @@ const XeroCallback = () => {
               <h1 className="text-xl font-semibold">{status}</h1>
             </div>
             <p className="mb-6 text-gray-600">You'll be redirected automatically to continue working with your Xero data.</p>
+            <div className="flex justify-center">
+              <Link href="/upload" className="text-blue-600 hover:underline">
+                Go to Upload Page
+              </Link>
+            </div>
           </>
         )}
-        
-        <div className="flex justify-center">
-          <Link href="/" className="text-blue-600 hover:underline">
-            Return to Homepage
-          </Link>
-        </div>
       </div>
     </div>
   );
