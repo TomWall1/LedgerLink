@@ -12,6 +12,37 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>LedgerLink - Account Reconciliation System</title>
+    <style>
+      /* Direct style overrides to confirm deployment is working */
+      :root {
+        --primary-color: #1B365D;
+        --secondary-color: #00A4B4;
+        --accent-color: #13B5EA;
+        --text-color: #647789;
+      }
+      
+      .bg-blue-600, .bg-blue-500, .bg-blue-700 {
+        background-color: var(--primary-color) !important;
+      }
+      
+      .bg-green-600, .bg-green-700 {
+        background-color: var(--secondary-color) !important;
+      }
+      
+      .text-gray-600 {
+        color: var(--text-color) !important;
+      }
+      
+      .hover\:bg-blue-700:hover {
+        background-color: var(--primary-color) !important;
+        opacity: 0.9 !important;
+      }
+      
+      .hover\:bg-green-700:hover {
+        background-color: var(--secondary-color) !important;
+        opacity: 0.9 !important;
+      }
+    </style>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
