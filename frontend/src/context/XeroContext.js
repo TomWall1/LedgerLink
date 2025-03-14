@@ -12,9 +12,14 @@ export const XeroProvider = ({ children }) => {
   // Use a ref to track if we've already performed the initial check
   const initialCheckDone = useRef(false);
 
-  // Get the API URL once to ensure consistency
+  // Get the API URL based on environment
   const getApiUrl = () => {
-    return process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+    // For production
+    if (process.env.NODE_ENV === 'production') {
+      return 'https://ledgerlink.onrender.com';
+    }
+    // For development - use local server
+    return 'http://localhost:3002';
   };
 
   useEffect(() => {
@@ -28,12 +33,40 @@ export const XeroProvider = ({ children }) => {
     }
   }, []);
 
-  // This function is only used internally
+  // This function is used to check authentication status with the server
   const checkAuth = async () => {
-    // Just check local storage and return the value
-    // We're not making server calls due to CORS issues
-    const storedAuth = localStorage.getItem('xeroAuth') === 'true';
-    return storedAuth;
+    try {
+      setIsCheckingAuth(true);
+      const apiUrl = getApiUrl();
+      
+      // Try connecting through Vercel proxy first
+      try {
+        const response = await axios.get('/api/xero-status', {
+          timeout: 5000 // 5 second timeout
+        });
+        
+        setIsAuthenticated(!!response.data.isAuthenticated);
+        setIsCheckingAuth(false);
+        return response.data.isAuthenticated;
+      } catch (err) {
+        console.warn('Proxy endpoint failed, falling back to direct API call:', err);
+        
+        // Fall back to direct API call
+        console.log('Making direct API call to Xero auth status');
+        const directResponse = await axios.get(`${apiUrl}/auth/xero/status`, {
+          withCredentials: false
+        });
+        
+        setIsAuthenticated(!!directResponse.data.isAuthenticated);
+        setIsCheckingAuth(false);
+        return directResponse.data.isAuthenticated;
+      }
+    } catch (error) {
+      console.error('Error checking auth status:', error);
+      setError(error.message);
+      setIsCheckingAuth(false);
+      return false;
+    }
   };
 
   // Function to set authentication state
