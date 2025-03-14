@@ -1,7 +1,8 @@
 /**
- * Simple token store for Xero authentication tokens
+ * Token store for Xero authentication tokens with refresh capability
  * In a production environment, you would use a database or secure storage solution
  */
+import fetch from 'node-fetch';
 
 class TokenStore {
   constructor() {
@@ -28,21 +29,73 @@ class TokenStore {
 
   // Get valid tokens or null if expired/not available
   async getValidTokens() {
-    if (!this.tokens || !this.expiry) {
+    if (!this.tokens) {
       console.log('No tokens available in store');
       return null;
     }
 
     // Check if tokens are expired
     if (new Date() > this.expiry) {
-      console.log('Tokens have expired');
+      console.log('Tokens have expired, attempting to refresh');
       
-      // In a real implementation, you would refresh the tokens here
-      // For simplicity, we'll just return null
+      // Try to refresh the token
+      if (this.tokens.refresh_token) {
+        const refreshed = await this.refreshTokens();
+        if (refreshed) {
+          return this.tokens;
+        }
+      }
+      
+      console.log('Token refresh failed or no refresh token available');
       return null;
     }
 
     return this.tokens;
+  }
+  
+  // Attempt to refresh the tokens
+  async refreshTokens() {
+    if (!this.tokens || !this.tokens.refresh_token) {
+      return false;
+    }
+    
+    try {
+      console.log('Refreshing Xero token...');
+      
+      const response = await fetch('https://identity.xero.com/connect/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': 'Basic ' + Buffer.from(
+            `${process.env.XERO_CLIENT_ID}:${process.env.XERO_CLIENT_SECRET}`
+          ).toString('base64')
+        },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: this.tokens.refresh_token
+        }).toString()
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Token refresh failed:', errorText);
+        return false;
+      }
+
+      const newTokens = await response.json();
+      console.log('Token refresh successful:', {
+        hasAccessToken: !!newTokens.access_token,
+        hasRefreshToken: !!newTokens.refresh_token,
+        expiresIn: newTokens.expires_in
+      });
+
+      // Save the new tokens
+      this.saveTokens(newTokens);
+      return true;
+    } catch (error) {
+      console.error('Error refreshing tokens:', error);
+      return false;
+    }
   }
   
   // Synchronous check for tokens existence (useful for status check)
