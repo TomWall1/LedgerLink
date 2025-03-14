@@ -149,22 +149,16 @@ async function callXeroApi(url, options = {}) {
   }
 }
 
-// Options handler for preflight requests
-router.options('*', (req, res) => {
-  // Allow any origin for now to debug CORS issues
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.status(204).end();
-});
-
 // Initial Xero connection route
 router.get('/xero/connect', async (req, res) => {
   try {
     // CORS - Allow the request from any origin temporarily for debugging
+    // Note: The main app middleware now handles CORS, but we're adding these headers
+    // to ensure they're applied to this specific route
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
     
     // Generate a random state for security
     const state = crypto.randomBytes(16).toString('hex');
@@ -196,10 +190,11 @@ router.get('/xero/connect', async (req, res) => {
 // Disconnect from Xero
 router.post('/xero/disconnect', async (req, res) => {
   try {
-    // CORS - Allow the request from any origin temporarily for debugging
+    // CORS - headers added redundantly for this route
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
     
     await tokenStore.clearTokens();
     res.json({ success: true });
@@ -215,10 +210,11 @@ router.post('/xero/disconnect', async (req, res) => {
 // Check authentication status
 router.get('/xero/status', (req, res) => {
   try {
-    // CORS - Allow the request from any origin temporarily for debugging
+    // CORS - headers added redundantly for this route
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
     
     // Add cache control headers to prevent caching
     res.header('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -235,6 +231,16 @@ router.get('/xero/status', (req, res) => {
       details: error.message
     });
   }
+});
+
+// Options handler for preflight requests
+router.options('*', (req, res) => {
+  // Allow any origin for now to debug CORS issues
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(204).end();
 });
 
 // Xero OAuth callback route
