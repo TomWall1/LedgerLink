@@ -18,9 +18,10 @@ const XeroConnection = () => {
     setIsAuthenticated(false);
   };
 
+  // Function to handle the Xero connection
   const handleConnect = async () => {
     // For development, use the mock connection
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_MOCK_XERO === 'true') {
       mockXeroConnect();
       return;
     }
@@ -29,42 +30,69 @@ const XeroConnection = () => {
       setIsLoading(true);
       setError(null);
       
-      // Try to get authorization URL without credentials
-      const response = await axios.get(`${getApiUrl()}/auth/xero/connect`, {
-        withCredentials: false // Don't send credentials
+      // Get the API URL from context
+      const apiUrl = getApiUrl();
+      console.log('Connecting to Xero using API URL:', apiUrl);
+      
+      // Try to get authorization URL
+      try {
+        // First try through the Vercel serverless function if available
+        const response = await axios.get('/api/xero-connect');
+        
+        if (response.data && response.data.authUrl) {
+          // Redirect to Xero for authentication
+          console.log('Redirecting to Xero auth URL from proxy endpoint');
+          window.location.href = response.data.authUrl;
+          return;
+        }
+      } catch (err) {
+        console.log('Proxy endpoint not available or failed, trying direct API call:', err);
+      }
+      
+      // Fall back to direct API call
+      const directResponse = await axios.get(`${apiUrl}/auth/xero/connect`, {
+        withCredentials: false
       });
       
-      if (response.data && response.data.authUrl) {
+      if (directResponse.data && directResponse.data.authUrl) {
         // Redirect to Xero for authentication
-        window.location.href = response.data.authUrl;
+        console.log('Redirecting to Xero auth URL from direct endpoint');
+        window.location.href = directResponse.data.authUrl;
       } else {
         throw new Error('No authorization URL received from server');
       }
     } catch (error) {
       console.error('Error connecting to Xero:', error);
-      setError(`Failed to connect to Xero: ${error.message}. Please try again.`);
+      setError(`Failed to connect to Xero: ${error.message || 'Unknown error'}. Please try again.`);
       setIsLoading(false);
     }
   };
 
   const handleDisconnect = () => {
     // For development, use the mock disconnection
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_MOCK_XERO === 'true') {
       mockXeroDisconnect();
       return;
     }
 
-    // Simply disconnect locally
+    // Simply disconnect locally first
     setIsAuthenticated(false);
     
     // Try to notify server (but don't require success)
     try {
       const apiUrl = getApiUrl();
-      axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
-        withCredentials: false // Don't send credentials
-      }).catch(err => {
-        console.warn('Failed to notify server about disconnect:', err);
-        // This is non-critical, so we're just logging it
+      
+      // Try proxy endpoint first
+      axios.post('/api/xero-disconnect', {}).catch(err => {
+        console.warn('Failed to notify proxy endpoint about disconnect, trying direct endpoint:', err);
+        
+        // Fall back to direct API call
+        axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
+          withCredentials: false
+        }).catch(err => {
+          console.warn('Failed to notify server about disconnect:', err);
+          // This is non-critical, so we're just logging it
+        });
       });
     } catch (error) {
       console.warn('Error trying to disconnect on server:', error);
@@ -127,9 +155,9 @@ const XeroConnection = () => {
             </button>
             
             {/* Only show this message in development mode */}
-            {process.env.NODE_ENV === 'development' && (
+            {process.env.NODE_ENV === 'development' && process.env.REACT_APP_MOCK_XERO === 'true' && (
               <p className="text-xs text-gray-400 mt-2">
-                Running in development mode. Xero connection will be simulated locally.
+                Running in development mode with mock enabled. Xero connection will be simulated locally.
               </p>
             )}
           </div>
@@ -158,9 +186,9 @@ const XeroConnection = () => {
             </div>
             
             {/* Only show this message in development mode */}
-            {process.env.NODE_ENV === 'development' && (
+            {process.env.NODE_ENV === 'development' && process.env.REACT_APP_MOCK_XERO === 'true' && (
               <p className="text-xs text-gray-400 mt-2">
-                Running in development mode. Xero connection is simulated locally.
+                Running in development mode with mock enabled. Xero connection is simulated locally.
               </p>
             )}
           </div>
