@@ -34,24 +34,9 @@ const XeroConnection = () => {
       const apiUrl = getApiUrl();
       console.log('Connecting to Xero using API URL:', apiUrl);
       
-      // Try to get authorization URL
-      try {
-        // First try through the Vercel serverless function if available
-        const response = await axios.get('/api/xero-connect');
-        
-        if (response.data && response.data.authUrl) {
-          // Redirect to Xero for authentication
-          console.log('Redirecting to Xero auth URL from proxy endpoint');
-          window.location.href = response.data.authUrl;
-          return;
-        }
-      } catch (err) {
-        console.log('Proxy endpoint not available or failed, trying direct API call:', err);
-      }
-      
-      // Fall back to direct API call
+      // Make direct API call with no credentials
       const directResponse = await axios.get(`${apiUrl}/auth/xero/connect`, {
-        withCredentials: false
+        withCredentials: false // IMPORTANT: Don't send credentials
       });
       
       if (directResponse.data && directResponse.data.authUrl) {
@@ -82,17 +67,12 @@ const XeroConnection = () => {
     try {
       const apiUrl = getApiUrl();
       
-      // Try proxy endpoint first
-      axios.post('/api/xero-disconnect', {}).catch(err => {
-        console.warn('Failed to notify proxy endpoint about disconnect, trying direct endpoint:', err);
-        
-        // Fall back to direct API call
-        axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
-          withCredentials: false
-        }).catch(err => {
-          console.warn('Failed to notify server about disconnect:', err);
-          // This is non-critical, so we're just logging it
-        });
+      // Make direct API call to disconnect
+      axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
+        withCredentials: false // IMPORTANT: Don't send credentials
+      }).catch(err => {
+        console.warn('Failed to notify server about disconnect:', err);
+        // This is non-critical, so we're just logging it
       });
     } catch (error) {
       console.warn('Error trying to disconnect on server:', error);
