@@ -90,180 +90,184 @@ const Upload = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Upload Ledger Files</h1>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
-          {error}
-        </div>
-      )}
-      
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* AR File Upload */}
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Accounts Receivable (AR)</h2>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <label className="block mb-4">
-                  <span className="text-gray-700 block mb-2">Upload AR CSV file</span>
-                  <input 
-                    type="file" 
-                    accept=".csv" 
-                    className="block w-full text-sm text-gray-500
-                      file:mr-4 file:py-2 file:px-4
-                      file:rounded-full file:border-0
-                      file:text-sm file:font-semibold
-                      file:bg-blue-50 file:text-blue-700
-                      hover:file:bg-blue-100"
-                    onChange={handleARFileChange}
-                    disabled={xeroData !== null}
-                  />
-                </label>
-                
-                {arFile && (
-                  <div className="text-sm bg-blue-50 p-2 rounded">
-                    <p className="font-medium">{arFile.name}</p>
-                    <p className="text-gray-500">{(arFile.size / 1024).toFixed(2)} KB</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto p-6">
+        <h1 className="text-2xl font-bold text-primary mb-6">Upload Ledger Files</h1>
+        
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4">
+            {error}
+          </div>
+        )}
+        
+        <div className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {/* AR File Upload */}
+              <div>
+                <h2 className="text-lg font-semibold mb-3 text-primary">Accounts Receivable (AR)</h2>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <label className="block mb-4">
+                    <span className="text-text block mb-2">Upload AR CSV file</span>
+                    <input 
+                      type="file" 
+                      accept=".csv" 
+                      className="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-lg file:border-0
+                        file:text-sm file:font-medium
+                        file:bg-primary file:text-white
+                        hover:file:bg-opacity-90 transition-colors"
+                      onChange={handleARFileChange}
+                      disabled={xeroData !== null}
+                    />
+                  </label>
+                  
+                  {arFile && (
+                    <div className="text-sm bg-primary bg-opacity-5 p-3 rounded-lg">
+                      <p className="font-medium text-primary">{arFile.name}</p>
+                      <p className="text-text">{(arFile.size / 1024).toFixed(2)} KB</p>
+                    </div>
+                  )}
+                  
+                  {xeroData && (
+                    <div className="text-sm bg-accent bg-opacity-10 p-3 rounded-lg">
+                      <p className="font-medium text-accent">Using Xero Data</p>
+                      <p className="text-text">{xeroData.length} records from Xero</p>
+                    </div>
+                  )}
+                  
+                  <div className="mt-4">
+                    <label className="text-sm text-text block mb-1">Date format</label>
+                    <select
+                      className="block w-full text-sm border border-gray-300 rounded-lg p-2"
+                      value={dateFormat1}
+                      onChange={(e) => setDateFormat1(e.target.value)}
+                    >
+                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                      <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                    </select>
                   </div>
-                )}
-                
-                {xeroData && (
-                  <div className="text-sm bg-green-50 p-2 rounded">
-                    <p className="font-medium">Using Xero Data</p>
-                    <p className="text-gray-500">{xeroData.length} records from Xero</p>
-                  </div>
-                )}
-                
-                <div className="mt-2">
-                  <label className="text-sm text-gray-700 block mb-1">Date format</label>
-                  <select
-                    className="block w-full text-sm border border-gray-300 rounded p-1.5"
-                    value={dateFormat1}
-                    onChange={(e) => setDateFormat1(e.target.value)}
-                  >
-                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                  </select>
+                  
+                  <p className="text-sm text-text mt-3">
+                    CSV format: Transaction number, Type, Amount, Issue date, Due date, Status, Reference
+                  </p>
                 </div>
-                
-                <p className="text-sm text-gray-500 mt-2">
-                  CSV format: Transaction number, Type, Amount, Issue date, Due date, Status, Reference
-                </p>
+              </div>
+              
+              {/* AP File Upload */}
+              <div>
+                <h2 className="text-lg font-semibold mb-3 text-primary">Accounts Payable (AP)</h2>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <label className="block mb-4">
+                    <span className="text-text block mb-2">Upload AP CSV file</span>
+                    <input 
+                      type="file" 
+                      accept=".csv" 
+                      className="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-lg file:border-0
+                        file:text-sm file:font-medium
+                        file:bg-secondary file:text-white
+                        hover:file:bg-opacity-90 transition-colors"
+                      onChange={handleAPFileChange}
+                    />
+                  </label>
+                  
+                  {apFile && (
+                    <div className="text-sm bg-secondary bg-opacity-5 p-3 rounded-lg">
+                      <p className="font-medium text-secondary">{apFile.name}</p>
+                      <p className="text-text">{(apFile.size / 1024).toFixed(2)} KB</p>
+                    </div>
+                  )}
+                  
+                  <div className="mt-4">
+                    <label className="text-sm text-text block mb-1">Date format</label>
+                    <select
+                      className="block w-full text-sm border border-gray-300 rounded-lg p-2"
+                      value={dateFormat2}
+                      onChange={(e) => setDateFormat2(e.target.value)}
+                    >
+                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                      <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                    </select>
+                  </div>
+                  
+                  <p className="text-sm text-text mt-3">
+                    CSV format: Transaction number, Type, Amount, Issue date, Due date, Status, Reference
+                  </p>
+                </div>
               </div>
             </div>
             
-            {/* AP File Upload */}
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Accounts Payable (AP)</h2>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <label className="block mb-4">
-                  <span className="text-gray-700 block mb-2">Upload AP CSV file</span>
-                  <input 
-                    type="file" 
-                    accept=".csv" 
-                    className="block w-full text-sm text-gray-500
-                      file:mr-4 file:py-2 file:px-4
-                      file:rounded-full file:border-0
-                      file:text-sm file:font-semibold
-                      file:bg-green-50 file:text-green-700
-                      hover:file:bg-green-100"
-                    onChange={handleAPFileChange}
-                  />
+            <div className="mb-6">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="useHistoricalData"
+                  className="h-4 w-4 text-secondary focus:ring-secondary border-gray-300 rounded"
+                  checked={useHistoricalData}
+                  onChange={(e) => setUseHistoricalData(e.target.checked)}
+                />
+                <label htmlFor="useHistoricalData" className="ml-2 block text-sm text-text">
+                  Use historical data (if available) for enhanced matching
                 </label>
-                
-                {apFile && (
-                  <div className="text-sm bg-green-50 p-2 rounded">
-                    <p className="font-medium">{apFile.name}</p>
-                    <p className="text-gray-500">{(apFile.size / 1024).toFixed(2)} KB</p>
-                  </div>
-                )}
-                
-                <div className="mt-2">
-                  <label className="text-sm text-gray-700 block mb-1">Date format</label>
-                  <select
-                    className="block w-full text-sm border border-gray-300 rounded p-1.5"
-                    value={dateFormat2}
-                    onChange={(e) => setDateFormat2(e.target.value)}
-                  >
-                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                  </select>
-                </div>
-                
-                <p className="text-sm text-gray-500 mt-2">
-                  CSV format: Transaction number, Type, Amount, Issue date, Due date, Status, Reference
-                </p>
               </div>
+              <p className="text-xs text-text mt-1 ml-6">
+                This will use historical invoice data to help identify previously resolved matches.
+              </p>
             </div>
-          </div>
-          
-          <div className="mb-6">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="useHistoricalData"
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                checked={useHistoricalData}
-                onChange={(e) => setUseHistoricalData(e.target.checked)}
-              />
-              <label htmlFor="useHistoricalData" className="ml-2 block text-sm text-gray-700">
-                Use historical data (if available) for enhanced matching
-              </label>
-            </div>
-            <p className="text-xs text-gray-500 mt-1 ml-6">
-              This will use historical invoice data to help identify previously resolved matches.
-            </p>
-          </div>
-          
-          {isLoading && uploadProgress > 0 && (
-            <div className="mb-4">
-              <div className="relative pt-1">
-                <div className="flex mb-2 items-center justify-between">
-                  <div>
-                    <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-600 bg-blue-200">
-                      Uploading
-                    </span>
+            
+            {isLoading && uploadProgress > 0 && (
+              <div className="mb-4">
+                <div className="relative pt-1">
+                  <div className="flex mb-2 items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-secondary bg-secondary bg-opacity-10">
+                        Uploading
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-semibold inline-block text-secondary">
+                        {uploadProgress}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs font-semibold inline-block text-blue-600">
-                      {uploadProgress}%
-                    </span>
+                  <div className="overflow-hidden h-2 mb-4 text-xs flex rounded-full bg-secondary bg-opacity-10">
+                    <div style={{ width: `${uploadProgress}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-secondary"></div>
                   </div>
-                </div>
-                <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-200">
-                  <div style={{ width: `${uploadProgress}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500"></div>
                 </div>
               </div>
+            )}
+            
+            <div className="flex justify-center mt-6">
+              <button 
+                type="submit" 
+                className="bg-secondary hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium
+                  disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </span>
+                ) : 'Match & Process Files'}
+              </button>
             </div>
-          )}
-          
-          <div className="flex justify-center mt-6">
-            <button 
-              type="submit" 
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium
-                disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Processing...
-                </span>
-              ) : 'Match & Process Files'}
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
+        
+        {/* Xero Integration */}
+        <div className="mt-8">
+          <XeroConnection />
+        </div>
       </div>
-      
-      {/* Xero Integration */}
-      <XeroConnection />
     </div>
   );
 };
