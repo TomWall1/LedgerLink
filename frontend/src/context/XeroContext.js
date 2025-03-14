@@ -39,12 +39,12 @@ export const XeroProvider = ({ children }) => {
       const apiUrl = getApiUrl();
       
       // Make direct API call without credentials
-      const directResponse = await axios.get(`${apiUrl}/auth/xero/status`, {
+      const response = await axios.get(`${apiUrl}/auth/xero/status`, {
         withCredentials: false
       });
       
-      setIsAuthenticated(!!directResponse.data.isAuthenticated);
-      return directResponse.data.isAuthenticated;
+      setIsAuthenticated(!!response.data.isAuthenticated);
+      return response.data.isAuthenticated;
     } catch (error) {
       console.error('Error checking auth status:', error);
       setError(error.message);
