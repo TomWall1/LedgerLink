@@ -12,9 +12,9 @@ import { XeroProvider } from './context/XeroContext';
 function App() {
   return (
     <XeroProvider>
-      <div className="App">
+      <div className="App bg-gray-50"> {/* Changed from just App to add bg-gray-50 class */}
         <NavHeader />
-        <div className="container mx-auto p-4">
+        <div className="container">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/upload" element={<Upload />} />
