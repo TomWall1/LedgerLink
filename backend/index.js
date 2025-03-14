@@ -10,8 +10,36 @@ dotenv.config();
 
 const app = express();
 
-// Set up CORS middleware
-app.use(cors());
+// Define allowed origins
+const allowedOrigins = [
+  'https://lledgerlink.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002'
+];
+
+// Set up CORS middleware with more specific configuration
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      console.log(`CORS blocked request from origin: ${origin}`);
+      // For debugging: still allow all origins in production for now
+      if (process.env.NODE_ENV === 'production') {
+        return callback(null, true);
+      }
+      
+      const msg = `The CORS policy for this site does not allow access from the specified origin: ${origin}`;
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+}));
 
 // Body parsing middleware
 app.use(express.json());
