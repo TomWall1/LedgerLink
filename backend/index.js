@@ -18,23 +18,24 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
-// Set up CORS middleware with specific configuration
-app.use(cors({
-  origin: function(origin, callback) {
-    // For testing purposes in development, allow all origins 
-    // This should be removed in production
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log(`CORS blocked request from origin: ${origin}`);
-      // For now, allow all origins to debug the issue
-      callback(null, true);
-    }
-  },
-  credentials: false, // Important: set to false to avoid preflight issues
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
-}));
+// Set up CORS middleware with more permissive configuration
+app.use((req, res, next) => {
+  // Set CORS headers for all requests
+  const origin = req.headers.origin;
+  
+  // Allow the specific origin, or any origin in development
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
+  next();
+});
 
 // Body parsing middleware
 app.use(express.json());
@@ -65,8 +66,6 @@ app.use('/api', processRoutes);
 
 // Create a simple non-authenticated status endpoint
 app.get('/xero-public-status', (req, res) => {
-  // Set Access-Control-Allow-Origin to allow the frontend domain
-  res.header('Access-Control-Allow-Origin', 'https://ledgerlink.vercel.app');
   res.json({ serverRunning: true });
 });
 
