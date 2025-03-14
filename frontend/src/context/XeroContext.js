@@ -7,7 +7,6 @@ export const XeroProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [customerData, setCustomerData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   const [error, setError] = useState(null);
   // Use a ref to track if we've already performed the initial check
   const initialCheckDone = useRef(false);
@@ -36,35 +35,19 @@ export const XeroProvider = ({ children }) => {
   // This function is used to check authentication status with the server
   const checkAuth = async () => {
     try {
-      setIsCheckingAuth(true);
+      console.log('Checking Xero authentication status');
       const apiUrl = getApiUrl();
       
-      // Try connecting through Vercel proxy first
-      try {
-        const response = await axios.get('/api/xero-status', {
-          timeout: 5000 // 5 second timeout
-        });
-        
-        setIsAuthenticated(!!response.data.isAuthenticated);
-        setIsCheckingAuth(false);
-        return response.data.isAuthenticated;
-      } catch (err) {
-        console.warn('Proxy endpoint failed, falling back to direct API call:', err);
-        
-        // Fall back to direct API call
-        console.log('Making direct API call to Xero auth status');
-        const directResponse = await axios.get(`${apiUrl}/auth/xero/status`, {
-          withCredentials: false
-        });
-        
-        setIsAuthenticated(!!directResponse.data.isAuthenticated);
-        setIsCheckingAuth(false);
-        return directResponse.data.isAuthenticated;
-      }
+      // Make direct API call without credentials
+      const directResponse = await axios.get(`${apiUrl}/auth/xero/status`, {
+        withCredentials: false
+      });
+      
+      setIsAuthenticated(!!directResponse.data.isAuthenticated);
+      return directResponse.data.isAuthenticated;
     } catch (error) {
       console.error('Error checking auth status:', error);
       setError(error.message);
-      setIsCheckingAuth(false);
       return false;
     }
   };
