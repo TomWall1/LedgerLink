@@ -26,7 +26,7 @@ app.use((req, res, next) => {
   // Allow the specific origin, or any origin in development
   res.header('Access-Control-Allow-Origin', origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, X-Requested-With');
   res.header('Access-Control-Allow-Credentials', 'true');
   
   // Handle OPTIONS requests
