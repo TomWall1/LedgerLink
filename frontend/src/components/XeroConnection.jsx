@@ -34,15 +34,16 @@ const XeroConnection = () => {
       const apiUrl = getApiUrl();
       console.log('Connecting to Xero using API URL:', apiUrl);
       
-      // Make direct API call with no credentials
-      const directResponse = await axios.get(`${apiUrl}/auth/xero/connect`, {
-        withCredentials: false // IMPORTANT: Don't send credentials
+      // Make the API call using withCredentials: false
+      // This is important to avoid CORS preflight issues
+      const response = await axios.get(`${apiUrl}/auth/xero/connect`, {
+        withCredentials: false
       });
       
-      if (directResponse.data && directResponse.data.authUrl) {
+      if (response.data && response.data.authUrl) {
         // Redirect to Xero for authentication
-        console.log('Redirecting to Xero auth URL from direct endpoint');
-        window.location.href = directResponse.data.authUrl;
+        console.log('Redirecting to Xero auth URL');
+        window.location.href = response.data.authUrl;
       } else {
         throw new Error('No authorization URL received from server');
       }
@@ -53,29 +54,31 @@ const XeroConnection = () => {
     }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     // For development, use the mock disconnection
     if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_MOCK_XERO === 'true') {
       mockXeroDisconnect();
       return;
     }
 
-    // Simply disconnect locally first
-    setIsAuthenticated(false);
-    
-    // Try to notify server (but don't require success)
     try {
+      setIsLoading(true);
+      // Disconnect on the server first
       const apiUrl = getApiUrl();
       
-      // Make direct API call to disconnect
-      axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
-        withCredentials: false // IMPORTANT: Don't send credentials
-      }).catch(err => {
-        console.warn('Failed to notify server about disconnect:', err);
-        // This is non-critical, so we're just logging it
+      // Make the API call using withCredentials: false
+      await axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
+        withCredentials: false
       });
+      
+      // Then disconnect locally
+      setIsAuthenticated(false);
+      setIsLoading(false);
     } catch (error) {
-      console.warn('Error trying to disconnect on server:', error);
+      console.warn('Error disconnecting from Xero:', error);
+      // Still disconnect locally even if server fails
+      setIsAuthenticated(false);
+      setIsLoading(false);
     }
   };
 
