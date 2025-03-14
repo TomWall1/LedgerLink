@@ -12,31 +12,26 @@ const app = express();
 
 // Define allowed origins
 const allowedOrigins = [
-  'https://lledgerlink.vercel.app',
+  'https://ledgerlink.vercel.app',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002'
 ];
 
-// Set up CORS middleware with more specific configuration
+// Set up CORS middleware with specific configuration
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) === -1) {
+    // For testing purposes in development, allow all origins 
+    // This should be removed in production
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
       console.log(`CORS blocked request from origin: ${origin}`);
-      // For debugging: still allow all origins in production for now
-      if (process.env.NODE_ENV === 'production') {
-        return callback(null, true);
-      }
-      
-      const msg = `The CORS policy for this site does not allow access from the specified origin: ${origin}`;
-      return callback(new Error(msg), false);
+      // For now, allow all origins to debug the issue
+      callback(null, true);
     }
-    return callback(null, true);
   },
-  credentials: true,
+  credentials: false, // Important: set to false to avoid preflight issues
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
 }));
@@ -70,6 +65,8 @@ app.use('/api', processRoutes);
 
 // Create a simple non-authenticated status endpoint
 app.get('/xero-public-status', (req, res) => {
+  // Set Access-Control-Allow-Origin to allow the frontend domain
+  res.header('Access-Control-Allow-Origin', 'https://ledgerlink.vercel.app');
   res.json({ serverRunning: true });
 });
 
