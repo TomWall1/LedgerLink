@@ -176,215 +176,241 @@ const AccountLinks = () => {
   };
 
   if (isLoading) {
-    return <div className="flex justify-center my-8"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>;
+    return (
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-secondary"></div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative my-4">{error}</div>;
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto p-6">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4">{error}</div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Account Links</h1>
-        <button 
-          onClick={() => setShowNewLinkForm(!showNewLinkForm)}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          {showNewLinkForm ? 'Cancel' : 'Create New Link'}
-        </button>
-      </div>
-
-      {showNewLinkForm && (
-        <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Create New Account Link</h2>
-          <form onSubmit={handleCreateLink}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Source Account */}
-              <div className="bg-gray-50 p-4 rounded">
-                <h3 className="text-lg font-medium mb-3">Source Account (AR)</h3>
-                
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">System</label>
-                  <select 
-                    className="w-full p-2 border rounded" 
-                    value={newLink.source.system}
-                    onChange={(e) => handleInputChange('source', 'system', e.target.value)}
-                    required
-                  >
-                    <option value="xero">Xero</option>
-                    <option value="quickbooks">QuickBooks</option>
-                    <option value="sage">Sage</option>
-                    <option value="csv">CSV Upload</option>
-                  </select>
-                </div>
-                
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account ID</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-2 border rounded" 
-                    value={newLink.source.accountId}
-                    onChange={(e) => handleInputChange('source', 'accountId', e.target.value)}
-                    required
-                  />
-                </div>
-                
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-2 border rounded" 
-                    value={newLink.source.accountName}
-                    onChange={(e) => handleInputChange('source', 'accountName', e.target.value)}
-                    required
-                  />
-                </div>
-                
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-2 border rounded" 
-                    value={newLink.source.companyName}
-                    onChange={(e) => handleInputChange('source', 'companyName', e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-              
-              {/* Target Account */}
-              <div className="bg-gray-50 p-4 rounded">
-                <h3 className="text-lg font-medium mb-3">Target Account (AP)</h3>
-                
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">System</label>
-                  <select 
-                    className="w-full p-2 border rounded" 
-                    value={newLink.target.system}
-                    onChange={(e) => handleInputChange('target', 'system', e.target.value)}
-                    required
-                  >
-                    <option value="quickbooks">QuickBooks</option>
-                    <option value="xero">Xero</option>
-                    <option value="sage">Sage</option>
-                    <option value="csv">CSV Upload</option>
-                  </select>
-                </div>
-                
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account ID</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-2 border rounded" 
-                    value={newLink.target.accountId}
-                    onChange={(e) => handleInputChange('target', 'accountId', e.target.value)}
-                    required
-                  />
-                </div>
-                
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-2 border rounded" 
-                    value={newLink.target.accountName}
-                    onChange={(e) => handleInputChange('target', 'accountName', e.target.value)}
-                    required
-                  />
-                </div>
-                
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-2 border rounded" 
-                    value={newLink.target.companyName}
-                    onChange={(e) => handleInputChange('target', 'companyName', e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-6 flex justify-end">
-              <button 
-                type="button" 
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded mr-2"
-                onClick={() => setShowNewLinkForm(false)}
-              >
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-primary">Account Links</h1>
+          <button 
+            onClick={() => setShowNewLinkForm(!showNewLinkForm)}
+            className={`${showNewLinkForm ? 'bg-gray-200 text-primary' : 'bg-secondary text-white'} hover:bg-opacity-90 px-4 py-2 rounded-lg transition-colors font-medium flex items-center`}
+          >
+            {showNewLinkForm ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
                 Cancel
-              </button>
-              <button 
-                type="submit" 
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-              >
-                Create Link
-              </button>
-            </div>
-          </form>
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+                </svg>
+                Create New Link
+              </>
+            )}
+          </button>
         </div>
-      )}
 
-      {links.length === 0 ? (
-        <div className="bg-white shadow-md rounded-lg p-6 text-center">
-          <p className="text-gray-600">No account links found. Create your first link to get started.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {links.map(link => (
-            <div key={link.id} className="bg-white shadow-md rounded-lg overflow-hidden">
-              <div className={`p-4 ${link.status === 'active' ? 'bg-green-50' : 'bg-yellow-50'} border-b`}>
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">{link.source.companyName} ↔ {link.target.companyName}</h3>
-                  <span className={`px-2 py-1 rounded text-xs font-semibold ${link.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>                  
-                    {link.status === 'active' ? 'Active' : 'Pending'}
-                  </span>
+        {showNewLinkForm && (
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6 border border-gray-200">
+            <h2 className="text-xl font-semibold mb-4 text-primary">Create New Account Link</h2>
+            <form onSubmit={handleCreateLink}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Source Account */}
+                <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                  <h3 className="text-lg font-medium mb-3 text-primary">Source Account (AR)</h3>
+                  
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-text mb-1">System</label>
+                    <select 
+                      className="w-full p-2 border border-gray-300 rounded-lg" 
+                      value={newLink.source.system}
+                      onChange={(e) => handleInputChange('source', 'system', e.target.value)}
+                      required
+                    >
+                      <option value="xero">Xero</option>
+                      <option value="quickbooks">QuickBooks</option>
+                      <option value="sage">Sage</option>
+                      <option value="csv">CSV Upload</option>
+                    </select>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-text mb-1">Account ID</label>
+                    <input 
+                      type="text" 
+                      className="w-full p-2 border border-gray-300 rounded-lg" 
+                      value={newLink.source.accountId}
+                      onChange={(e) => handleInputChange('source', 'accountId', e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-text mb-1">Account Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full p-2 border border-gray-300 rounded-lg" 
+                      value={newLink.source.accountName}
+                      onChange={(e) => handleInputChange('source', 'accountName', e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-text mb-1">Company Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full p-2 border border-gray-300 rounded-lg" 
+                      value={newLink.source.companyName}
+                      onChange={(e) => handleInputChange('source', 'companyName', e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                
+                {/* Target Account */}
+                <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                  <h3 className="text-lg font-medium mb-3 text-primary">Target Account (AP)</h3>
+                  
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-text mb-1">System</label>
+                    <select 
+                      className="w-full p-2 border border-gray-300 rounded-lg" 
+                      value={newLink.target.system}
+                      onChange={(e) => handleInputChange('target', 'system', e.target.value)}
+                      required
+                    >
+                      <option value="quickbooks">QuickBooks</option>
+                      <option value="xero">Xero</option>
+                      <option value="sage">Sage</option>
+                      <option value="csv">CSV Upload</option>
+                    </select>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-text mb-1">Account ID</label>
+                    <input 
+                      type="text" 
+                      className="w-full p-2 border border-gray-300 rounded-lg" 
+                      value={newLink.target.accountId}
+                      onChange={(e) => handleInputChange('target', 'accountId', e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-text mb-1">Account Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full p-2 border border-gray-300 rounded-lg" 
+                      value={newLink.target.accountName}
+                      onChange={(e) => handleInputChange('target', 'accountName', e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-text mb-1">Company Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full p-2 border border-gray-300 rounded-lg" 
+                      value={newLink.target.companyName}
+                      onChange={(e) => handleInputChange('target', 'companyName', e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
               </div>
               
-              <div className="p-4">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-500 mb-1">Source Account (AR)</h4>
-                    <p className="font-medium">{link.source.accountName}</p>
-                    <p className="text-sm text-gray-600">{link.source.system.toUpperCase()} - {link.source.accountId}</p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-500 mb-1">Target Account (AP)</h4>
-                    <p className="font-medium">{link.target.accountName}</p>
-                    <p className="text-sm text-gray-600">{link.target.system.toUpperCase()} - {link.target.accountId}</p>
+              <div className="mt-6 flex justify-end">
+                <button 
+                  type="button" 
+                  className="bg-gray-200 hover:bg-gray-300 text-primary px-4 py-2 rounded-lg mr-3 transition-colors"
+                  onClick={() => setShowNewLinkForm(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="bg-secondary hover:bg-opacity-90 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Create Link
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {links.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-lg p-6 text-center border border-gray-200">
+            <p className="text-text">No account links found. Create your first link to get started.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {links.map(link => (
+              <div key={link.id} className="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200">
+                <div className={`p-4 ${link.status === 'active' ? 'bg-green-50' : 'bg-yellow-50'} border-b`}>
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium text-primary">{link.source.companyName} ↔ {link.target.companyName}</h3>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${link.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>                  
+                      {link.status === 'active' ? 'Active' : 'Pending'}
+                    </span>
                   </div>
                 </div>
                 
-                <div className="text-sm text-gray-600 mb-4">
-                  <p>Created: {new Date(link.created).toLocaleDateString()}</p>
-                  {link.lastReconciled && (
-                    <p>Last reconciled: {new Date(link.lastReconciled).toLocaleDateString()} {new Date(link.lastReconciled).toLocaleTimeString()}</p>
-                  )}
-                </div>
-                
-                <div className="flex justify-between">
-                  <button 
-                    onClick={() => handleRunReconciliation(link.id)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
-                  >
-                    Run Reconciliation
-                  </button>
+                <div className="p-4">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <h4 className="text-sm font-semibold text-text mb-1">Source Account (AR)</h4>
+                      <p className="font-medium text-primary">{link.source.accountName}</p>
+                      <p className="text-sm text-text">{link.source.system.toUpperCase()} - {link.source.accountId}</p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="text-sm font-semibold text-text mb-1">Target Account (AP)</h4>
+                      <p className="font-medium text-primary">{link.target.accountName}</p>
+                      <p className="text-sm text-text">{link.target.system.toUpperCase()} - {link.target.accountId}</p>
+                    </div>
+                  </div>
                   
-                  <button 
-                    onClick={() => handleDeleteLink(link.id)}
-                    className="text-red-500 hover:text-red-600 px-3 py-1 rounded text-sm"
-                  >
-                    Delete
-                  </button>
+                  <div className="text-sm text-text mb-4">
+                    <p>Created: {new Date(link.created).toLocaleDateString()}</p>
+                    {link.lastReconciled && (
+                      <p>Last reconciled: {new Date(link.lastReconciled).toLocaleDateString()} {new Date(link.lastReconciled).toLocaleTimeString()}</p>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <button 
+                      onClick={() => handleRunReconciliation(link.id)}
+                      className="bg-secondary hover:bg-opacity-90 text-white px-3 py-1.5 rounded-lg text-sm transition-colors"
+                    >
+                      Run Reconciliation
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleDeleteLink(link.id)}
+                      className="text-red-500 hover:text-red-600 px-3 py-1.5 rounded-lg text-sm"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
