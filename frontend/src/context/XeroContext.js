@@ -7,6 +7,7 @@ export const XeroProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [customerData, setCustomerData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   const [error, setError] = useState(null);
   // Use a ref to track if we've already performed the initial check
   const initialCheckDone = useRef(false);
@@ -29,26 +30,44 @@ export const XeroProvider = ({ children }) => {
       const storedAuth = localStorage.getItem('xeroAuth') === 'true';
       setIsAuthenticated(storedAuth);
       setLoading(false);
+      
+      // If authenticated from storage, verify with the server
+      if (storedAuth) {
+        checkAuth().catch(() => {
+          console.log('Using stored auth value due to API error');
+        });
+      }
     }
   }, []);
 
   // This function is used to check authentication status with the server
   const checkAuth = async () => {
     try {
+      setIsCheckingAuth(true);
       console.log('Checking Xero authentication status');
       const apiUrl = getApiUrl();
       
       // Make direct API call without credentials
-      const response = await axios.get(`${apiUrl}/auth/xero/status`, {
-        withCredentials: false
-      });
-      
-      setIsAuthenticated(!!response.data.isAuthenticated);
-      return response.data.isAuthenticated;
+      try {
+        const response = await axios.get(`${apiUrl}/auth/xero/status`, {
+          withCredentials: false,
+          timeout: 8000
+        });
+        
+        console.log('Auth status response:', response.data);
+        setIsAuthenticated(!!response.data.isAuthenticated);
+        setIsCheckingAuth(false);
+        return response.data.isAuthenticated;
+      } catch (error) {
+        console.error('Error fetching auth status:', error);
+        throw error;
+      }
     } catch (error) {
       console.error('Error checking auth status:', error);
       setError(error.message);
-      return false;
+      setIsCheckingAuth(false);
+      // Continue using the stored authentication state
+      return localStorage.getItem('xeroAuth') === 'true';
     }
   };
 
