@@ -149,12 +149,19 @@ async function callXeroApi(url, options = {}) {
   }
 }
 
-// Explicitly handle OPTIONS request for the connect endpoint
-router.options('/xero/connect', (req, res) => {
-  // Allow requests from any origin for this specific endpoint
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+// CORS pre-flight handler for all routes in this router
+router.options('*', (req, res) => {
+  // Handle the origin
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // For development/debugging, allow any origin
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Max-Age', '86400'); // 24 hours
   res.status(204).end();
 });
@@ -162,12 +169,20 @@ router.options('/xero/connect', (req, res) => {
 // Initial Xero connection route
 router.get('/xero/connect', async (req, res) => {
   try {
-    // Set CORS headers to allow any origin for this specific endpoint
-    res.header('Access-Control-Allow-Origin', '*'); // This allows requests from any origin
+    // Set CORS headers to allow requests from approved origins or any origin in development
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      // For development/debugging, allow any origin
+      res.header('Access-Control-Allow-Origin', '*');
+    }
     
+    // Generate a random state for security
     const state = crypto.randomBytes(16).toString('hex');
     pendingStates.add(state);
     
+    // Generate consent URL
     const consentUrl = await xero.buildConsentUrl();
     const url = new URL(consentUrl);
     url.searchParams.set('state', state);
@@ -183,21 +198,17 @@ router.get('/xero/connect', async (req, res) => {
   }
 });
 
-// Specifically handle the disconnect endpoint similarly
-router.options('/xero/disconnect', (req, res) => {
-  // Allow requests from any origin for this specific endpoint
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  res.header('Access-Control-Max-Age', '86400'); // 24 hours
-  res.status(204).end();
-});
-
 // Disconnect from Xero
 router.post('/xero/disconnect', async (req, res) => {
   try {
-    // Set CORS headers to allow any origin for this specific endpoint
-    res.header('Access-Control-Allow-Origin', '*'); // This allows requests from any origin
+    // Set CORS headers to allow requests from approved origins or any origin in development
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      // For development/debugging, allow any origin
+      res.header('Access-Control-Allow-Origin', '*');
+    }
     
     await tokenStore.clearTokens();
     res.json({ success: true });
@@ -210,19 +221,24 @@ router.post('/xero/disconnect', async (req, res) => {
   }
 });
 
-// Check authentication status - kept for API compatibility but not used by frontend
+// Check authentication status
 router.get('/xero/status', (req, res) => {
   try {
-    // Note: The frontend no longer calls this endpoint to avoid CORS issues
-    // We'll return a simple response for API compatibility
-    res.header('Access-Control-Allow-Origin', '*'); // Allow any origin for this endpoint
+    // Set CORS headers to allow requests from approved origins or any origin in development
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      // For development/debugging, allow any origin
+      res.header('Access-Control-Allow-Origin', '*');
+    }
     
     // Add cache control headers to prevent caching
     res.header('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.header('Pragma', 'no-cache');
     res.header('Expires', '0');
     
-    // Check for token synchronously to avoid race conditions
+    // Check token status
     const isAuthenticated = tokenStore.hasTokens();
     res.json({ isAuthenticated });
   } catch (error) {
