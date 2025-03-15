@@ -94,9 +94,12 @@ export const XeroProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         console.log('Auth status direct response:', data);
-        setIsAuthenticated(!!data.isAuthenticated);
+        
+        // If the backend says we're authenticated or we have local auth, consider us authenticated
+        const authStatus = !!data.isAuthenticated || localStorage.getItem('xeroAuth') === 'true';
+        setIsAuthenticated(authStatus);
         setIsCheckingAuth(false);
-        return data.isAuthenticated;
+        return authStatus;
       } else {
         const errorText = await response.text();
         console.log('Direct API call failed:', response.status, errorText);
@@ -108,7 +111,9 @@ export const XeroProvider = ({ children }) => {
       setIsCheckingAuth(false);
       // Continue using the stored authentication state
       console.log('Using stored auth value due to API error');
-      return localStorage.getItem('xeroAuth') === 'true';
+      const storedAuth = localStorage.getItem('xeroAuth') === 'true';
+      setIsAuthenticated(storedAuth);
+      return storedAuth;
     }
   };
 
