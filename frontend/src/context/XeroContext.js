@@ -45,28 +45,47 @@ export const XeroProvider = ({ children }) => {
     try {
       setIsCheckingAuth(true);
       console.log('Checking Xero authentication status');
+      
+      // First try using the NextJS API proxy endpoint
+      try {
+        console.log('Trying proxy endpoint for Xero auth status');
+        const proxyResponse = await fetch('/api/xero-status');
+        
+        if (proxyResponse.ok) {
+          const data = await proxyResponse.json();
+          console.log('Proxy endpoint response:', data);
+          setIsAuthenticated(!!data.isAuthenticated);
+          setIsCheckingAuth(false);
+          return data.isAuthenticated;
+        }
+      } catch (proxyError) {
+        console.log('Proxy endpoint failed, falling back to direct API call:', proxyError);
+      }
+      
+      // Fallback to direct API call if proxy fails
+      console.log('Making direct API call to Xero auth status');
       const apiUrl = getApiUrl();
       
-      // Make direct API call without credentials
-      try {
-        const response = await axios.get(`${apiUrl}/auth/xero/status`, {
-          withCredentials: false,
-          timeout: 8000
-        });
-        
-        console.log('Auth status response:', response.data);
-        setIsAuthenticated(!!response.data.isAuthenticated);
-        setIsCheckingAuth(false);
-        return response.data.isAuthenticated;
-      } catch (error) {
-        console.error('Error fetching auth status:', error);
-        throw error;
-      }
+      const response = await axios({
+        method: 'get',
+        url: `${apiUrl}/auth/xero/status`,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        withCredentials: true,
+        timeout: 8000
+      });
+      
+      console.log('Auth status response:', response.data);
+      setIsAuthenticated(!!response.data.isAuthenticated);
+      setIsCheckingAuth(false);
+      return response.data.isAuthenticated;
     } catch (error) {
-      console.error('Error checking auth status:', error);
+      console.error('Error fetching auth status:', error);
       setError(error.message);
       setIsCheckingAuth(false);
       // Continue using the stored authentication state
+      console.log('Using stored auth value due to API error');
       return localStorage.getItem('xeroAuth') === 'true';
     }
   };

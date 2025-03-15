@@ -13,7 +13,7 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
-// Simpler and more direct CORS configuration
+// Enhanced CORS configuration to fix the pragma header issue
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, curl, Postman)
@@ -27,9 +27,12 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-CSRF-Token', 'X-Auth-Token'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-CSRF-Token', 'X-Auth-Token', 'Pragma', 'Cache-Control'],
   exposedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Special OPTIONS handling for preflight requests
+app.options('*', cors());
 
 // Body parsing middleware
 app.use(express.json());
@@ -87,7 +90,7 @@ app.get('/api/xero/invoices/:tenantId', async (req, res) => {
   }
 });
 
-// Special route for Xero authentication status check
+// Improved Xero authentication status endpoint with better CORS handling
 app.get('/auth/xero/status', (req, res) => {
   console.log('Xero auth status check from:', req.headers.origin);
   // Since this is the endpoint causing CORS issues, let's explicitly handle the CORS headers
@@ -95,9 +98,29 @@ app.get('/auth/xero/status', (req, res) => {
   if (allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Pragma, Cache-Control');
   }
   
-  res.json({ isAuthenticated: false });
+  try {
+    // Check if Xero is actually authenticated here
+    // For now we're returning a simple response
+    res.json({ isAuthenticated: xero.accessTokenSet ? true : false });
+  } catch (error) {
+    console.error('Error checking Xero auth status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Special OPTIONS handler for the auth status endpoint
+app.options('/auth/xero/status', (req, res) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Pragma, Cache-Control');
+  }
+  res.status(204).end();
 });
 
 const PORT = process.env.PORT || 3000;
