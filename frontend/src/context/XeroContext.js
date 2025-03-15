@@ -46,7 +46,7 @@ export const XeroProvider = ({ children }) => {
       setIsCheckingAuth(true);
       console.log('Checking Xero authentication status');
       
-      // First try using the NextJS API proxy endpoint
+      // First try using the proxy directly with fetch (no Axios)
       try {
         console.log('Trying proxy endpoint for Xero auth status');
         const proxyResponse = await fetch('/api/xero-status');
@@ -57,29 +57,38 @@ export const XeroProvider = ({ children }) => {
           setIsAuthenticated(!!data.isAuthenticated);
           setIsCheckingAuth(false);
           return data.isAuthenticated;
+        } else {
+          console.log('Proxy returned error status:', proxyResponse.status);
+          // Let the error propagate to fallback
+          throw new Error(`Proxy returned ${proxyResponse.status}`);
         }
       } catch (proxyError) {
-        console.log('Proxy endpoint failed, falling back to direct API call:', proxyError);
+        console.log('Proxy endpoint failed, fallback to direct:', proxyError);
       }
       
-      // Fallback to direct API call if proxy fails
+      // Fallback to backend API with specific CORS-friendly settings
       console.log('Making direct API call to Xero auth status');
       const apiUrl = getApiUrl();
       
-      const response = await axios({
-        method: 'get',
-        url: `${apiUrl}/auth/xero/status`,
+      // We're removing Pragma and Cache-Control headers that might cause issues
+      const response = await fetch(`${apiUrl}/auth/xero/status`, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json'
         },
-        withCredentials: true,
-        timeout: 8000
+        credentials: 'include',
+        mode: 'cors'
       });
       
-      console.log('Auth status response:', response.data);
-      setIsAuthenticated(!!response.data.isAuthenticated);
-      setIsCheckingAuth(false);
-      return response.data.isAuthenticated;
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Auth status direct response:', data);
+        setIsAuthenticated(!!data.isAuthenticated);
+        setIsCheckingAuth(false);
+        return data.isAuthenticated;
+      } else {
+        throw new Error(`Backend returned ${response.status}`);
+      }
     } catch (error) {
       console.error('Error fetching auth status:', error);
       setError(error.message);
