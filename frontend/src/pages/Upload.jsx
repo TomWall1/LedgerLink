@@ -14,7 +14,10 @@ const Upload = () => {
   const [error, setError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [xeroData, setXeroData] = useState(null);
+  const [allXeroCustomers, setAllXeroCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState('');
   const [isLoadingXero, setIsLoadingXero] = useState(false);
+  const [isSelectingCustomer, setIsSelectingCustomer] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, getApiUrl } = useXero();
@@ -22,43 +25,84 @@ const Upload = () => {
   // Check if we're coming from Xero connection
   useEffect(() => {
     if (location.state?.xeroEnabled && isAuthenticated) {
-      // Fetch Xero data when enabled
+      // Fetch Xero customers when enabled
       console.log('Xero integration enabled');
-      fetchXeroData();
+      fetchXeroCustomers();
     }
   }, [location.state, isAuthenticated]);
 
-  // Function to fetch Xero data
-  const fetchXeroData = async () => {
+  // Function to fetch Xero customers
+  const fetchXeroCustomers = async () => {
     if (!isAuthenticated) return;
     
     try {
       setIsLoadingXero(true);
       setError(null);
+      setIsSelectingCustomer(true);
       
-      const apiUrl = getApiUrl();
-      console.log('Fetching Xero data from:', apiUrl);
+      // Mock customer data for testing
+      // In a real implementation, you would fetch from an API endpoint
+      const mockCustomers = [
+        { id: 'cust-001', name: 'Acme Corporation', email: 'accounts@acme.com' },
+        { id: 'cust-002', name: 'Global Industries', email: 'ar@global-ind.com' },
+        { id: 'cust-003', name: 'Tech Solutions Ltd', email: 'finance@techsol.com' },
+        { id: 'cust-004', name: 'Omega Retail Group', email: 'payments@omega-retail.com' },
+        { id: 'cust-005', name: 'Sunshine Hospitality', email: 'accounts@sunshine.com' }
+      ];
       
-      // For now, create mock data since we don't have a real endpoint yet
-      // In a real implementation, you would fetch from an endpoint like this:
-      // const response = await fetch(`${apiUrl}/api/xero/invoices`);
-      // const data = await response.json();
+      // Set the customer data
+      setAllXeroCustomers(mockCustomers);
+      console.log('Xero customers loaded:', mockCustomers);
+    } catch (err) {
+      console.error('Error fetching Xero customers:', err);
+      setError('Failed to fetch Xero customers: ' + err.message);
+    } finally {
+      setIsLoadingXero(false);
+    }
+  };
+
+  // Function to fetch invoices for a selected customer
+  const fetchCustomerData = async (customerId) => {
+    try {
+      setIsLoadingXero(true);
+      setError(null);
       
-      // Mock data for testing
-      const mockData = [
-        { id: 'INV-001', type: 'INVOICE', amount: 1299.99, issueDate: '2025-01-15', dueDate: '2025-02-15', status: 'OPEN', reference: 'REF001' },
-        { id: 'INV-002', type: 'INVOICE', amount: 899.50, issueDate: '2025-01-20', dueDate: '2025-02-20', status: 'OPEN', reference: 'REF002' },
-        { id: 'INV-003', type: 'INVOICE', amount: 1450.00, issueDate: '2025-01-25', dueDate: '2025-02-25', status: 'OPEN', reference: 'REF003' }
+      // Find the selected customer name for display
+      const customer = allXeroCustomers.find(c => c.id === customerId);
+      const customerName = customer ? customer.name : 'Unknown';
+      
+      // Mock invoice data for the selected customer
+      // In a real implementation, you would fetch from an API endpoint
+      const mockInvoices = [
+        { id: `INV-${customerId}-001`, type: 'INVOICE', amount: 1299.99, issueDate: '2025-01-15', dueDate: '2025-02-15', status: 'OPEN', reference: 'REF001', customer: customerName },
+        { id: `INV-${customerId}-002`, type: 'INVOICE', amount: 899.50, issueDate: '2025-01-20', dueDate: '2025-02-20', status: 'OPEN', reference: 'REF002', customer: customerName },
+        { id: `INV-${customerId}-003`, type: 'INVOICE', amount: 1450.00, issueDate: '2025-01-25', dueDate: '2025-02-25', status: 'OPEN', reference: 'REF003', customer: customerName }
       ];
       
       // Set the Xero data
-      setXeroData(mockData);
-      console.log('Xero data loaded:', mockData);
+      setXeroData({
+        customerId,
+        customerName,
+        invoices: mockInvoices
+      });
+      console.log('Customer invoices loaded:', mockInvoices);
+      
+      // Hide the customer selection
+      setIsSelectingCustomer(false);
     } catch (err) {
-      console.error('Error fetching Xero data:', err);
-      setError('Failed to fetch Xero data: ' + err.message);
+      console.error('Error fetching customer invoices:', err);
+      setError('Failed to fetch customer invoices: ' + err.message);
     } finally {
       setIsLoadingXero(false);
+    }
+  };
+
+  const handleCustomerSelect = (e) => {
+    const customerId = e.target.value;
+    setSelectedCustomer(customerId);
+    
+    if (customerId) {
+      fetchCustomerData(customerId);
     }
   };
 
@@ -67,6 +111,7 @@ const Upload = () => {
     // Clear Xero data if file is uploaded
     if (e.target.files[0]) {
       setXeroData(null);
+      setIsSelectingCustomer(false);
     }
   };
 
@@ -77,7 +122,7 @@ const Upload = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!arFile && !apFile && !xeroData) {
+    if (!arFile && !xeroData && !isSelectingCustomer) {
       setError('Please select at least one file to upload or connect to Xero');
       return;
     }
@@ -98,7 +143,9 @@ const Upload = () => {
       
       // Add Xero data if available
       if (xeroData) {
-        formData.append('arData', JSON.stringify(xeroData));
+        formData.append('arData', JSON.stringify(xeroData.invoices));
+        formData.append('customerName', xeroData.customerName);
+        formData.append('customerId', xeroData.customerId);
         console.log('Including Xero data in submission:', xeroData);
       }
       
@@ -136,7 +183,7 @@ const Upload = () => {
       return;
     }
     
-    fetchXeroData();
+    fetchXeroCustomers();
   };
 
   return (
@@ -157,61 +204,104 @@ const Upload = () => {
               <div>
                 <h2 className="text-lg font-semibold mb-3 text-primary">Accounts Receivable (AR)</h2>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <label className="block mb-4">
-                    <span className="text-text block mb-2">Upload AR CSV file</span>
-                    <input 
-                      type="file" 
-                      accept=".csv" 
-                      className="block w-full text-sm text-gray-500
-                        file:mr-4 file:py-2 file:px-4
-                        file:rounded-lg file:border-0
-                        file:text-sm file:font-medium
-                        file:bg-primary file:text-white
-                        hover:file:bg-opacity-90 transition-colors"
-                      onChange={handleARFileChange}
-                      disabled={xeroData !== null || isLoadingXero}
-                    />
-                  </label>
-                  
-                  {arFile && (
-                    <div className="text-sm bg-primary bg-opacity-5 p-3 rounded-lg">
-                      <p className="font-medium text-primary">{arFile.name}</p>
-                      <p className="text-text">{(arFile.size / 1024).toFixed(2)} KB</p>
+                  {isSelectingCustomer ? (
+                    <div className="mb-4">
+                      <h3 className="font-medium text-lg mb-2">Select a Xero Customer</h3>
+                      {isLoadingXero ? (
+                        <div className="text-sm bg-blue-100 p-3 rounded-lg flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <p>Loading customers from Xero...</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <select
+                            value={selectedCustomer}
+                            onChange={handleCustomerSelect}
+                            className="w-full p-2 border border-gray-300 rounded mb-2"
+                          >
+                            <option value="">Select a customer</option>
+                            {allXeroCustomers.map(customer => (
+                              <option key={customer.id} value={customer.id}>
+                                {customer.name} ({customer.email})
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsSelectingCustomer(false);
+                              setSelectedCustomer('');
+                            }}
+                            className="text-sm text-red-600 hover:text-red-800"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  
-                  {isLoadingXero && (
-                    <div className="text-sm bg-blue-100 p-3 rounded-lg flex items-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <p>Loading Xero data...</p>
-                    </div>
-                  )}
-                  
-                  {xeroData && (
-                    <div className="text-sm bg-accent bg-opacity-10 p-3 rounded-lg">
-                      <p className="font-medium text-accent">Using Xero Data</p>
-                      <p className="text-text">{xeroData.length} records from Xero</p>
-                      <button 
-                        type="button"
-                        onClick={() => setXeroData(null)}
-                        className="mt-2 text-xs bg-red-50 text-red-600 px-2 py-1 rounded hover:bg-red-100"
-                      >
-                        Remove Xero Data
-                      </button>
-                    </div>
-                  )}
-                  
-                  {isAuthenticated && !xeroData && !isLoadingXero && !arFile && (
-                    <button
-                      type="button"
-                      onClick={useXeroData}
-                      className="mt-2 bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
-                    >
-                      Import from Xero
-                    </button>
+                  ) : (
+                    <>
+                      <label className="block mb-4">
+                        <span className="text-text block mb-2">Upload AR CSV file</span>
+                        <input 
+                          type="file" 
+                          accept=".csv" 
+                          className="block w-full text-sm text-gray-500
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-lg file:border-0
+                            file:text-sm file:font-medium
+                            file:bg-primary file:text-white
+                            hover:file:bg-opacity-90 transition-colors"
+                          onChange={handleARFileChange}
+                          disabled={xeroData !== null || isLoadingXero}
+                        />
+                      </label>
+                      
+                      {arFile && (
+                        <div className="text-sm bg-primary bg-opacity-5 p-3 rounded-lg">
+                          <p className="font-medium text-primary">{arFile.name}</p>
+                          <p className="text-text">{(arFile.size / 1024).toFixed(2)} KB</p>
+                        </div>
+                      )}
+                      
+                      {isLoadingXero && !isSelectingCustomer && (
+                        <div className="text-sm bg-blue-100 p-3 rounded-lg flex items-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <p>Loading Xero data...</p>
+                        </div>
+                      )}
+                      
+                      {xeroData && (
+                        <div className="text-sm bg-accent bg-opacity-10 p-3 rounded-lg">
+                          <p className="font-medium text-accent">Using Xero Data</p>
+                          <p className="font-medium">Customer: {xeroData.customerName}</p>
+                          <p className="text-text">{xeroData.invoices.length} records from Xero</p>
+                          <button 
+                            type="button"
+                            onClick={() => setXeroData(null)}
+                            className="mt-2 text-xs bg-red-50 text-red-600 px-2 py-1 rounded hover:bg-red-100"
+                          >
+                            Remove Xero Data
+                          </button>
+                        </div>
+                      )}
+                      
+                      {isAuthenticated && !xeroData && !isLoadingXero && !arFile && (
+                        <button
+                          type="button"
+                          onClick={useXeroData}
+                          className="mt-2 bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                        >
+                          Import from Xero
+                        </button>
+                      )}
+                    </>
                   )}
                   
                   <div className="mt-4">
@@ -324,7 +414,7 @@ const Upload = () => {
                 type="submit" 
                 className="bg-secondary hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium
                   disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                disabled={isLoading || isLoadingXero}
+                disabled={isLoading || isLoadingXero || isSelectingCustomer}
               >
                 {isLoading ? (
                   <span className="flex items-center">
