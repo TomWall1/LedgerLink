@@ -13,21 +13,26 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
-// Configure CORS middleware for all routes
+// IMPORTANT: Add preflight handling before other middleware
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Pragma, Cache-Control');
+  }
+  
+  res.status(204).send();
+});
+
+// General CORS middleware for non-OPTIONS requests
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
-  // Check if this origin is allowed
   if (allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Pragma, Cache-Control');
-  }
-
-  // Handle preflight OPTIONS requests
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Pragma, Cache-Control');
   }
   
   next();
@@ -44,12 +49,12 @@ const xero = new XeroClient({
 });
 
 app.get('/', (req, res) => {
-  console.log('Root endpoint accessed');
+  console.log('Root endpoint accessed from:', req.headers.origin);
   res.json({ status: 'API is running' });
 });
 
 app.get('/api/xero/config', (req, res) => {
-  console.log('Xero config endpoint accessed');
+  console.log('Xero config endpoint accessed from:', req.headers.origin);
   res.json({
     clientId: process.env.XERO_CLIENT_ID ? '✓ Set' : '✗ Missing',
     clientSecret: process.env.XERO_CLIENT_SECRET ? '✓ Set' : '✗ Missing',
@@ -59,7 +64,7 @@ app.get('/api/xero/config', (req, res) => {
 
 app.get('/api/xero/auth-url', async (req, res) => {
   try {
-    console.log('Generating Xero consent URL');
+    console.log('Generating Xero consent URL for:', req.headers.origin);
     const consentUrl = await xero.buildConsentUrl();
     console.log('Consent URL generated:', consentUrl);
     res.json({ url: consentUrl });
@@ -71,6 +76,7 @@ app.get('/api/xero/auth-url', async (req, res) => {
 
 app.post('/api/xero/callback', async (req, res) => {
   try {
+    console.log('Xero callback received from:', req.headers.origin);
     const { code } = req.body;
     await xero.apiCallback(code);
     res.json({ success: true });
@@ -91,19 +97,33 @@ app.get('/api/xero/invoices/:tenantId', async (req, res) => {
   }
 });
 
-// Xero authentication status endpoint
+// Special endpoint for checking Xero authentication status
 app.get('/auth/xero/status', (req, res) => {
   const origin = req.headers.origin;
   console.log(`Xero auth status check from: ${origin}`);
   
+  // Explicitly set CORS headers since this endpoint is causing issues
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Pragma, Cache-Control');
+  }
+  
   try {
-    // Simple response for now - just check if we have tokens
-    const isAuthenticated = xero.accessTokenSet ? true : false;
+    // Determine if Xero is authenticated
+    // For testing, we're just returning a simple response
+    const isAuthenticated = !!xero.accessTokenSet;
     console.log(`Responding with auth status: ${isAuthenticated}`);
-    res.json({ isAuthenticated });
+    
+    res.json({ 
+      isAuthenticated,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error checking Xero auth status:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: 'Error checking authentication status',
+      details: error.message 
+    });
   }
 });
 
