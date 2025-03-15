@@ -7,7 +7,7 @@ const XeroCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState(null);
-  const { setIsAuthenticated } = useXero();
+  const { setIsAuthenticated, getApiUrl } = useXero();
   const handledCallback = useRef(false);
 
   useEffect(() => {
@@ -15,8 +15,13 @@ const XeroCallback = () => {
     if (handledCallback.current) return;
     handledCallback.current = true;
     
+    // First check for authenticated directly in params (backward compatibility)
     const authenticated = searchParams.get('authenticated') === 'true';
     const errorMessage = searchParams.get('error');
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+
+    console.log('Callback params:', { authenticated, errorMessage, code, state });
 
     if (errorMessage) {
       setError(decodeURIComponent(errorMessage));
@@ -25,15 +30,53 @@ const XeroCallback = () => {
 
     const handleCallback = async () => {
       try {
+        // If we have the legacy authenticated parameter, use it
         if (authenticated) {
+          console.log('Using legacy authentication flow');
           // Set authentication state immediately
           setIsAuthenticated(true);
           
           // Navigate immediately to avoid potential redirect loops
           navigate('/upload', { state: { xeroEnabled: true }, replace: true });
-        } else {
-          throw new Error('Authentication failed');
+          return;
         }
+        
+        // If we have a code, use the new OAuth flow
+        if (code) {
+          console.log('Processing OAuth code from Xero');
+          
+          // Send the code to our backend
+          const apiUrl = getApiUrl();
+          const response = await fetch(`${apiUrl}/api/xero/callback`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ code })
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Backend returned ${response.status}: ${errorText}`);
+          }
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            console.log('Successfully authenticated with Xero');
+            // Set authentication state
+            setIsAuthenticated(true);
+            
+            // Navigate to upload page
+            navigate('/upload', { state: { xeroEnabled: true }, replace: true });
+            return;
+          } else {
+            throw new Error(data.error || 'Authentication failed');
+          }
+        }
+        
+        // If we don't have authenticated or code, something went wrong
+        throw new Error('No authentication data received from Xero');
       } catch (error) {
         console.error('Xero callback error:', error);
         setError(error.message);
@@ -41,7 +84,7 @@ const XeroCallback = () => {
     };
 
     handleCallback();
-  }, [searchParams, navigate, setIsAuthenticated]);
+  }, [searchParams, navigate, setIsAuthenticated, getApiUrl]);
 
   if (error) {
     return (

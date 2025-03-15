@@ -34,16 +34,19 @@ const XeroConnection = () => {
       const apiUrl = getApiUrl();
       console.log('Connecting to Xero using API URL:', apiUrl);
       
-      // Make the API call using withCredentials: false
-      // This is important to avoid CORS preflight issues
-      const response = await axios.get(`${apiUrl}/auth/xero/connect`, {
-        withCredentials: false
-      });
+      // Make the API call using fetch to avoid header issues
+      const response = await fetch(`${apiUrl}/auth/xero/connect`);
       
-      if (response.data && response.data.authUrl) {
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${await response.text()}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.url) {
         // Redirect to Xero for authentication
-        console.log('Redirecting to Xero auth URL');
-        window.location.href = response.data.authUrl;
+        console.log('Redirecting to Xero auth URL:', data.url);
+        window.location.href = data.url;
       } else {
         throw new Error('No authorization URL received from server');
       }
@@ -66,9 +69,12 @@ const XeroConnection = () => {
       // Disconnect on the server first
       const apiUrl = getApiUrl();
       
-      // Make the API call using withCredentials: false
-      await axios.post(`${apiUrl}/auth/xero/disconnect`, {}, {
-        withCredentials: false
+      // Make the API call using fetch to avoid header issues
+      const response = await fetch(`${apiUrl}/auth/xero/disconnect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
       // Then disconnect locally

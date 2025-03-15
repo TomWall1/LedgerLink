@@ -11,7 +11,17 @@ const XeroCallback = () => {
     if (!router.isReady) return;
     
     // Extract code and state from the query parameters
-    const { code, state } = router.query;
+    const { code, state, error: errorParam, error_description } = router.query;
+    
+    console.log('Next.js Callback params:', { code, state, errorParam, error_description });
+    
+    // Handle Xero errors
+    if (errorParam) {
+      setStatus('Authentication failed');
+      setError(error_description || errorParam);
+      console.error('Xero returned an error:', errorParam, error_description);
+      return;
+    }
     
     const processAuth = async () => {
       try {
@@ -63,9 +73,6 @@ const XeroCallback = () => {
     
     if (code) {
       processAuth();
-    } else if (router.query.error) {
-      setStatus('Authentication failed');
-      setError(router.query.error_description || 'Xero authentication was denied');
     }
   }, [router.isReady, router.query]);
   
