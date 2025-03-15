@@ -83,8 +83,8 @@ app.get('/api/xero/auth-url', async (req, res) => {
   }
 });
 
-// Updated callback endpoint to handle the OAuth flow
-app.post('/api/xero/callback', async (req, res) => {
+// Add callback endpoint at both routes to support different frontend configurations
+const handleXeroCallback = async (req, res) => {
   try {
     console.log('Xero callback received from:', req.headers.origin);
     const { code } = req.body;
@@ -94,7 +94,7 @@ app.post('/api/xero/callback', async (req, res) => {
       return res.status(400).json({ error: 'No authorization code provided' });
     }
     
-    console.log('Processing authorization code from Xero');
+    console.log('Processing authorization code from Xero:', code.substring(0, 10) + '...');
     
     try {
       // Exchange the code for a token
@@ -117,7 +117,11 @@ app.post('/api/xero/callback', async (req, res) => {
     console.error('Unexpected error in Xero callback:', error);
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+// Add endpoints at both paths to support different client implementations
+app.post('/api/xero/callback', handleXeroCallback);
+app.post('/auth/xero/callback', handleXeroCallback);
 
 app.get('/api/xero/invoices/:tenantId', async (req, res) => {
   try {
