@@ -31,7 +31,7 @@ const Upload = () => {
     }
   }, [location.state, isAuthenticated]);
 
-  // Function to fetch Xero customers
+  // Function to fetch Xero customers from the real API
   const fetchXeroCustomers = async () => {
     if (!isAuthenticated) return;
     
@@ -40,28 +40,38 @@ const Upload = () => {
       setError(null);
       setIsSelectingCustomer(true);
       
-      // Mock customer data for testing
-      // In a real implementation, you would fetch from an API endpoint
-      const mockCustomers = [
-        { id: 'cust-001', name: 'Acme Corporation', email: 'accounts@acme.com' },
-        { id: 'cust-002', name: 'Global Industries', email: 'ar@global-ind.com' },
-        { id: 'cust-003', name: 'Tech Solutions Ltd', email: 'finance@techsol.com' },
-        { id: 'cust-004', name: 'Omega Retail Group', email: 'payments@omega-retail.com' },
-        { id: 'cust-005', name: 'Sunshine Hospitality', email: 'accounts@sunshine.com' }
-      ];
+      const apiUrl = getApiUrl();
+      console.log('Fetching Xero customers from:', apiUrl);
       
-      // Set the customer data
-      setAllXeroCustomers(mockCustomers);
-      console.log('Xero customers loaded:', mockCustomers);
+      const response = await fetch(`${apiUrl}/api/xero/customers`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch customers: ${response.status} - ${errorText}`);
+      }
+      
+      const customers = await response.json();
+      console.log('Raw Xero customers data:', customers);
+      
+      // Transform the data to match our expected format
+      const formattedCustomers = customers.map(customer => ({
+        id: customer.contactID,
+        name: customer.name,
+        email: customer.emailAddress || 'No email'
+      }));
+      
+      setAllXeroCustomers(formattedCustomers);
+      console.log('Xero customers loaded:', formattedCustomers);
     } catch (err) {
       console.error('Error fetching Xero customers:', err);
       setError('Failed to fetch Xero customers: ' + err.message);
+      setIsSelectingCustomer(false);
     } finally {
       setIsLoadingXero(false);
     }
   };
 
-  // Function to fetch invoices for a selected customer
+  // Function to fetch invoices for a selected customer from the real API
   const fetchCustomerData = async (customerId) => {
     try {
       setIsLoadingXero(true);
@@ -71,23 +81,41 @@ const Upload = () => {
       const customer = allXeroCustomers.find(c => c.id === customerId);
       const customerName = customer ? customer.name : 'Unknown';
       
-      // Mock invoice data for the selected customer
-      // In a real implementation, you would fetch from an API endpoint
-      const mockInvoices = [
-        { id: `INV-${customerId}-001`, type: 'INVOICE', amount: 1299.99, issueDate: '2025-01-15', dueDate: '2025-02-15', status: 'OPEN', reference: 'REF001', customer: customerName },
-        { id: `INV-${customerId}-002`, type: 'INVOICE', amount: 899.50, issueDate: '2025-01-20', dueDate: '2025-02-20', status: 'OPEN', reference: 'REF002', customer: customerName },
-        { id: `INV-${customerId}-003`, type: 'INVOICE', amount: 1450.00, issueDate: '2025-01-25', dueDate: '2025-02-25', status: 'OPEN', reference: 'REF003', customer: customerName }
-      ];
+      const apiUrl = getApiUrl();
+      console.log(`Fetching invoices for customer ${customerId} from: ${apiUrl}`);
       
-      // Set the Xero data
+      const response = await fetch(`${apiUrl}/api/xero/customers/${customerId}/invoices`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch invoices: ${response.status} - ${errorText}`);
+      }
+      
+      const invoices = await response.json();
+      console.log('Raw Xero invoices data:', invoices);
+      
+      // Transform the data to match our expected format
+      const formattedInvoices = invoices.map(invoice => ({
+        id: invoice.invoiceID,
+        type: invoice.type,
+        amount: invoice.total,
+        issueDate: invoice.date || invoice.dateString,
+        dueDate: invoice.dueDate || invoice.dueDateString,
+        status: invoice.status,
+        reference: invoice.reference || invoice.invoiceNumber,
+        customer: customerName
+      }));
+      
+      // Set the Xero data with customer information and formatted invoices
       setXeroData({
         customerId,
         customerName,
-        invoices: mockInvoices
+        invoices: formattedInvoices
       });
-      console.log('Customer invoices loaded:', mockInvoices);
       
-      // Hide the customer selection
+      console.log('Customer invoices loaded:', formattedInvoices);
+      
+      // Hide the customer selection once data is loaded
       setIsSelectingCustomer(false);
     } catch (err) {
       console.error('Error fetching customer invoices:', err);
@@ -217,28 +245,44 @@ const Upload = () => {
                         </div>
                       ) : (
                         <div>
-                          <select
-                            value={selectedCustomer}
-                            onChange={handleCustomerSelect}
-                            className="w-full p-2 border border-gray-300 rounded mb-2"
-                          >
-                            <option value="">Select a customer</option>
-                            {allXeroCustomers.map(customer => (
-                              <option key={customer.id} value={customer.id}>
-                                {customer.name} ({customer.email})
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsSelectingCustomer(false);
-                              setSelectedCustomer('');
-                            }}
-                            className="text-sm text-red-600 hover:text-red-800"
-                          >
-                            Cancel
-                          </button>
+                          {allXeroCustomers.length > 0 ? (
+                            <>
+                              <select
+                                value={selectedCustomer}
+                                onChange={handleCustomerSelect}
+                                className="w-full p-2 border border-gray-300 rounded mb-2"
+                              >
+                                <option value="">Select a customer</option>
+                                {allXeroCustomers.map(customer => (
+                                  <option key={customer.id} value={customer.id}>
+                                    {customer.name} ({customer.email})
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsSelectingCustomer(false);
+                                  setSelectedCustomer('');
+                                }}
+                                className="text-sm text-red-600 hover:text-red-800"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <div className="text-sm bg-yellow-50 p-3 rounded-lg">
+                              <p className="font-medium text-yellow-700">No customers found in Xero</p>
+                              <p className="text-yellow-600 mt-1">Either you don't have any customers in Xero or we can't access them.</p>
+                              <button
+                                type="button"
+                                onClick={() => setIsSelectingCustomer(false)}
+                                className="mt-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded hover:bg-yellow-200"
+                              >
+                                Go Back
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -281,7 +325,7 @@ const Upload = () => {
                         <div className="text-sm bg-accent bg-opacity-10 p-3 rounded-lg">
                           <p className="font-medium text-accent">Using Xero Data</p>
                           <p className="font-medium">Customer: {xeroData.customerName}</p>
-                          <p className="text-text">{xeroData.invoices.length} records from Xero</p>
+                          <p className="text-text">{xeroData.invoices.length} invoices from Xero</p>
                           <button 
                             type="button"
                             onClick={() => setXeroData(null)}
