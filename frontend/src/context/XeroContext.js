@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 
 const XeroContext = createContext();
 
@@ -46,10 +45,18 @@ export const XeroProvider = ({ children }) => {
       setIsCheckingAuth(true);
       console.log('Checking Xero authentication status');
       
-      // First try using the proxy directly with fetch (no Axios)
+      // First try using the proxy with native fetch API
       try {
         console.log('Trying proxy endpoint for Xero auth status');
-        const proxyResponse = await fetch('/api/xero-status');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const proxyResponse = await fetch('/api/xero-status', {
+          method: 'GET',
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
         
         if (proxyResponse.ok) {
           const data = await proxyResponse.json();
@@ -58,27 +65,31 @@ export const XeroProvider = ({ children }) => {
           setIsCheckingAuth(false);
           return data.isAuthenticated;
         } else {
-          console.log('Proxy returned error status:', proxyResponse.status);
-          // Let the error propagate to fallback
-          throw new Error(`Proxy returned ${proxyResponse.status}`);
+          const errorText = await proxyResponse.text();
+          console.log('Proxy returned error:', proxyResponse.status, errorText);
+          throw new Error(`Proxy error: ${proxyResponse.status}`);
         }
       } catch (proxyError) {
-        console.log('Proxy endpoint failed, fallback to direct:', proxyError);
+        console.log('Proxy endpoint failed, falling back to direct API call:', proxyError);
       }
       
-      // Fallback to backend API with specific CORS-friendly settings
+      // Fallback to direct API call using fetch API
       console.log('Making direct API call to Xero auth status');
       const apiUrl = getApiUrl();
       
-      // We're removing Pragma and Cache-Control headers that might cause issues
+      // Using fetch with minimal headers to avoid CORS issues
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       const response = await fetch(`${apiUrl}/auth/xero/status`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        mode: 'cors'
+        headers: { 'Content-Type': 'application/json' }, // minimal headers
+        credentials: 'omit', // don't send credentials
+        mode: 'cors',
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (response.ok) {
         const data = await response.json();
@@ -87,7 +98,9 @@ export const XeroProvider = ({ children }) => {
         setIsCheckingAuth(false);
         return data.isAuthenticated;
       } else {
-        throw new Error(`Backend returned ${response.status}`);
+        const errorText = await response.text();
+        console.log('Direct API call failed:', response.status, errorText);
+        throw new Error(`Backend error: ${response.status}`);
       }
     } catch (error) {
       console.error('Error fetching auth status:', error);
