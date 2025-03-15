@@ -1,5 +1,8 @@
 // Create a proxy endpoint to avoid CORS issues
 export default async function handler(req, res) {
+  // Log the beginning of the request
+  console.log('Proxy endpoint accessed with method:', req.method);
+  
   try {
     // Set CORS headers to allow any origin for this proxy endpoint
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,16 +22,27 @@ export default async function handler(req, res) {
     }
     
     // Make the request to the backend API
-    const apiUrl = process.env.API_URL || 'https://ledgerlink.onrender.com';
+    // The API_URL environment variable might not be set correctly
+    const apiUrl = 'https://ledgerlink.onrender.com'; // Hardcoded for reliability
     console.log(`Proxying request to ${apiUrl}/auth/xero/status`);
+    
+    // Using a more basic fetch approach with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
     
     try {
       const response = await fetch(`${apiUrl}/auth/xero/status`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId); // Clear the timeout if request completes
+      
+      // Log response status
+      console.log('Backend response status:', response.status);
       
       // Check if the request was successful
       if (!response.ok) {
@@ -47,17 +61,28 @@ export default async function handler(req, res) {
       // Return the response to the client
       return res.status(200).json(data);
     } catch (fetchError) {
-      console.error('Fetch error:', fetchError);
+      clearTimeout(timeoutId); // Clear the timeout on error
+      
+      console.error('Fetch error:', fetchError.name, fetchError.message);
+      if (fetchError.name === 'AbortError') {
+        return res.status(504).json({
+          error: 'Gateway Timeout',
+          details: 'Request to backend timed out after 10 seconds'
+        });
+      }
+      
       return res.status(500).json({
         error: 'Failed to reach backend API',
-        details: fetchError.message
+        details: fetchError.message,
+        name: fetchError.name
       });
     }
   } catch (error) {
-    console.error('Error in proxy handler:', error);
+    console.error('Error in proxy handler:', error.name, error.message, error.stack);
     return res.status(500).json({ 
       error: 'Proxy API error',
-      details: error.message 
+      details: error.message,
+      stack: error.stack
     });
   }
 }
