@@ -14,21 +14,60 @@ const Upload = () => {
   const [error, setError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [xeroData, setXeroData] = useState(null);
+  const [isLoadingXero, setIsLoadingXero] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useXero();
+  const { isAuthenticated, getApiUrl } = useXero();
   
   // Check if we're coming from Xero connection
   useEffect(() => {
     if (location.state?.xeroEnabled && isAuthenticated) {
-      // TODO: Fetch Xero data when enabled
+      // Fetch Xero data when enabled
       console.log('Xero integration enabled');
-      // For now, just log it
+      fetchXeroData();
     }
   }, [location.state, isAuthenticated]);
 
+  // Function to fetch Xero data
+  const fetchXeroData = async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      setIsLoadingXero(true);
+      setError(null);
+      
+      const apiUrl = getApiUrl();
+      console.log('Fetching Xero data from:', apiUrl);
+      
+      // For now, create mock data since we don't have a real endpoint yet
+      // In a real implementation, you would fetch from an endpoint like this:
+      // const response = await fetch(`${apiUrl}/api/xero/invoices`);
+      // const data = await response.json();
+      
+      // Mock data for testing
+      const mockData = [
+        { id: 'INV-001', type: 'INVOICE', amount: 1299.99, issueDate: '2025-01-15', dueDate: '2025-02-15', status: 'OPEN', reference: 'REF001' },
+        { id: 'INV-002', type: 'INVOICE', amount: 899.50, issueDate: '2025-01-20', dueDate: '2025-02-20', status: 'OPEN', reference: 'REF002' },
+        { id: 'INV-003', type: 'INVOICE', amount: 1450.00, issueDate: '2025-01-25', dueDate: '2025-02-25', status: 'OPEN', reference: 'REF003' }
+      ];
+      
+      // Set the Xero data
+      setXeroData(mockData);
+      console.log('Xero data loaded:', mockData);
+    } catch (err) {
+      console.error('Error fetching Xero data:', err);
+      setError('Failed to fetch Xero data: ' + err.message);
+    } finally {
+      setIsLoadingXero(false);
+    }
+  };
+
   const handleARFileChange = (e) => {
     setArFile(e.target.files[0]);
+    // Clear Xero data if file is uploaded
+    if (e.target.files[0]) {
+      setXeroData(null);
+    }
   };
 
   const handleAPFileChange = (e) => {
@@ -60,6 +99,7 @@ const Upload = () => {
       // Add Xero data if available
       if (xeroData) {
         formData.append('arData', JSON.stringify(xeroData));
+        console.log('Including Xero data in submission:', xeroData);
       }
       
       // Add date formats and historical data flag
@@ -87,6 +127,16 @@ const Upload = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Function to use Xero data
+  const useXeroData = () => {
+    if (!isAuthenticated) {
+      setError('Please connect to Xero first');
+      return;
+    }
+    
+    fetchXeroData();
   };
 
   return (
@@ -119,7 +169,7 @@ const Upload = () => {
                         file:bg-primary file:text-white
                         hover:file:bg-opacity-90 transition-colors"
                       onChange={handleARFileChange}
-                      disabled={xeroData !== null}
+                      disabled={xeroData !== null || isLoadingXero}
                     />
                   </label>
                   
@@ -130,11 +180,38 @@ const Upload = () => {
                     </div>
                   )}
                   
+                  {isLoadingXero && (
+                    <div className="text-sm bg-blue-100 p-3 rounded-lg flex items-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <p>Loading Xero data...</p>
+                    </div>
+                  )}
+                  
                   {xeroData && (
                     <div className="text-sm bg-accent bg-opacity-10 p-3 rounded-lg">
                       <p className="font-medium text-accent">Using Xero Data</p>
                       <p className="text-text">{xeroData.length} records from Xero</p>
+                      <button 
+                        type="button"
+                        onClick={() => setXeroData(null)}
+                        className="mt-2 text-xs bg-red-50 text-red-600 px-2 py-1 rounded hover:bg-red-100"
+                      >
+                        Remove Xero Data
+                      </button>
                     </div>
+                  )}
+                  
+                  {isAuthenticated && !xeroData && !isLoadingXero && !arFile && (
+                    <button
+                      type="button"
+                      onClick={useXeroData}
+                      className="mt-2 bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                    >
+                      Import from Xero
+                    </button>
                   )}
                   
                   <div className="mt-4">
@@ -247,7 +324,7 @@ const Upload = () => {
                 type="submit" 
                 className="bg-secondary hover:bg-opacity-90 text-white px-6 py-3 rounded-lg font-medium
                   disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                disabled={isLoading}
+                disabled={isLoading || isLoadingXero}
               >
                 {isLoading ? (
                   <span className="flex items-center">
@@ -265,7 +342,7 @@ const Upload = () => {
         
         {/* Xero Integration */}
         <div className="mt-8">
-          <XeroConnection />
+          <XeroConnection onUseXeroData={useXeroData} />
         </div>
       </div>
     </div>

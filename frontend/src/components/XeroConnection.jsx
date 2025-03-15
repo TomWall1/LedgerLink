@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useXero } from '../context/XeroContext';
 
-const XeroConnection = () => {
+const XeroConnection = ({ onUseXeroData }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -94,7 +94,13 @@ const XeroConnection = () => {
   };
 
   const handleContinue = () => {
-    navigate('/upload', { state: { xeroEnabled: true } });
+    // Check if onUseXeroData prop is provided
+    if (typeof onUseXeroData === 'function') {
+      onUseXeroData(); // Call the function from parent component
+    } else {
+      // Fallback to navigation
+      navigate('/upload', { state: { xeroEnabled: true } });
+    }
   };
 
   const handleTryAgain = () => {
