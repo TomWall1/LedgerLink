@@ -45,7 +45,7 @@ const xero = new XeroClient({
   clientId: process.env.XERO_CLIENT_ID,
   clientSecret: process.env.XERO_CLIENT_SECRET,
   redirectUris: [process.env.XERO_REDIRECT_URI],
-  scopes: ['accounting.transactions.read', 'accounting.contacts.read']
+  scopes: ['offline_access', 'accounting.transactions.read', 'accounting.contacts.read']
 });
 
 app.get('/', (req, res) => {
@@ -65,8 +65,17 @@ app.get('/api/xero/config', (req, res) => {
 app.get('/api/xero/auth-url', async (req, res) => {
   try {
     console.log('Generating Xero consent URL for:', req.headers.origin);
+    
+    // Use the redirect URI from the env variable
+    const redirectUri = process.env.XERO_REDIRECT_URI;
+    console.log('Using redirect URI:', redirectUri);
+    
     const consentUrl = await xero.buildConsentUrl();
-    console.log('Consent URL generated:', consentUrl);
+    console.log('Generated consent URL:', {
+      url: consentUrl,
+      state: xero.state
+    });
+    
     res.json({ url: consentUrl });
   } catch (error) {
     console.error('Error generating consent URL:', error);
@@ -74,14 +83,38 @@ app.get('/api/xero/auth-url', async (req, res) => {
   }
 });
 
+// Updated callback endpoint to handle the OAuth flow
 app.post('/api/xero/callback', async (req, res) => {
   try {
     console.log('Xero callback received from:', req.headers.origin);
     const { code } = req.body;
-    await xero.apiCallback(code);
-    res.json({ success: true });
+    
+    if (!code) {
+      console.error('No authorization code provided');
+      return res.status(400).json({ error: 'No authorization code provided' });
+    }
+    
+    console.log('Processing authorization code from Xero');
+    
+    try {
+      // Exchange the code for a token
+      await xero.apiCallback(code);
+      console.log('Successfully authenticated with Xero');
+      
+      // Return success response
+      res.json({ 
+        success: true, 
+        message: 'Successfully authenticated with Xero' 
+      });
+    } catch (apiError) {
+      console.error('Error exchanging code for token:', apiError);
+      res.status(500).json({ 
+        error: 'Error exchanging code for token', 
+        details: apiError.message 
+      });
+    }
   } catch (error) {
-    console.error('Error in Xero callback:', error);
+    console.error('Unexpected error in Xero callback:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -109,8 +142,7 @@ app.get('/auth/xero/status', (req, res) => {
   }
   
   try {
-    // Determine if Xero is authenticated
-    // For testing, we're just returning a simple response
+    // Check if we have a valid token
     const isAuthenticated = !!xero.accessTokenSet;
     console.log(`Responding with auth status: ${isAuthenticated}`);
     
@@ -124,6 +156,28 @@ app.get('/auth/xero/status', (req, res) => {
       error: 'Error checking authentication status',
       details: error.message 
     });
+  }
+});
+
+// Special endpoint for connecting to Xero (shown in the logs)
+app.get('/auth/xero/connect', async (req, res) => {
+  try {
+    console.log('Xero connect endpoint accessed from:', req.headers.origin);
+    
+    // Use the redirect URI from the env variable
+    const redirectUri = process.env.XERO_REDIRECT_URI;
+    console.log('Using redirect URI:', redirectUri);
+    
+    const consentUrl = await xero.buildConsentUrl();
+    console.log('Generated consent URL:', {
+      url: consentUrl,
+      state: xero.state
+    });
+    
+    res.json({ url: consentUrl });
+  } catch (error) {
+    console.error('Error generating connect URL:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -10,25 +10,62 @@ const XeroCallback = () => {
   useEffect(() => {
     if (!router.isReady) return;
     
-    // Get the query parameters
-    const { authenticated, error } = router.query;
+    // Extract code and state from the query parameters
+    const { code, state } = router.query;
     
-    if (authenticated === 'true') {
-      // Store authentication state in localStorage
-      localStorage.setItem('xeroAuth', 'true');
-      setStatus('Authentication successful!');
-      
-      // Redirect after a brief delay
-      const timer = setTimeout(() => {
-        router.push('/upload?xero=true');
-      }, 1500);
-      
-      return () => clearTimeout(timer);
-    } else if (error) {
-      // Handle error
+    const processAuth = async () => {
+      try {
+        // Verify we have code from Xero
+        if (!code) {
+          throw new Error('No authorization code received from Xero');
+        }
+        
+        console.log('Got code from Xero, sending to backend...');
+        
+        // Send the code to our backend
+        const apiUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://ledgerlink.onrender.com' 
+          : 'http://localhost:3002';
+        
+        const response = await fetch(`${apiUrl}/api/xero/callback`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ code })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(`Backend returned ${response.status}: ${errorData}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Store authentication state in localStorage
+          localStorage.setItem('xeroAuth', 'true');
+          setStatus('Authentication successful!');
+          
+          // Redirect after a brief delay
+          setTimeout(() => {
+            router.push('/upload?xero=true');
+          }, 1500);
+        } else {
+          throw new Error(data.error || 'Authentication failed');
+        }
+      } catch (err) {
+        console.error('Xero callback error:', err);
+        setStatus('Authentication failed');
+        setError(err.message);
+      }
+    };
+    
+    if (code) {
+      processAuth();
+    } else if (router.query.error) {
       setStatus('Authentication failed');
-      setError(decodeURIComponent(error));
-      console.log('Xero callback error:', new Error(decodeURIComponent(error)));
+      setError(router.query.error_description || 'Xero authentication was denied');
     }
   }, [router.isReady, router.query]);
   
