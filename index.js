@@ -68,8 +68,8 @@ app.get('/', (req, res) => {
 app.get('/api/xero/config', (req, res) => {
   console.log('Xero config endpoint accessed from:', req.headers.origin);
   res.json({
-    clientId: process.env.XERO_CLIENT_ID ? '✓ Set' : '✗ Missing',
-    clientSecret: process.env.XERO_CLIENT_SECRET ? '✓ Set' : '✗ Missing',
+    clientId: process.env.XERO_CLIENT_ID ? '\u2713 Set' : '\u2717 Missing',
+    clientSecret: process.env.XERO_CLIENT_SECRET ? '\u2713 Set' : '\u2717 Missing',
     redirectUri: process.env.XERO_REDIRECT_URI,
   });
 });
@@ -91,6 +91,75 @@ app.get('/api/xero/auth-url', async (req, res) => {
     res.json({ url: consentUrl });
   } catch (error) {
     console.error('Error generating consent URL:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all Xero customers
+app.get('/api/xero/customers', async (req, res) => {
+  try {
+    console.log('Fetching Xero customers');
+    
+    if (!xero.accessTokenSet) {
+      console.log('Not authenticated with Xero');
+      return res.status(401).json({ error: 'Not authenticated with Xero' });
+    }
+    
+    // Get the first tenant from Xero connection
+    console.log('Updating tenants');
+    const tenants = await xero.updateTenants();
+    
+    if (!tenants || tenants.length === 0) {
+      console.log('No tenants found');
+      return res.status(404).json({ error: 'No Xero organizations found' });
+    }
+    
+    const tenantId = tenants[0].tenantId;
+    console.log('Using tenant ID:', tenantId);
+    
+    // Fetch customers/contacts from Xero
+    console.log('Fetching contacts from Xero');
+    const contacts = await xero.accountingApi.getContacts(tenantId);
+    console.log(`Found ${contacts.body.contacts.length} contacts`);
+    
+    res.json(contacts.body.contacts);
+  } catch (error) {
+    console.error('Error fetching Xero customers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get invoices for a specific customer
+app.get('/api/xero/customers/:contactId/invoices', async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    console.log(`Fetching invoices for contact ID: ${contactId}`);
+    
+    if (!xero.accessTokenSet) {
+      console.log('Not authenticated with Xero');
+      return res.status(401).json({ error: 'Not authenticated with Xero' });
+    }
+    
+    // Get the first tenant from Xero connection
+    console.log('Updating tenants');
+    const tenants = await xero.updateTenants();
+    
+    if (!tenants || tenants.length === 0) {
+      console.log('No tenants found');
+      return res.status(404).json({ error: 'No Xero organizations found' });
+    }
+    
+    const tenantId = tenants[0].tenantId;
+    console.log('Using tenant ID:', tenantId);
+    
+    // Fetch invoices from Xero for a specific contact (customer)
+    console.log('Fetching invoices with filter:', `Contact.ContactID=="${contactId}"`);
+    const invoices = await xero.accountingApi.getInvoices(tenantId, undefined, `Contact.ContactID=="${contactId}"`);
+    console.log(`Found ${invoices.body.invoices.length} invoices`);
+    
+    res.json(invoices.body.invoices);
+  } catch (error) {
+    console.error('Error fetching Xero invoices:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -212,8 +281,8 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log('Environment:', {
-    clientId: process.env.XERO_CLIENT_ID ? '✓ Set' : '✗ Missing',
-    clientSecret: process.env.XERO_CLIENT_SECRET ? '✓ Set' : '✗ Missing',
+    clientId: process.env.XERO_CLIENT_ID ? '\u2713 Set' : '\u2717 Missing',
+    clientSecret: process.env.XERO_CLIENT_SECRET ? '\u2713 Set' : '\u2717 Missing',
     redirectUri: process.env.XERO_REDIRECT_URI,
   });
 });
