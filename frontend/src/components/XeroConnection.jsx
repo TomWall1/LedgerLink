@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { useXero } from '../context/XeroContext';
 
 const XeroConnection = () => {
@@ -38,16 +37,22 @@ const XeroConnection = () => {
       const response = await fetch(`${apiUrl}/auth/xero/connect`);
       
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${await response.text()}`);
+        const errorText = await response.text();
+        throw new Error(`Server returned ${response.status}: ${errorText}`);
       }
       
       const data = await response.json();
+      console.log('Received response from server:', data);
       
-      if (data && data.url) {
+      // Check for either 'url' or 'authUrl' property
+      const authUrl = data.url || data.authUrl;
+      
+      if (authUrl) {
         // Redirect to Xero for authentication
-        console.log('Redirecting to Xero auth URL:', data.url);
-        window.location.href = data.url;
+        console.log('Redirecting to Xero auth URL:', authUrl);
+        window.location.href = authUrl;
       } else {
+        console.error('Response data does not contain a valid URL:', data);
         throw new Error('No authorization URL received from server');
       }
     } catch (error) {
