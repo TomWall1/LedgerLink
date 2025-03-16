@@ -160,6 +160,35 @@ router.options('*', (req, res) => {
   res.status(204).end();
 });
 
+// NEW: Add auth-url endpoint to match the root index.js
+router.get('/auth-url', async (req, res) => {
+  try {
+    console.log('Backend Xero auth-url endpoint accessed from:', req.headers.origin);
+    
+    // CORS headers for this specific route
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    // Use the redirect URI from the env variable
+    const redirectUri = process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/auth/xero/callback';
+    console.log('Using redirect URI:', redirectUri);
+    
+    // Generate consent URL
+    const consentUrl = await xero.buildConsentUrl();
+    console.log('Generated consent URL:', {
+      url: consentUrl,
+      state: xero.state
+    });
+    
+    res.json({ url: consentUrl });
+  } catch (error) {
+    console.error('Error generating consent URL:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Initial Xero connection route
 router.get('/connect', async (req, res) => {
   try {
@@ -186,7 +215,7 @@ router.get('/connect', async (req, res) => {
     url.searchParams.set('state', state);
     
     console.log('Generated consent URL:', { url: url.toString(), state });
-    res.json({ authUrl: url.toString() });
+    res.json({ url: url.toString() });
   } catch (error) {
     console.error('Error generating consent URL:', error);
     res.status(500).json({
