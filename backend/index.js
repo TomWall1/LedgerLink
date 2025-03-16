@@ -12,6 +12,7 @@ const app = express();
 
 // Define allowed origins
 const allowedOrigins = [
+  'https://lledgerlink.vercel.app',
   'https://ledgerlink.vercel.app',
   'http://localhost:3000',
   'http://localhost:3001',
@@ -64,6 +65,9 @@ app.use('/link', accountLinkRoutes);
 // Add direct mount for the /api path as well to handle /api/match requests
 app.use('/api', processRoutes);
 
+// IMPORTANT: Mount Xero routes under /api/xero too
+app.use('/api/xero', xeroRoutes);
+
 // Create a simple non-authenticated status endpoint
 app.get('/xero-public-status', (req, res) => {
   res.json({ serverRunning: true });
@@ -79,7 +83,8 @@ app.get('/', (req, res) => {
       process: '/process-csv',
       match: '/match-data',
       link: '/link',
-      api: '/api/match'
+      api: '/api/match',
+      xero: '/api/xero/*'
     }
   });
 });
