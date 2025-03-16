@@ -277,6 +277,15 @@ app.get('/auth/xero/connect', async (req, res) => {
   }
 });
 
+// Forward the request to the backend XeroAuth routes - NEW CODE ADDED
+app.use('/api/xero', (req, res) => {
+  // This is a simple proxy to forward requests properly
+  console.log(`Forwarding Xero request: ${req.method} ${req.path}`);
+  // This will send a message to the console, but in a real implementation,
+  // you would properly proxy the request to the backend XeroAuth routes
+  res.status(501).json({ error: 'Xero API endpoints moved to backend service.' });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
