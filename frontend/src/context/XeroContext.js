@@ -45,66 +45,42 @@ export const XeroProvider = ({ children }) => {
       setIsCheckingAuth(true);
       console.log('Checking Xero authentication status');
       
-      // First try using the proxy with native fetch API
+      // First try using auth/xero/status endpoint directly
       try {
-        console.log('Trying proxy endpoint for Xero auth status');
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const apiUrl = getApiUrl();
+        console.log('Making direct API call to Xero auth status:', `${apiUrl}/auth/xero/status`);
         
-        const proxyResponse = await fetch('/api/xero-status', {
+        const response = await fetch(`${apiUrl}/auth/xero/status`, {
           method: 'GET',
-          signal: controller.signal
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'omit', // don't send credentials
+          mode: 'cors'
         });
         
-        clearTimeout(timeoutId);
-        
-        if (proxyResponse.ok) {
-          const data = await proxyResponse.json();
-          console.log('Proxy endpoint response:', data);
-          setIsAuthenticated(!!data.isAuthenticated);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Auth status direct response:', data);
+          
+          // If the backend says we're authenticated or we have local auth, consider us authenticated
+          const authStatus = !!data.isAuthenticated || localStorage.getItem('xeroAuth') === 'true';
+          setIsAuthenticated(authStatus);
           setIsCheckingAuth(false);
-          return data.isAuthenticated;
+          return authStatus;
         } else {
-          const errorText = await proxyResponse.text();
-          console.log('Proxy returned error:', proxyResponse.status, errorText);
-          throw new Error(`Proxy error: ${proxyResponse.status}`);
+          const errorText = await response.text();
+          console.log('Direct API call failed:', response.status, errorText);
+          throw new Error(`Backend error: ${response.status}`);
         }
-      } catch (proxyError) {
-        console.log('Proxy endpoint failed, falling back to direct API call:', proxyError);
+      } catch (directError) {
+        console.log('Direct auth endpoint failed, falling back to stored value:', directError);
       }
       
-      // Fallback to direct API call using fetch API
-      console.log('Making direct API call to Xero auth status');
-      const apiUrl = getApiUrl();
-      
-      // Using fetch with minimal headers to avoid CORS issues
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      const response = await fetch(`${apiUrl}/auth/xero/status`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }, // minimal headers
-        credentials: 'omit', // don't send credentials
-        mode: 'cors',
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Auth status direct response:', data);
-        
-        // If the backend says we're authenticated or we have local auth, consider us authenticated
-        const authStatus = !!data.isAuthenticated || localStorage.getItem('xeroAuth') === 'true';
-        setIsAuthenticated(authStatus);
-        setIsCheckingAuth(false);
-        return authStatus;
-      } else {
-        const errorText = await response.text();
-        console.log('Direct API call failed:', response.status, errorText);
-        throw new Error(`Backend error: ${response.status}`);
-      }
+      // Continue using the stored authentication state
+      console.log('Using stored auth value due to API error');
+      const storedAuth = localStorage.getItem('xeroAuth') === 'true';
+      setIsAuthenticated(storedAuth);
+      setIsCheckingAuth(false);
+      return storedAuth;
     } catch (error) {
       console.error('Error fetching auth status:', error);
       setError(error.message);
