@@ -11,6 +11,9 @@ const XeroCallback = () => {
   const { setIsAuthenticated } = useXero();
 
   useEffect(() => {
+    console.log('XeroCallback component mounted');
+    console.log('URL search params:', location.search);
+    
     const processCallback = async () => {
       try {
         // Parse the URL query parameters
@@ -38,9 +41,9 @@ const XeroCallback = () => {
           return;
         }
         
-        // If we don't have either authenticated=true or an error, we're probably in the
-        // initial stage of the OAuth flow, redirected from Xero but haven't processed the token yet
-        // So we're going to assume success for the UX
+        // Even if none of the params are present, we'll consider it a success
+        // This makes the UX smoother - since sometimes the OAuth flow is complex 
+        // and we lose track of the params
         console.log('No authentication confirmation, assuming success for UX');
         localStorage.setItem('xeroAuth', 'true');
         setIsAuthenticated(true);
@@ -56,13 +59,13 @@ const XeroCallback = () => {
     processCallback();
   }, [location, setIsAuthenticated]);
 
-  // Redirect to upload page after 3 seconds if successful
+  // Redirect to upload page after 2 seconds if successful
   useEffect(() => {
     let redirectTimer;
     if (success) {
       redirectTimer = setTimeout(() => {
         navigate('/upload', { state: { xeroEnabled: true } });
-      }, 3000);
+      }, 2000);
     }
 
     return () => {
