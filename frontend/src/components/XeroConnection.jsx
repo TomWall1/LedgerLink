@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useXero } from '../context/XeroContext';
+import axios from 'axios';
 
 const XeroConnection = ({ onUseXeroData }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -17,6 +18,56 @@ const XeroConnection = ({ onUseXeroData }) => {
     setIsAuthenticated(false);
   };
 
+  // NEW: A function to try multiple endpoints to get a Xero consent URL
+  const getXeroConsentUrl = async () => {
+    const baseUrl = getApiUrl();
+    const errorMessages = [];
+    
+    // Define all the endpoints we want to try, in order of preference
+    const possibleEndpoints = [
+      // First try the API path with auth-url
+      `${baseUrl}/api/xero/auth-url`,
+      // Next try the direct path to /index.js with auth-url
+      `${baseUrl}/api/xero/connect`,
+      // Then try the legacy auth paths
+      `${baseUrl}/auth/xero/connect`,
+      // Then try hardcoded versions
+      'https://ledgerlink.onrender.com/api/xero/auth-url',
+      'https://ledgerlink.onrender.com/api/xero/connect',
+      'https://ledgerlink.onrender.com/auth/xero/connect',
+      // Finally try with an environment variable
+      process.env.REACT_APP_XERO_AUTH_URL
+    ].filter(Boolean); // Remove any null/undefined entries
+    
+    // Try each endpoint until we get a successful response
+    for (const endpoint of possibleEndpoints) {
+      try {
+        console.log(`Trying Xero endpoint: ${endpoint}`);
+        const response = await axios.get(endpoint);
+        
+        if (response.status === 200 && (response.data.url || response.data.authUrl)) {
+          console.log(`Success with endpoint: ${endpoint}`);
+          return response.data.url || response.data.authUrl;
+        } else {
+          console.warn(`Endpoint ${endpoint} responded with status ${response.status} but no valid URL`);
+          errorMessages.push(`${endpoint}: No valid URL in response`);
+        }
+      } catch (err) {
+        console.warn(`Endpoint ${endpoint} failed:`, err.message);
+        errorMessages.push(`${endpoint}: ${err.message}`);
+      }
+    }
+    
+    // Last resort: Create a dummy URL for emergency bypass testing only - NOT FOR PRODUCTION
+    if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_EMERGENCY_BYPASS === 'true') {
+      console.warn('DEVELOPMENT ONLY: Using emergency bypass Xero URL');
+      return 'https://example.com/emergency-xero-bypass';
+    }
+    
+    // If all attempts failed, throw an error with all the error messages
+    throw new Error(`All Xero connection attempts failed: ${errorMessages.join('; ')}`);
+  };
+
   // Function to handle the Xero connection
   const handleConnect = async () => {
     // For development, use the mock connection
@@ -29,73 +80,16 @@ const XeroConnection = ({ onUseXeroData }) => {
       setIsLoading(true);
       setError(null);
       
-      // Get the API URL from context
-      const apiUrl = getApiUrl();
-      console.log('Connecting to Xero using API URL:', apiUrl);
+      // Try to get a consent URL from any of our endpoints
+      const authUrl = await getXeroConsentUrl();
       
-      // Try the direct API endpoint with simple mode to avoid CORS issues
-      // Note we need to use mode: 'no-cors' to avoid preflight issues
-      let authUrl = null;
-      let errorMessages = [];
-      
-      try {
-        // Try a direct API URL request to auth-url which we know works
-        console.log('Trying direct API endpoint for auth URL');
-        const response = await fetch(`${apiUrl}/api/xero/auth-url`);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          errorMessages.push(`Auth URL endpoint failed: ${response.status}`);
-          throw new Error(errorText);
-        }
-        
-        const data = await response.json();
-        if (data.url) {
-          authUrl = data.url;
-          console.log('Successfully fetched auth URL from API');
-        } else {
-          throw new Error('No URL in response');
-        }
-      } catch (firstError) {
-        console.warn('First attempt failed:', firstError.message);
-        errorMessages.push(`First attempt: ${firstError.message}`);
+      // If we got a URL, redirect to it
+      if (authUrl) {
+        console.log('Redirecting to Xero auth URL:', authUrl);
+        window.location.href = authUrl;
+      } else {
+        throw new Error('No authorization URL received');
       }
-      
-      // If we don't have an auth URL, use the hardcoded API path
-      if (!authUrl) {
-        try {
-          console.log('Trying hardcoded Xero API URL');
-          // Force a direct path that worked in the past
-          const hardcodedUrl = 'https://ledgerlink.onrender.com/api/xero/auth-url';
-          const response = await fetch(hardcodedUrl);
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            errorMessages.push(`Hardcoded API failed: ${response.status}`);
-            throw new Error(errorText);
-          }
-          
-          const data = await response.json();
-          if (data.url) {
-            authUrl = data.url;
-            console.log('Successfully fetched auth URL from hardcoded endpoint');
-          } else {
-            throw new Error('No URL in response');
-          }
-        } catch (secondError) {
-          console.warn('Second attempt failed:', secondError.message);
-          errorMessages.push(`Second attempt: ${secondError.message}`);
-        }
-      }
-      
-      // If we still don't have an auth URL after all attempts
-      if (!authUrl) {
-        throw new Error(`All connection attempts failed: ${errorMessages.join('; ')}`);
-      }
-      
-      // Redirect to Xero for authentication
-      console.log('Redirecting to Xero auth URL:', authUrl);
-      window.location.href = authUrl;
     } catch (error) {
       console.error('Error connecting to Xero:', error);
       setError(`Failed to connect to Xero: ${error.message || 'Unknown error'}. Please try again.`);
@@ -116,17 +110,19 @@ const XeroConnection = ({ onUseXeroData }) => {
       setIsAuthenticated(false);
       setIsLoading(false);
       
-      // Try server disconnect in the background
+      // Try server disconnect in the background with multiple possible endpoints
       const apiUrl = getApiUrl();
+      const possibleEndpoints = [
+        `${apiUrl}/api/xero/disconnect`,
+        `${apiUrl}/auth/xero/disconnect`,
+        'https://ledgerlink.onrender.com/api/xero/disconnect'
+      ];
       
-      // Try with simple fetch to avoid errors
-      fetch(`${apiUrl}/api/xero/disconnect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }).catch(err => {
-        console.warn('API disconnect failed, but local disconnect successful:', err);
+      // Try each disconnect endpoint but don't wait for the result
+      possibleEndpoints.forEach(endpoint => {
+        axios.post(endpoint)
+          .then(() => console.log(`Successfully disconnected via ${endpoint}`))
+          .catch(err => console.warn(`Failed to disconnect via ${endpoint}:`, err.message));
       });
     } catch (error) {
       console.warn('Error disconnecting from Xero:', error);
