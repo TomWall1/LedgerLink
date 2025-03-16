@@ -13,37 +13,37 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
+// Configure CORS more permissively to resolve CORS issues
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc)
+    if (!origin) return callback(null, true);
+    
+    // If origin is in our allow list, allow it
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    
+    // For development, allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    // Otherwise, log the blocked origin
+    console.log('CORS blocked for origin:', origin);
+    callback(null, false); 
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Pragma', 'Cache-Control'],
+  credentials: true
+}));
+
 // Log all requests for debugging
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`, {
     origin: req.headers.origin,
     contentType: req.headers['content-type']
   });
-  next();
-});
-
-// IMPORTANT: Add preflight handling before other middleware
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Pragma, Cache-Control');
-  }
-  
-  res.status(204).send();
-});
-
-// General CORS middleware for non-OPTIONS requests
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Pragma, Cache-Control');
-  }
-  
   next();
 });
 
@@ -65,16 +65,7 @@ app.get('/', (req, res) => {
   res.json({ status: 'API is running' });
 });
 
-app.get('/api/xero/config', (req, res) => {
-  console.log('Xero config endpoint accessed from:', req.headers.origin);
-  res.json({
-    clientId: process.env.XERO_CLIENT_ID ? '\u2713 Set' : '\u2717 Missing',
-    clientSecret: process.env.XERO_CLIENT_SECRET ? '\u2713 Set' : '\u2717 Missing',
-    redirectUri: process.env.XERO_REDIRECT_URI,
-  });
-});
-
-// Express the auth-url endpoint at both paths for backwards compatibility
+// This endpoint should work without issues
 app.get('/api/xero/auth-url', async (req, res) => {
   try {
     console.log('Generating Xero consent URL for:', req.headers.origin);
@@ -96,38 +87,14 @@ app.get('/api/xero/auth-url', async (req, res) => {
   }
 });
 
-// Create a new connect endpoint that works with frontend
-app.get('/api/xero/connect', async (req, res) => {
-  try {
-    console.log('Generating Xero connect URL for:', req.headers.origin);
-    
-    // Use the redirect URI from the env variable
-    const redirectUri = process.env.XERO_REDIRECT_URI;
-    console.log('Using redirect URI:', redirectUri);
-    
-    const consentUrl = await xero.buildConsentUrl();
-    console.log('Generated connect URL:', {
-      url: consentUrl,
-      state: xero.state
-    });
-    
-    res.json({ url: consentUrl });
-  } catch (error) {
-    console.error('Error generating connect URL:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Add disconnect endpoint for the frontend
-app.post('/api/xero/disconnect', (req, res) => {
-  try {
-    console.log('Disconnecting from Xero:', req.headers.origin);
-    isXeroAuthenticated = false;
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error disconnecting from Xero:', error);
-    res.status(500).json({ error: error.message });
-  }
+// Add config endpoint for debugging
+app.get('/api/xero/config', (req, res) => {
+  console.log('Xero config endpoint accessed from:', req.headers.origin);
+  res.json({
+    clientId: process.env.XERO_CLIENT_ID ? '\u2713 Set' : '\u2717 Missing',
+    clientSecret: process.env.XERO_CLIENT_SECRET ? '\u2713 Set' : '\u2717 Missing',
+    redirectUri: process.env.XERO_REDIRECT_URI,
+  });
 });
 
 // Get all Xero customers
@@ -254,15 +221,6 @@ app.get('/api/xero/invoices/:tenantId', async (req, res) => {
 
 // Special endpoint for checking Xero authentication status
 app.get('/auth/xero/status', (req, res) => {
-  const origin = req.headers.origin;
-  console.log(`Xero auth status check from: ${origin}`);
-  
-  // Explicitly set CORS headers since this endpoint is causing issues
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Pragma, Cache-Control');
-  }
-  
   try {
     // Check if we have a valid token
     const tokenBased = !!xero.accessTokenSet;
@@ -292,9 +250,6 @@ app.get('/auth/xero/status', (req, res) => {
 
 // Add the same endpoint under the /api path
 app.get('/api/xero/status', (req, res) => {
-  const origin = req.headers.origin;
-  console.log(`API Xero auth status check from: ${origin}`);
-  
   try {
     // Check if we have a valid token
     const tokenBased = !!xero.accessTokenSet;
@@ -344,13 +299,38 @@ app.get('/auth/xero/connect', async (req, res) => {
   }
 });
 
-// Forward the request to the backend XeroAuth routes if needed
-app.use('/api/xero', (req, res) => {
-  // This is a simple proxy to forward requests properly
-  console.log(`Forwarding Xero request: ${req.method} ${req.path}`);
-  // This will send a message to the console, but in a real implementation,
-  // you would properly proxy the request to the backend XeroAuth routes
-  res.status(501).json({ error: 'Xero API endpoints moved to backend service.' });
+// Create a new connect endpoint that works with frontend
+app.get('/api/xero/connect', async (req, res) => {
+  try {
+    console.log('API Xero connect endpoint accessed from:', req.headers.origin);
+    
+    // Use the redirect URI from the env variable
+    const redirectUri = process.env.XERO_REDIRECT_URI;
+    console.log('Using redirect URI:', redirectUri);
+    
+    const consentUrl = await xero.buildConsentUrl();
+    console.log('Generated connect URL:', {
+      url: consentUrl,
+      state: xero.state
+    });
+    
+    res.json({ url: consentUrl });
+  } catch (error) {
+    console.error('Error generating connect URL:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add disconnect endpoint for the frontend
+app.post('/api/xero/disconnect', (req, res) => {
+  try {
+    console.log('Disconnecting from Xero:', req.headers.origin);
+    isXeroAuthenticated = false;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error disconnecting from Xero:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
