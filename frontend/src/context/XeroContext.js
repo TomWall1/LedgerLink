@@ -25,71 +25,117 @@ export const XeroProvider = ({ children }) => {
     // Only do the initial auth check once
     if (!initialCheckDone.current) {
       initialCheckDone.current = true;
-      // Check the local auth state only - don't try to connect to server yet
-      const storedAuth = localStorage.getItem('xeroAuth') === 'true';
-      setIsAuthenticated(storedAuth);
-      setLoading(false);
-      
-      // If authenticated from storage, verify with the server
-      if (storedAuth) {
-        checkAuth().catch(() => {
-          console.log('Using stored auth value due to API error');
-        });
-      }
+      checkAuth();
     }
   }, []);
 
   // This function is used to check authentication status with the server
   const checkAuth = async () => {
+    // Prevent multiple simultaneous auth checks
+    if (isCheckingAuth) return isAuthenticated;
+    
     try {
       setIsCheckingAuth(true);
-      console.log('Checking Xero authentication status');
+      setLoading(true);
+      setError(null);
       
-      // First try using auth/xero/status endpoint directly
-      try {
-        const apiUrl = getApiUrl();
-        console.log('Making direct API call to Xero auth status:', `${apiUrl}/auth/xero/status`);
-        
-        const response = await fetch(`${apiUrl}/auth/xero/status`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'omit', // don't send credentials
-          mode: 'cors'
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Auth status direct response:', data);
-          
-          // If the backend says we're authenticated or we have local auth, consider us authenticated
-          const authStatus = !!data.isAuthenticated || localStorage.getItem('xeroAuth') === 'true';
-          setIsAuthenticated(authStatus);
-          setIsCheckingAuth(false);
-          return authStatus;
-        } else {
-          const errorText = await response.text();
-          console.log('Direct API call failed:', response.status, errorText);
-          throw new Error(`Backend error: ${response.status}`);
-        }
-      } catch (directError) {
-        console.log('Direct auth endpoint failed, falling back to stored value:', directError);
+      // First try to get from localStorage to avoid unnecessary API calls
+      const storedAuth = localStorage.getItem('xeroAuth') === 'true';
+      if (storedAuth) {
+        setIsAuthenticated(true);
+        setLoading(false);
+        setIsCheckingAuth(false);
+        return true;
       }
       
-      // Continue using the stored authentication state
-      console.log('Using stored auth value due to API error');
-      const storedAuth = localStorage.getItem('xeroAuth') === 'true';
-      setIsAuthenticated(storedAuth);
-      setIsCheckingAuth(false);
-      return storedAuth;
+      // Only call the API if we don't have the auth state in localStorage
+      try {
+        const apiUrl = getApiUrl();
+        console.log('Checking Xero authentication status from API:', apiUrl);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+        
+        // Try both endpoints with a preference for /auth/xero/status
+        try {
+          const response = await fetch(`${apiUrl}/auth/xero/status`, {
+            signal: controller.signal,
+            credentials: 'include' // Include cookies if any
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Xero authentication status:', data);
+            
+            setIsAuthenticated(data.isAuthenticated);
+            
+            // Also update localStorage to keep state consistent
+            if (data.isAuthenticated) {
+              localStorage.setItem('xeroAuth', 'true');
+            } else {
+              localStorage.removeItem('xeroAuth');
+            }
+            
+            clearTimeout(timeoutId);
+            setLoading(false);
+            setIsCheckingAuth(false);
+            return data.isAuthenticated;
+          }
+        } catch (firstError) {
+          console.warn('Failed to check auth with /auth/xero/status:', firstError.message);
+          // Try the alternative endpoint
+          try {
+            const response = await fetch(`${apiUrl}/api/xero/status`, {
+              signal: controller.signal,
+              credentials: 'include'
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              console.log('Xero authentication status from alternative endpoint:', data);
+              
+              setIsAuthenticated(data.isAuthenticated);
+              
+              // Update localStorage
+              if (data.isAuthenticated) {
+                localStorage.setItem('xeroAuth', 'true');
+              } else {
+                localStorage.removeItem('xeroAuth');
+              }
+              
+              clearTimeout(timeoutId);
+              setLoading(false);
+              setIsCheckingAuth(false);
+              return data.isAuthenticated;
+            }
+          } catch (secondError) {
+            console.warn('Failed to check auth with alternative endpoint:', secondError.message);
+            // Continue with fallback to localStorage value
+          }
+        }
+        
+        clearTimeout(timeoutId);
+        // If all API calls fail, use the localStorage value as fallback
+        console.log('Using stored auth value due to API failures');
+        setIsAuthenticated(storedAuth);
+        setLoading(false);
+        setIsCheckingAuth(false);
+        return storedAuth;
+      } catch (error) {
+        // If the API call fails (e.g., timeout), use the localStorage value
+        console.error('Error fetching auth status:', error);
+        setError(`Failed to connect to Xero service: ${error.message}`);
+        setIsAuthenticated(storedAuth);
+        setLoading(false);
+        setIsCheckingAuth(false);
+        return storedAuth;
+      }
     } catch (error) {
-      console.error('Error fetching auth status:', error);
-      setError(error.message);
+      console.error('Error checking Xero auth:', error);
+      setError(`Authentication error: ${error.message}`);
+      setLoading(false);
       setIsCheckingAuth(false);
-      // Continue using the stored authentication state
-      console.log('Using stored auth value due to API error');
-      const storedAuth = localStorage.getItem('xeroAuth') === 'true';
-      setIsAuthenticated(storedAuth);
-      return storedAuth;
+      return false;
     }
   };
 
