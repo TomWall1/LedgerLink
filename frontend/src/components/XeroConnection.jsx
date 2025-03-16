@@ -25,13 +25,15 @@ const XeroConnection = ({ onUseXeroData }) => {
     
     // Define all the endpoints we want to try, in order of preference
     const possibleEndpoints = [
-      // First try the API path with auth-url
+      // First try the direct endpoint we added
+      `${baseUrl}/xero-auth-url`,
+      // Next try the API path with auth-url
       `${baseUrl}/api/xero/auth-url`,
-      // Next try the direct path to /index.js with auth-url
+      // Then try connect endpoints
       `${baseUrl}/api/xero/connect`,
-      // Then try the legacy auth paths
       `${baseUrl}/auth/xero/connect`,
       // Then try hardcoded versions
+      'https://ledgerlink.onrender.com/xero-auth-url',
       'https://ledgerlink.onrender.com/api/xero/auth-url',
       'https://ledgerlink.onrender.com/api/xero/connect',
       'https://ledgerlink.onrender.com/auth/xero/connect',
@@ -45,16 +47,30 @@ const XeroConnection = ({ onUseXeroData }) => {
         console.log(`Trying Xero endpoint: ${endpoint}`);
         const response = await axios.get(endpoint);
         
-        if (response.status === 200 && (response.data.url || response.data.authUrl)) {
-          console.log(`Success with endpoint: ${endpoint}`);
-          return response.data.url || response.data.authUrl;
+        // If the response is good and contains a URL, return it
+        if (response.status === 200) {
+          if (response.data && (response.data.url || response.data.authUrl)) {
+            console.log(`Success with endpoint: ${endpoint}`);
+            return response.data.url || response.data.authUrl;
+          } else {
+            console.warn(`Endpoint ${endpoint} responded with success but no valid URL:`, response.data);
+            errorMessages.push(`${endpoint}: Successful response but no valid URL in data`);
+          }
         } else {
           console.warn(`Endpoint ${endpoint} responded with status ${response.status} but no valid URL`);
           errorMessages.push(`${endpoint}: No valid URL in response`);
         }
       } catch (err) {
-        console.warn(`Endpoint ${endpoint} failed:`, err.message);
-        errorMessages.push(`${endpoint}: ${err.message}`);
+        if (err.response) {
+          console.warn(`Endpoint ${endpoint} failed with status ${err.response.status}:`, err.message);
+          errorMessages.push(`${endpoint}: ${err.message} (${err.response.status})`);
+        } else if (err.request) {
+          console.warn(`Endpoint ${endpoint} failed with no response:`, err.message);
+          errorMessages.push(`${endpoint}: ${err.message} (No response)`);
+        } else {
+          console.warn(`Endpoint ${endpoint} failed:`, err.message);
+          errorMessages.push(`${endpoint}: ${err.message}`);
+        }
       }
     }
     
