@@ -50,14 +50,17 @@ const Upload = () => {
         throw new Error(`Failed to fetch customers: ${response.status} - ${errorText}`);
       }
       
-      const customers = await response.json();
-      console.log('Raw Xero customers data:', customers);
+      const data = await response.json();
+      console.log('Raw Xero customers data:', data);
+      
+      // Check if it's the new backend format or the direct Xero API format
+      const customers = data.customers || data; // Handle both formats
       
       // Transform the data to match our expected format
       const formattedCustomers = customers.map(customer => ({
-        id: customer.contactID,
-        name: customer.name,
-        email: customer.emailAddress || 'No email'
+        id: customer.contactID || customer.ContactID,
+        name: customer.name || customer.Name,
+        email: customer.emailAddress || customer.EmailAddress || 'No email'
       }));
       
       setAllXeroCustomers(formattedCustomers);
@@ -91,19 +94,21 @@ const Upload = () => {
         throw new Error(`Failed to fetch invoices: ${response.status} - ${errorText}`);
       }
       
-      const invoices = await response.json();
-      console.log('Raw Xero invoices data:', invoices);
+      const data = await response.json();
+      console.log('Raw Xero invoices data:', data);
+      
+      // Check for the different response format and normalize it
+      const invoices = data.invoices || data; // Handle both formats
       
       // Transform the data to match our expected format
       const formattedInvoices = invoices.map(invoice => ({
-        id: invoice.invoiceID,
-        type: invoice.type,
-        amount: invoice.total,
-        issueDate: invoice.date || invoice.dateString,
-        dueDate: invoice.dueDate || invoice.dueDateString,
-        status: invoice.status,
-        reference: invoice.reference || invoice.invoiceNumber,
-        customer: customerName
+        id: invoice.invoiceID || invoice.InvoiceID,
+        type: invoice.type || invoice.Type,
+        amount: parseFloat(invoice.amount || invoice.Total || invoice.AmountDue || 0),
+        issueDate: invoice.date || invoice.Date || invoice.dateString || null,
+        dueDate: invoice.dueDate || invoice.DueDate || invoice.dueDateString || null,
+        status: invoice.status || invoice.Status,
+        reference: invoice.reference || invoice.Reference || invoice.invoiceNumber || invoice.InvoiceNumber
       }));
       
       // Set the Xero data with customer information and formatted invoices
