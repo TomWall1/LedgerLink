@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useXero } from '../context/XeroContext';
 
@@ -8,23 +8,8 @@ const XeroConnection = ({ onUseXeroData }) => {
   const navigate = useNavigate();
   const { isAuthenticated, setIsAuthenticated, getApiUrl } = useXero();
 
-  // For development: mock Xero connection to avoid API calls
-  const mockXeroConnect = () => {
-    setIsAuthenticated(true);
-  };
-
-  const mockXeroDisconnect = () => {
-    setIsAuthenticated(false);
-  };
-
   // Function to handle the Xero connection
   const handleConnect = async () => {
-    // For development, use the mock connection
-    if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_MOCK_XERO === 'true') {
-      mockXeroConnect();
-      return;
-    }
-
     try {
       setIsLoading(true);
       setError(null);
@@ -33,69 +18,15 @@ const XeroConnection = ({ onUseXeroData }) => {
       const apiUrl = getApiUrl();
       console.log('Connecting to Xero using API URL:', apiUrl);
       
-      // Create a controller for timeout handling
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      // Use the most reliable path from our experience
+      const response = await fetch(`${apiUrl}/auth/xero/connect`);
       
-      // Try multiple endpoints in sequence
-      let response = null;
-      let errorMessages = [];
-      
-      // Try the primary endpoint first
-      try {
-        response = await fetch(`${apiUrl}/auth/xero/connect`, {
-          signal: controller.signal
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          errorMessages.push(`Primary endpoint failed: ${response.status} - ${errorText}`);
-          throw new Error('Primary endpoint failed');
-        }
-      } catch (primaryError) {
-        console.warn('Primary endpoint failed:', primaryError.message);
-        
-        // Try the fallback endpoint
-        try {
-          response = await fetch(`${apiUrl}/api/xero/connect`, {
-            signal: controller.signal
-          });
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            errorMessages.push(`Fallback endpoint failed: ${response.status} - ${errorText}`);
-            throw new Error('Fallback endpoint failed');
-          }
-        } catch (fallbackError) {
-          console.warn('Fallback endpoint failed:', fallbackError.message);
-          
-          // One final attempt with a different path
-          try {
-            response = await fetch(`${apiUrl}/auth/xero/auth-url`, {
-              signal: controller.signal
-            });
-            
-            if (!response.ok) {
-              const errorText = await response.text();
-              errorMessages.push(`Last attempt failed: ${response.status} - ${errorText}`);
-              throw new Error('Last attempt failed');
-            }
-          } catch (lastError) {
-            console.warn('Last attempt failed:', lastError.message);
-            clearTimeout(timeoutId);
-            throw new Error(`All connection attempts failed: ${errorMessages.join('; ')}`);
-          }
-        }
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Connection failed: ${response.status} - ${errorText}`);
       }
       
-      // Clear the timeout since we got a response
-      clearTimeout(timeoutId);
-      
-      // If we reach here, we have a successful response
       const data = await response.json();
-      console.log('Received auth URL response:', data);
-      
-      // The URL might be in different fields depending on the endpoint
       const authUrl = data.url || data.authUrl;
       
       if (!authUrl) {
@@ -111,53 +42,25 @@ const XeroConnection = ({ onUseXeroData }) => {
     }
   };
 
-  const handleDisconnect = async () => {
-    // For development, use the mock disconnection
-    if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_MOCK_XERO === 'true') {
-      mockXeroDisconnect();
-      return;
-    }
-
+  const handleDisconnect = () => {
     try {
       setIsLoading(true);
-      setError(null);
-      
-      // Get the API URL from context
-      const apiUrl = getApiUrl();
-      
-      // Try to disconnect on the server, but don't wait for the result
-      // as we'll disconnect locally regardless
-      try {
-        const response = await fetch(`${apiUrl}/auth/xero/disconnect`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          console.warn('Server disconnect failed, trying alternative endpoint');
-          // Try alternative endpoint
-          await fetch(`${apiUrl}/api/xero/disconnect`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-        }
-      } catch (apiError) {
-        console.warn('API disconnect failed:', apiError.message);
-        // Continue with local disconnect
-      }
-      
-      // Always disconnect locally regardless of server response
+      // Just disconnect locally - simpler and more reliable
       setIsAuthenticated(false);
+      console.log('Disconnected from Xero locally');
       setIsLoading(false);
       
-      console.log('Successfully disconnected from Xero');
+      // Also try to notify the backend, but don't wait for it
+      const apiUrl = getApiUrl();
+      fetch(`${apiUrl}/auth/xero/disconnect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).catch(err => {
+        console.warn('Failed to notify backend of disconnect:', err);
+      });
     } catch (error) {
       console.warn('Error disconnecting from Xero:', error);
-      // Still disconnect locally even if server fails
+      // Still disconnect locally
       setIsAuthenticated(false);
       setIsLoading(false);
     }
@@ -223,13 +126,6 @@ const XeroConnection = ({ onUseXeroData }) => {
                 <>Connect to Xero</>
               )}
             </button>
-            
-            {/* Only show this message in development mode */}
-            {process.env.NODE_ENV === 'development' && process.env.REACT_APP_MOCK_XERO === 'true' && (
-              <p className="text-xs text-gray-400 mt-2">
-                Running in development mode with mock enabled. Xero connection will be simulated locally.
-              </p>
-            )}
           </div>
         ) : (
           <div>
@@ -254,13 +150,6 @@ const XeroConnection = ({ onUseXeroData }) => {
                 {isLoading ? 'Disconnecting...' : 'Disconnect'}
               </button>
             </div>
-            
-            {/* Only show this message in development mode */}
-            {process.env.NODE_ENV === 'development' && process.env.REACT_APP_MOCK_XERO === 'true' && (
-              <p className="text-xs text-gray-400 mt-2">
-                Running in development mode with mock enabled. Xero connection is simulated locally.
-              </p>
-            )}
           </div>
         )}
       </div>
