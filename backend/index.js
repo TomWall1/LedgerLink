@@ -5,6 +5,7 @@ import xeroRoutes from './src/routes/xeroAuth.js';
 import processRoutes from './src/routes/processRoutes.js';
 import testRoutes from './src/routes/test.js';
 import accountLinkRoutes from './src/routes/accountLinkRoutes.js';
+import { XeroClient } from 'xero-node';
 
 dotenv.config();
 
@@ -19,24 +20,38 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
-// Set up CORS middleware with more permissive configuration
-app.use((req, res, next) => {
-  // Set CORS headers for all requests
-  const origin = req.headers.origin;
-  
-  // Allow the specific origin, or any origin in development
-  res.header('Access-Control-Allow-Origin', origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Handle OPTIONS requests
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-  
-  next();
+// Create a Xero client instance for direct endpoints
+const xero = new XeroClient({
+  clientId: process.env.XERO_CLIENT_ID,
+  clientSecret: process.env.XERO_CLIENT_SECRET,
+  redirectUris: [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/auth/xero/callback'],
+  scopes: ['offline_access', 'accounting.transactions.read', 'accounting.contacts.read'],
+  httpTimeout: 30000
 });
+
+// Set up CORS middleware with more permissive configuration
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow specific origins
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // For development, allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    console.log('CORS blocked for origin:', origin);
+    callback(null, false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Pragma', 'Cache-Control'],
+  credentials: true
+}));
 
 // Body parsing middleware
 app.use(express.json());
@@ -51,6 +66,32 @@ app.use((req, res, next) => {
     headers: req.headers
   });
   next();
+});
+
+// Direct Xero auth-url endpoint at the root level
+app.get('/xero-auth-url', async (req, res) => {
+  try {
+    console.log('Direct Xero auth-url endpoint accessed from:', req.headers.origin);
+    
+    // Use the redirect URI from the env variable
+    const redirectUri = process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/auth/xero/callback';
+    console.log('Using redirect URI:', redirectUri);
+    
+    // Update the client config just to be safe
+    xero.config.redirectUris = [redirectUri];
+    
+    // Generate consent URL
+    const consentUrl = await xero.buildConsentUrl();
+    console.log('Generated consent URL:', {
+      url: consentUrl,
+      state: xero.state
+    });
+    
+    res.json({ url: consentUrl });
+  } catch (error) {
+    console.error('Error generating consent URL:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Mount test routes first
@@ -84,7 +125,8 @@ app.get('/', (req, res) => {
       match: '/match-data',
       link: '/link',
       api: '/api/match',
-      xero: '/api/xero/*'
+      xero: '/api/xero/*',
+      directXero: '/xero-auth-url'
     }
   });
 });
