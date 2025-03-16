@@ -33,12 +33,30 @@ const XeroConnection = ({ onUseXeroData }) => {
       const apiUrl = getApiUrl();
       console.log('Connecting to Xero using API URL:', apiUrl);
       
-      // Make the API call using fetch to avoid header issues
-      const response = await fetch(`${apiUrl}/auth/xero/connect`);
+      // Try the /api/xero/connect endpoint first, then fall back to /auth/xero/connect if that fails
+      let response;
+      let errorMessage = '';
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Server returned ${response.status}: ${errorText}`);
+      try {
+        // First attempt - use the API endpoint
+        console.log('Trying /api/xero/connect endpoint');
+        response = await fetch(`${apiUrl}/api/xero/connect`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          errorMessage = `API endpoint failed with ${response.status}: ${errorText}`;
+          throw new Error(errorMessage);
+        }
+      } catch (apiError) {
+        console.warn('First attempt failed:', apiError.message);
+        // Second attempt - try the auth endpoint 
+        console.log('Falling back to /auth/xero/connect endpoint');
+        response = await fetch(`${apiUrl}/auth/xero/connect`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Server returned ${response.status}: ${errorText}`);
+        }
       }
       
       const data = await response.json();
@@ -74,13 +92,24 @@ const XeroConnection = ({ onUseXeroData }) => {
       // Disconnect on the server first
       const apiUrl = getApiUrl();
       
-      // Make the API call using fetch to avoid header issues
-      const response = await fetch(`${apiUrl}/auth/xero/disconnect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      // Try /api/xero/disconnect first, then fall back to /auth/xero/disconnect
+      try {
+        console.log('Trying /api/xero/disconnect endpoint');
+        await fetch(`${apiUrl}/api/xero/disconnect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+      } catch (apiError) {
+        console.warn('API disconnect failed, trying auth endpoint:', apiError);
+        await fetch(`${apiUrl}/auth/xero/disconnect`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+      }
       
       // Then disconnect locally
       setIsAuthenticated(false);
