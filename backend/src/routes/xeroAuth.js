@@ -10,6 +10,7 @@ const pendingStates = new Set();
 
 // Define allowed origins list for specific route handling
 const allowedOrigins = [
+  'https://lledgerlink.vercel.app',
   'https://ledgerlink.vercel.app',
   'http://localhost:3000',
   'http://localhost:3001',
@@ -160,7 +161,7 @@ router.options('*', (req, res) => {
 });
 
 // Initial Xero connection route
-router.get('/xero/connect', async (req, res) => {
+router.get('/connect', async (req, res) => {
   try {
     // CORS - headers for this specific route
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -196,7 +197,7 @@ router.get('/xero/connect', async (req, res) => {
 });
 
 // Disconnect from Xero
-router.post('/xero/disconnect', async (req, res) => {
+router.post('/disconnect', async (req, res) => {
   try {
     // CORS - headers for this specific route
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -216,7 +217,7 @@ router.post('/xero/disconnect', async (req, res) => {
 });
 
 // Check authentication status
-router.get('/xero/status', (req, res) => {
+router.get('/status', (req, res) => {
   try {
     // CORS - headers for this specific route
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -243,7 +244,7 @@ router.get('/xero/status', (req, res) => {
 });
 
 // Xero OAuth callback route
-router.get('/xero/callback', async (req, res) => {
+router.get('/callback', async (req, res) => {
   console.log('Received callback with query params:', req.query);
   try {
     const { code, state } = req.query;
@@ -288,18 +289,24 @@ router.get('/xero/callback', async (req, res) => {
     // Store tokens
     await tokenStore.saveTokens(tokens);
 
-    const frontendUrl = process.env.FRONTEND_URL || 'https://ledgerlink.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
     res.redirect(`${frontendUrl}/auth/xero/callback?authenticated=true`);
   } catch (error) {
     console.error('Error in Xero callback:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 'https://ledgerlink.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
     res.redirect(`${frontendUrl}/auth/xero/callback?error=${encodeURIComponent(error.message)}`);
   }
 });
 
 // Get Xero customers
-router.get('/xero/customers', requireXeroAuth, async (req, res) => {
+router.get('/customers', requireXeroAuth, async (req, res) => {
   try {
+    // CORS - headers for this specific route
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     console.log('Fetching tenants...');
     // Get organization first
     const tenants = await callXeroApi('https://api.xero.com/connections', {
@@ -340,7 +347,7 @@ router.get('/xero/customers', requireXeroAuth, async (req, res) => {
 });
 
 // Get customer invoices - includes both current and historical
-router.get('/xero/customer/:customerId/invoices', requireXeroAuth, async (req, res) => {
+router.get('/customer/:customerId/invoices', requireXeroAuth, async (req, res) => {
   try {
     const { customerId } = req.params;
     const { includeHistory } = req.query;
@@ -450,8 +457,26 @@ router.get('/xero/customer/:customerId/invoices', requireXeroAuth, async (req, r
   }
 });
 
+// Add customer-specific endpoints for compatibility with the frontend Upload component
+router.get('/customers/:customerId/invoices', requireXeroAuth, async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    console.log(`Redirecting to customer invoice endpoint for ID: ${customerId}`);
+    
+    // Forward to the existing /customer/:customerId/invoices endpoint
+    req.url = `/customer/${customerId}/invoices${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
+    return router.handle(req, res);
+  } catch (error) {
+    console.error('Error in customers/:customerId/invoices redirect:', error);
+    res.status(500).json({
+      error: 'Failed to fetch customer invoices',
+      details: error.message
+    });
+  }
+});
+
 // New endpoint to get historical invoice data for matching
-router.get('/xero/historical-invoices', requireXeroAuth, async (req, res) => {
+router.get('/historical-invoices', requireXeroAuth, async (req, res) => {
   try {
     // Get organization first
     const tenants = await callXeroApi('https://api.xero.com/connections', {
