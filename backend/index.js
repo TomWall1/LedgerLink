@@ -10,7 +10,16 @@ dotenv.config();
 
 const app = express();
 
-// CORS middleware - Allow all origins in development for troubleshooting
+// Define allowed origins with the exact frontend URL
+const allowedOrigins = [
+  'https://lledgerlink.vercel.app',
+  'https://ledgerlink.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002'
+];
+
+// Very permissive CORS configuration to resolve issues
 app.use((req, res, next) => {
   // Allow both production and development origins
   const allowedOrigins = [
@@ -30,12 +39,13 @@ app.use((req, res, next) => {
   }
   
   res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRF-Token, X-Auth-Token');
+  // Include all potentially needed headers, especially Cache-Control which was missing
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, X-CSRF-Token, X-Auth-Token');
   res.header('Access-Control-Expose-Headers', 'Content-Type, Authorization');
   
   if (req.method === 'OPTIONS') {
     // Pre-flight request
-    return res.status(200).end();
+    return res.status(204).end();
   }
   next();
 });
@@ -72,7 +82,10 @@ const corsOptions = {
     'Accept',
     'Authorization',
     'X-CSRF-Token',
-    'X-Auth-Token'
+    'X-Auth-Token',
+    'Cache-Control',
+    'Pragma',
+    'Expires'
   ],
   exposedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -138,7 +151,8 @@ app.get('/', (req, res) => {
       link: '/link',
       api: '/api/match',
       xero: ['/auth/xero/*', '/api/xero/*']
-    }
+    },
+    version: '1.1.0' // Added version to track deployment
   });
 });
 
