@@ -3,14 +3,74 @@
  * In a production environment, you would use a database or secure storage solution
  */
 import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TOKEN_FILE_PATH = path.join(__dirname, '..', '..', 'data', 'xero-tokens.json');
 
 class TokenStore {
   constructor() {
     this.tokens = null;
     this.expiry = null;
+    this.initializeTokenStore();
   }
 
-  // Save tokens (in-memory implementation - would be replaced with database in production)
+  // Initialize the token store and ensure the data directory exists
+  initializeTokenStore() {
+    try {
+      // Make sure the data directory exists
+      const dataDir = path.join(__dirname, '..', '..', 'data');
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+        console.log('Created data directory for token storage');
+      }
+      
+      // Try to load tokens from file
+      this.loadTokensFromFile();
+    } catch (error) {
+      console.error('Error initializing token store:', error);
+    }
+  }
+
+  // Load tokens from file
+  loadTokensFromFile() {
+    try {
+      if (fs.existsSync(TOKEN_FILE_PATH)) {
+        const data = fs.readFileSync(TOKEN_FILE_PATH, 'utf8');
+        const storedData = JSON.parse(data);
+        
+        if (storedData && storedData.tokens) {
+          this.tokens = storedData.tokens;
+          this.expiry = new Date(storedData.expiry);
+          console.log(`Loaded tokens from file, expires at ${this.expiry.toISOString()}`);
+        }
+      } else {
+        console.log('No token file exists yet');
+      }
+    } catch (error) {
+      console.error('Error loading tokens from file:', error);
+    }
+  }
+
+  // Save tokens to file
+  saveTokensToFile() {
+    try {
+      const data = JSON.stringify({
+        tokens: this.tokens,
+        expiry: this.expiry
+      }, null, 2);
+      
+      fs.writeFileSync(TOKEN_FILE_PATH, data, 'utf8');
+      console.log(`Saved tokens to file, expires at ${this.expiry.toISOString()}`);
+    } catch (error) {
+      console.error('Error saving tokens to file:', error);
+    }
+  }
+
+  // Save tokens (in-memory and to file)
   saveTokens(tokens) {
     if (!tokens || !tokens.access_token) {
       console.error('Invalid tokens provided to tokenStore.saveTokens');
@@ -22,6 +82,9 @@ class TokenStore {
     // Calculate expiry time (subtract 5 minutes for safety margin)
     const expiresIn = tokens.expires_in || 1800; // Default to 30 minutes if not specified
     this.expiry = new Date(Date.now() + (expiresIn * 1000) - (5 * 60 * 1000));
+    
+    // Save to file for persistence
+    this.saveTokensToFile();
     
     console.log(`Tokens saved, expires at ${this.expiry.toISOString()}`);
     return true;
@@ -116,6 +179,17 @@ class TokenStore {
   clearTokens() {
     this.tokens = null;
     this.expiry = null;
+    
+    // Clear the token file if it exists
+    try {
+      if (fs.existsSync(TOKEN_FILE_PATH)) {
+        fs.unlinkSync(TOKEN_FILE_PATH);
+        console.log('Token file deleted');
+      }
+    } catch (error) {
+      console.error('Error deleting token file:', error);
+    }
+    
     console.log('Tokens cleared from store');
     return true;
   }
