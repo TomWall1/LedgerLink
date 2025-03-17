@@ -10,7 +10,16 @@ dotenv.config();
 
 const app = express();
 
-// CORS middleware - Allow all origins in development for troubleshooting
+// Define allowed origins with the exact frontend URL
+const allowedOrigins = [
+  'https://lledgerlink.vercel.app',
+  'https://ledgerlink.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002'
+];
+
+// Very permissive CORS configuration to resolve issues
 app.use((req, res, next) => {
   // Allow both production and development origins
   const allowedOrigins = [
@@ -108,8 +117,11 @@ app.use((req, res, next) => {
 // Mount test routes first
 app.use('/test', testRoutes);
 
-// Mount other routes
+// Mount the xero routes with both paths to ensure compatibility
 app.use('/auth', xeroRoutes);
+app.use('/auth/xero', xeroRoutes);  // Add this specific route to match frontend expectations
+
+// Mount other routes
 app.use('/process-csv', processRoutes);
 app.use('/match-data', processRoutes);
 
@@ -128,7 +140,7 @@ app.get('/', (req, res) => {
     status: 'API is running',
     endpoints: {
       test: '/test/upload',
-      auth: '/auth',
+      auth: ['/auth/*', '/auth/xero/*'],  // Update to show both routes
       process: '/process-csv',
       match: '/match-data',
       link: '/link',
