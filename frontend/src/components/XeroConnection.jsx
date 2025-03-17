@@ -12,7 +12,8 @@ const XeroConnection = ({ onUseXeroData }) => {
     setIsAuthenticated, 
     getApiUrl, 
     isCheckingAuth,
-    checkBackendTokens 
+    checkBackendTokens,
+    debugInfo: contextDebugInfo
   } = useXero();
 
   // Check token status when component mounts
@@ -20,7 +21,12 @@ const XeroConnection = ({ onUseXeroData }) => {
     if (isAuthenticated) {
       checkTokenStatus();
     }
-  }, [isAuthenticated]);
+    
+    // If context already has debug info, use it
+    if (contextDebugInfo) {
+      setDebugInfo(contextDebugInfo);
+    }
+  }, [isAuthenticated, contextDebugInfo]);
 
   // Function to check token status for debugging
   const checkTokenStatus = async () => {
@@ -38,12 +44,27 @@ const XeroConnection = ({ onUseXeroData }) => {
       const apiUrl = getApiUrl();
       console.log('Connecting to Xero using API URL:', apiUrl);
       
+      // Add cache busting parameter
+      const timestamp = Date.now();
+      const url = `${apiUrl}/auth/xero/connect?nocache=${timestamp}`;
+      
       // Use the most reliable path from our experience
-      const response = await fetch(`${apiUrl}/auth/xero/connect`);
+      const response = await fetch(url, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Connection failed: ${response.status} - ${errorText}`);
+        let errorText = `Connection failed: ${response.status}`;
+        try {
+          const errorData = await response.text();
+          errorText += ` - ${errorData}`;
+        } catch (e) {
+          // If we can't parse the error response, just use the status code
+        }
+        throw new Error(errorText);
       }
       
       const data = await response.json();
@@ -66,14 +87,35 @@ const XeroConnection = ({ onUseXeroData }) => {
     try {
       setIsLoading(true);
       
-      // Disconnect via context (which will also notify backend)
+      // First try to disconnect from the backend
+      try {
+        const apiUrl = getApiUrl();
+        const response = await fetch(`${apiUrl}/auth/xero/disconnect`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (!response.ok) {
+          console.warn('Backend disconnect responded with status:', response.status);
+        } else {
+          console.log('Successfully disconnected from Xero backend');
+        }
+      } catch (backendError) {
+        console.warn('Error disconnecting from Xero backend:', backendError);
+      }
+      
+      // Always disconnect locally even if backend call fails
       await setIsAuthenticated(false);
+      setDebugInfo(null);
       console.log('Disconnected from Xero');
       
       setIsLoading(false);
     } catch (error) {
-      console.warn('Error disconnecting from Xero:', error);
-      // Still disconnect locally even if backend call fails
+      console.warn('Error during Xero disconnect process:', error);
+      // Still disconnect locally even if there was an error
       await setIsAuthenticated(false);
       setIsLoading(false);
     }
