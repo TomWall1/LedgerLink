@@ -8,6 +8,7 @@ export const XeroProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
   const [error, setError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState(null);
   // Use a ref to track if we've already performed the initial check
   const initialCheckDone = useRef(false);
 
@@ -22,17 +23,21 @@ export const XeroProvider = ({ children }) => {
   };
 
   // Check auth status with the backend
-  const checkBackendAuth = async () => {
+  const checkBackendAuth = async (skipCache = false) => {
     try {
       setIsCheckingAuth(true);
       const apiUrl = getApiUrl();
       console.log('Checking auth status with backend:', apiUrl);
       
+      // Add cache-busting parameter if requested
+      const cacheParam = skipCache ? `?nocache=${Date.now()}` : '';
+      
       // Simplified headers to avoid CORS issues
-      const response = await fetch(`${apiUrl}/auth/xero/status`, {
+      const response = await fetch(`${apiUrl}/auth/xero/status${cacheParam}`, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
         }
       });
       
@@ -65,12 +70,18 @@ export const XeroProvider = ({ children }) => {
           
           // If we think we're authenticated locally, verify with the backend
           if (storedAuth) {
-            const backendAuth = await checkBackendAuth();
+            // Always skip cache on initial load to ensure we have fresh auth status
+            const backendAuth = await checkBackendAuth(true);
             
             // Sync auth state with backend
             if (backendAuth) {
               // Both agree we're authenticated
               setIsAuthenticated(true);
+              
+              // Get debug info for troubleshooting (remove in production)
+              checkBackendTokens().then(info => {
+                setDebugInfo(info);
+              });
             } else {
               // Backend says not authenticated, update local state
               localStorage.removeItem('xeroAuth');
@@ -95,7 +106,7 @@ export const XeroProvider = ({ children }) => {
 
   // This function is used to check authentication status with the server
   const checkAuth = async () => {
-    return await checkBackendAuth();
+    return await checkBackendAuth(true); // Always skip cache when manually checking
   };
 
   // Function to set authentication state
@@ -115,7 +126,10 @@ export const XeroProvider = ({ children }) => {
           const apiUrl = getApiUrl();
           await fetch(`${apiUrl}/auth/xero/disconnect`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache'
+            }
           });
           console.log('Backend notified of disconnect');
         } catch (err) {
@@ -132,7 +146,11 @@ export const XeroProvider = ({ children }) => {
   const checkBackendTokens = async () => {
     try {
       const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/auth/xero/debug-auth`);
+      const response = await fetch(`${apiUrl}/auth/xero/debug-auth?nocache=${Date.now()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }
+      });
       if (!response.ok) {
         throw new Error(`Debug check failed: ${response.status}`);
       }
@@ -156,7 +174,8 @@ export const XeroProvider = ({ children }) => {
       error,
       getApiUrl,
       checkBackendTokens,
-      isCheckingAuth
+      isCheckingAuth,
+      debugInfo
     }}>
       {children}
     </XeroContext.Provider>
