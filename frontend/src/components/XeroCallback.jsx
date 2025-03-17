@@ -1,135 +1,82 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useXero } from '../context/XeroContext';
 
 const XeroCallback = () => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { setIsAuthenticated } = useXero();
+  const [error, setError] = useState(null);
+  const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
-    console.log('XeroCallback component mounted');
-    console.log('URL search params:', location.search);
-    
-    const processCallback = async () => {
+    const handleCallback = async () => {
       try {
-        // Parse the URL query parameters
+        setProcessing(true);
         const params = new URLSearchParams(location.search);
-        const authenticated = params.get('authenticated');
-        const errorParam = params.get('error');
         
-        console.log('Processing Xero callback with params:', { authenticated, errorParam });
-
-        // Check for an error parameter first
-        if (errorParam) {
-          console.error('Error returned from Xero:', errorParam);
-          setError(`Error authenticating with Xero: ${errorParam}`);
-          setLoading(false);
-          return;
-        }
-
-        // Check if we came back from the backend redirect with authenticated=true
-        if (authenticated === 'true') {
-          console.log('Successfully authenticated with Xero (via backend redirect)');
-          localStorage.setItem('xeroAuth', 'true');
-          setIsAuthenticated(true);
-          setSuccess(true);
-          setLoading(false);
-          return;
+        // Check for error parameter
+        if (params.has('error')) {
+          const errorMessage = params.get('error');
+          throw new Error(`Xero authentication failed: ${errorMessage}`);
         }
         
-        // Even if none of the params are present, we'll consider it a success
-        // This makes the UX smoother - since sometimes the OAuth flow is complex 
-        // and we lose track of the params
-        console.log('No authentication confirmation, assuming success for UX');
-        localStorage.setItem('xeroAuth', 'true');
-        setIsAuthenticated(true);
-        setSuccess(true);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error processing Xero callback:', error);
-        setError(`Error processing Xero authentication: ${error.message}`);
-        setLoading(false);
+        // Check for authenticated parameter
+        if (params.has('authenticated') && params.get('authenticated') === 'true') {
+          // Successfully authenticated with Xero
+          console.log('Xero authentication successful');
+          
+          // Update auth state in context
+          await setIsAuthenticated(true);
+          
+          // Navigate back to upload page with success message
+          navigate('/upload', { 
+            state: { 
+              xeroEnabled: true, 
+              message: 'Successfully connected to Xero!' 
+            } 
+          });
+          return;
+        }
+        
+        // If we get here, we don't have a valid success or error response
+        throw new Error('Unexpected response from Xero authentication');
+      } catch (err) {
+        console.error('Error handling Xero callback:', err);
+        setError(err.message);
+        setProcessing(false);
       }
     };
 
-    processCallback();
-  }, [location, setIsAuthenticated]);
+    handleCallback();
+  }, [location, navigate, setIsAuthenticated]);
 
-  // Redirect to upload page after 2 seconds if successful
-  useEffect(() => {
-    let redirectTimer;
-    if (success) {
-      redirectTimer = setTimeout(() => {
-        navigate('/upload', { state: { xeroEnabled: true } });
-      }, 2000);
-    }
-
-    return () => {
-      if (redirectTimer) clearTimeout(redirectTimer);
-    };
-  }, [success, navigate]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md w-full">
-          <h1 className="text-2xl font-bold text-primary mb-4">Completing Authentication</h1>
-          <div className="flex justify-center mb-4">
-            <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+        <h1 className="text-2xl font-bold text-center mb-6">Xero Authentication</h1>
+        
+        {processing && !error && (
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Processing Xero authentication...</p>
           </div>
-          <p className="text-gray-600">Processing your authentication with Xero...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md w-full">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Authentication Failed</h1>
-          <div className="bg-red-50 p-4 rounded-lg mb-4">
-            <p className="text-red-700">{error}</p>
+        )}
+        
+        {error && (
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
+            <p className="font-bold">Authentication Error</p>
+            <p>{error}</p>
+            <button 
+              onClick={() => navigate('/upload')} 
+              className="mt-4 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition-colors">
+              Return to Upload Page
+            </button>
           </div>
-          <button 
-            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-opacity-90"
-            onClick={() => navigate('/')}
-          >
-            Return to Home
-          </button>
-        </div>
+        )}
       </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md w-full">
-          <h1 className="text-2xl font-bold text-green-600 mb-4">Authentication Successful</h1>
-          <div className="bg-green-50 p-4 rounded-lg mb-4">
-            <p className="text-green-700">Successfully connected to Xero!</p>
-            <p className="text-sm text-gray-600 mt-2">Redirecting to data upload page...</p>
-          </div>
-          <button 
-            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-opacity-90"
-            onClick={() => navigate('/upload', { state: { xeroEnabled: true } })}
-          >
-            Continue Now
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 };
 
 export default XeroCallback;
