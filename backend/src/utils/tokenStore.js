@@ -46,6 +46,19 @@ class TokenStore {
           this.tokens = storedData.tokens;
           this.expiry = new Date(storedData.expiry);
           console.log(`Loaded tokens from file, expires at ${this.expiry.toISOString()}`);
+          
+          // Check if the token is expired immediately
+          if (this.isExpired()) {
+            console.log('Loaded token is expired, attempting to refresh');
+            // Schedule token refresh (not awaiting to avoid blocking constructor)
+            this.refreshTokens().then(success => {
+              if (success) {
+                console.log('Successfully refreshed expired token during initialization');
+              } else {
+                console.error('Failed to refresh expired token during initialization');
+              }
+            });
+          }
         }
       } else {
         console.log('No token file exists yet');
@@ -53,6 +66,12 @@ class TokenStore {
     } catch (error) {
       console.error('Error loading tokens from file:', error);
     }
+  }
+  
+  // Check if the current token is expired
+  isExpired() {
+    if (!this.expiry) return true;
+    return new Date() > this.expiry;
   }
 
   // Save tokens to file
@@ -98,7 +117,7 @@ class TokenStore {
     }
 
     // Check if tokens are expired
-    if (new Date() > this.expiry) {
+    if (this.isExpired()) {
       console.log('Tokens have expired, attempting to refresh');
       
       // Try to refresh the token
@@ -119,11 +138,18 @@ class TokenStore {
   // Attempt to refresh the tokens
   async refreshTokens() {
     if (!this.tokens || !this.tokens.refresh_token) {
+      console.log('Cannot refresh tokens: No refresh token available');
       return false;
     }
     
     try {
       console.log('Refreshing Xero token...');
+      
+      // Check that environment variables are available
+      if (!process.env.XERO_CLIENT_ID || !process.env.XERO_CLIENT_SECRET) {
+        console.error('Missing XERO_CLIENT_ID or XERO_CLIENT_SECRET environment variables');
+        return false;
+      }
       
       const response = await fetch('https://identity.xero.com/connect/token', {
         method: 'POST',
@@ -140,8 +166,14 @@ class TokenStore {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Token refresh failed:', errorText);
+        let errorText = '';
+        try {
+          errorText = await response.text();
+        } catch (e) {
+          errorText = 'Could not read error response';
+        }
+        
+        console.error('Token refresh failed:', response.status, errorText);
         return false;
       }
 
@@ -153,8 +185,7 @@ class TokenStore {
       });
 
       // Save the new tokens
-      this.saveTokens(newTokens);
-      return true;
+      return this.saveTokens(newTokens);
     } catch (error) {
       console.error('Error refreshing tokens:', error);
       return false;
@@ -168,7 +199,7 @@ class TokenStore {
     }
     
     // Check if tokens are expired
-    if (new Date() > this.expiry) {
+    if (this.isExpired()) {
       return false;
     }
     
@@ -176,7 +207,7 @@ class TokenStore {
   }
 
   // Clear stored tokens
-  clearTokens() {
+  async clearTokens() {
     this.tokens = null;
     this.expiry = null;
     
