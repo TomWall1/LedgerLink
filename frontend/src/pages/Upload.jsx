@@ -20,7 +20,7 @@ const Upload = () => {
   const [isSelectingCustomer, setIsSelectingCustomer] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, getApiUrl } = useXero();
+  const { isAuthenticated, getApiUrl, checkBackendTokens } = useXero();
   
   // Check if we're coming from Xero connection
   useEffect(() => {
@@ -39,7 +39,10 @@ const Upload = () => {
 
   // Function to fetch Xero customers from the real API
   const fetchXeroCustomers = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      console.error('Cannot fetch Xero customers: Not authenticated');
+      return;
+    }
     
     try {
       setIsLoadingXero(true);
@@ -49,17 +52,36 @@ const Upload = () => {
       const apiUrl = getApiUrl();
       console.log('Fetching Xero customers from:', apiUrl);
       
-      // Simplify the fetch request by removing unnecessary headers
-      const response = await fetch(`${apiUrl}/api/xero/customers`, {
+      // First check if the auth token is valid
+      const tokenStatus = await checkBackendTokens();
+      console.log('Backend token status:', tokenStatus);
+      
+      if (!tokenStatus?.tokenInfo?.hasTokens) {
+        throw new Error('Not authenticated with Xero. Please reconnect.');
+      }
+      
+      // Simplified fetch request with cache busting and error handling
+      const response = await fetch(`${apiUrl}/api/xero/customers?nocache=${Date.now()}`, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
         }
       });
       
+      // Catch HTTP errors first
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch customers: ${response.status} - ${errorText}`);
+        let errorMessage = `Failed to fetch customers: ${response.status}`;
+        
+        // Try to extract more detailed error information
+        try {
+          const errorText = await response.text();
+          errorMessage += ` - ${errorText}`;
+        } catch (e) {
+          // If we can't parse the error, just use the status code
+        }
+        
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -67,6 +89,10 @@ const Upload = () => {
       
       // Check if it's the new backend format or the direct Xero API format
       const customers = data.customers || data; // Handle both formats
+      
+      if (!customers || !Array.isArray(customers) || customers.length === 0) {
+        throw new Error('No customer data returned from Xero');
+      }
       
       // Transform the data to match our expected format
       const formattedCustomers = customers.map(customer => ({
@@ -99,16 +125,26 @@ const Upload = () => {
       const apiUrl = getApiUrl();
       console.log(`Fetching invoices for customer ${customerId} from: ${apiUrl}`);
       
-      const response = await fetch(`${apiUrl}/api/xero/customers/${customerId}/invoices`, {
+      const response = await fetch(`${apiUrl}/api/xero/customers/${customerId}/invoices?nocache=${Date.now()}`, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
         }
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch invoices: ${response.status} - ${errorText}`);
+        let errorMessage = `Failed to fetch invoices: ${response.status}`;
+        
+        // Try to extract more detailed error information
+        try {
+          const errorText = await response.text();
+          errorMessage += ` - ${errorText}`;
+        } catch (e) {
+          // If we can't parse the error, just use the status code
+        }
+        
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
@@ -117,15 +153,19 @@ const Upload = () => {
       // Check for the different response format and normalize it
       const invoices = data.invoices || data; // Handle both formats
       
+      if (!invoices || !Array.isArray(invoices)) {
+        throw new Error('Invalid invoice data format received');
+      }
+      
       // Transform the data to match our expected format
       const formattedInvoices = invoices.map(invoice => ({
-        id: invoice.invoiceID || invoice.InvoiceID,
-        type: invoice.type || invoice.Type,
+        id: invoice.invoiceID || invoice.InvoiceID || '',
+        type: invoice.type || invoice.Type || '',
         amount: parseFloat(invoice.amount || invoice.Total || invoice.AmountDue || 0),
         issueDate: invoice.date || invoice.Date || invoice.dateString || null,
         dueDate: invoice.dueDate || invoice.DueDate || invoice.dueDateString || null,
-        status: invoice.status || invoice.Status,
-        reference: invoice.reference || invoice.Reference || invoice.invoiceNumber || invoice.InvoiceNumber
+        status: invoice.status || invoice.Status || '',
+        reference: invoice.reference || invoice.Reference || invoice.invoiceNumber || invoice.InvoiceNumber || ''
       }));
       
       // Set the Xero data with customer information and formatted invoices
