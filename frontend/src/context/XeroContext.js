@@ -21,26 +21,30 @@ export const XeroProvider = ({ children }) => {
     return 'http://localhost:3002';
   };
 
-  // Function to check authentication status with the server
-  const checkServerAuth = async () => {
+  // Check auth status with the backend
+  const checkBackendAuth = async () => {
     try {
       setIsCheckingAuth(true);
-      console.log('Checking Xero auth status with server...');
-      
       const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/auth/xero/status`);
+      console.log('Checking auth status with backend:', apiUrl);
+      
+      const response = await fetch(`${apiUrl}/auth/xero/status`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store'
+        }
+      });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Auth check failed:', errorText);
-        return false;
+        throw new Error(`Backend auth check failed: ${response.status}`);
       }
       
       const data = await response.json();
-      console.log('Server auth response:', data);
-      return data.isAuthenticated === true;
+      console.log('Backend auth response:', data);
+      return data.isAuthenticated;
     } catch (error) {
-      console.error('Error checking auth with server:', error);
+      console.error('Error checking backend auth:', error);
       return false;
     } finally {
       setIsCheckingAuth(false);
@@ -56,28 +60,29 @@ export const XeroProvider = ({ children }) => {
         try {
           setLoading(true);
           
-          // Try to get authentication from localStorage first
+          // First check local storage
           const storedAuth = localStorage.getItem('xeroAuth') === 'true';
           
+          // If we think we're authenticated locally, verify with the backend
           if (storedAuth) {
-            // If locally stored as authenticated, verify with server
-            const serverAuth = await checkServerAuth();
+            const backendAuth = await checkBackendAuth();
             
-            if (serverAuth) {
-              // Both client and server are authenticated
+            // Sync auth state with backend
+            if (backendAuth) {
+              // Both agree we're authenticated
               setIsAuthenticated(true);
             } else {
-              // Server says not authenticated, update local storage
+              // Backend says not authenticated, update local state
               localStorage.removeItem('xeroAuth');
               setIsAuthenticated(false);
             }
           } else {
-            // Not authenticated locally
+            // We're not authenticated locally
             setIsAuthenticated(false);
           }
         } catch (err) {
-          console.error('Auth check error:', err);
-          setError(err.message);
+          console.error('Auth check failed:', err);
+          setError('Failed to check authentication status');
           setIsAuthenticated(false);
         } finally {
           setLoading(false);
@@ -90,24 +95,54 @@ export const XeroProvider = ({ children }) => {
 
   // This function is used to check authentication status with the server
   const checkAuth = async () => {
-    const serverAuth = await checkServerAuth();
-    
-    // Update local state if needed
-    if (serverAuth !== isAuthenticated) {
-      setAuth(serverAuth);
-    }
-    
-    return serverAuth;
+    return await checkBackendAuth();
   };
 
   // Function to set authentication state
-  const setAuth = (value) => {
-    if (value) {
-      localStorage.setItem('xeroAuth', 'true');
-    } else {
-      localStorage.removeItem('xeroAuth');
+  const setAuth = async (value) => {
+    try {
+      if (value) {
+        // Store auth in localStorage
+        localStorage.setItem('xeroAuth', 'true');
+        setIsAuthenticated(true);
+      } else {
+        // Clear auth and notify backend
+        localStorage.removeItem('xeroAuth');
+        setIsAuthenticated(false);
+        
+        // Try to notify backend of disconnect
+        try {
+          const apiUrl = getApiUrl();
+          await fetch(`${apiUrl}/auth/xero/disconnect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          console.log('Backend notified of disconnect');
+        } catch (err) {
+          console.warn('Failed to notify backend of disconnect:', err);
+        }
+      }
+    } catch (err) {
+      console.error('Error setting auth state:', err);
+      setError('Failed to update authentication state');
     }
-    setIsAuthenticated(value);
+  };
+
+  // Debug function to check backend token status
+  const checkBackendTokens = async () => {
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/auth/xero/debug-auth`);
+      if (!response.ok) {
+        throw new Error(`Debug check failed: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Backend token status:', data);
+      return data;
+    } catch (err) {
+      console.error('Error checking tokens:', err);
+      return { error: err.message };
+    }
   };
 
   return (
@@ -119,7 +154,9 @@ export const XeroProvider = ({ children }) => {
       checkAuth,
       loading,
       error,
-      getApiUrl
+      getApiUrl,
+      checkBackendTokens,
+      isCheckingAuth
     }}>
       {children}
     </XeroContext.Provider>
