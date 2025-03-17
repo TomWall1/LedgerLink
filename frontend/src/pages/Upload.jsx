@@ -29,6 +29,12 @@ const Upload = () => {
       console.log('Xero integration enabled');
       fetchXeroCustomers();
     }
+    
+    // Display success message if present
+    if (location.state?.message) {
+      // You could set a success message state and display it
+      console.log('Message from navigation:', location.state.message);
+    }
   }, [location.state, isAuthenticated]);
 
   // Function to fetch Xero customers from the real API
@@ -43,7 +49,13 @@ const Upload = () => {
       const apiUrl = getApiUrl();
       console.log('Fetching Xero customers from:', apiUrl);
       
-      const response = await fetch(`${apiUrl}/api/xero/customers`);
+      // Simplify the fetch request by removing unnecessary headers
+      const response = await fetch(`${apiUrl}/api/xero/customers`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -87,7 +99,12 @@ const Upload = () => {
       const apiUrl = getApiUrl();
       console.log(`Fetching invoices for customer ${customerId} from: ${apiUrl}`);
       
-      const response = await fetch(`${apiUrl}/api/xero/customers/${customerId}/invoices`);
+      const response = await fetch(`${apiUrl}/api/xero/customers/${customerId}/invoices`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
