@@ -1,12 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useXero } from '../context/XeroContext';
 
 const XeroConnection = ({ onUseXeroData }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState(null);
   const navigate = useNavigate();
-  const { isAuthenticated, setIsAuthenticated, getApiUrl } = useXero();
+  const { 
+    isAuthenticated, 
+    setIsAuthenticated, 
+    getApiUrl, 
+    isCheckingAuth,
+    checkBackendTokens 
+  } = useXero();
+
+  // Check token status when component mounts
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkTokenStatus();
+    }
+  }, [isAuthenticated]);
+
+  // Function to check token status for debugging
+  const checkTokenStatus = async () => {
+    const info = await checkBackendTokens();
+    setDebugInfo(info);
+  };
 
   // Function to handle the Xero connection
   const handleConnect = async () => {
@@ -42,26 +62,19 @@ const XeroConnection = ({ onUseXeroData }) => {
     }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     try {
       setIsLoading(true);
-      // Just disconnect locally - simpler and more reliable
-      setIsAuthenticated(false);
-      console.log('Disconnected from Xero locally');
-      setIsLoading(false);
       
-      // Also try to notify the backend, but don't wait for it
-      const apiUrl = getApiUrl();
-      fetch(`${apiUrl}/auth/xero/disconnect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }).catch(err => {
-        console.warn('Failed to notify backend of disconnect:', err);
-      });
+      // Disconnect via context (which will also notify backend)
+      await setIsAuthenticated(false);
+      console.log('Disconnected from Xero');
+      
+      setIsLoading(false);
     } catch (error) {
       console.warn('Error disconnecting from Xero:', error);
-      // Still disconnect locally
-      setIsAuthenticated(false);
+      // Still disconnect locally even if backend call fails
+      await setIsAuthenticated(false);
       setIsLoading(false);
     }
   };
@@ -76,9 +89,15 @@ const XeroConnection = ({ onUseXeroData }) => {
     }
   };
 
-  const handleTryAgain = () => {
+  const handleTryAgain = async () => {
     setError(null);
-    window.location.reload();
+    // Check backend token status
+    await checkTokenStatus();
+  };
+
+  // Handle manual token check (debug)
+  const handleCheckTokens = async () => {
+    await checkTokenStatus();
   };
 
   return (
@@ -103,8 +122,34 @@ const XeroConnection = ({ onUseXeroData }) => {
         </div>
       )}
 
+      {/* Debug information (only visible if available) */}
+      {debugInfo && (
+        <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono">
+          <div className="flex justify-between items-center mb-1">
+            <span className="font-medium">Debug Info:</span>
+            <button 
+              onClick={() => setDebugInfo(null)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              Close
+            </button>
+          </div>
+          <pre className="overflow-auto max-h-32 p-2 bg-gray-100 rounded">
+            {JSON.stringify(debugInfo, null, 2)}
+          </pre>
+        </div>
+      )}
+
       <div className="space-y-6">
-        {!isAuthenticated ? (
+        {isCheckingAuth ? (
+          <div className="text-center p-4">
+            <svg className="animate-spin h-8 w-8 mx-auto text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <p className="mt-2 text-gray-600">Checking authentication status...</p>
+          </div>
+        ) : !isAuthenticated ? (
           <div>
             <p className="text-gray-600 mb-4">
               Connect your Xero account to import Accounts Receivable data directly from your organization.
@@ -135,19 +180,25 @@ const XeroConnection = ({ onUseXeroData }) => {
               </svg>
               Connected to Xero
             </div>
-            <div className="flex space-x-4">
+            <div className="flex flex-wrap space-x-3">
               <button
                 onClick={handleContinue}
-                className="flex items-center px-4 py-2 rounded-lg transition-colors bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                className="flex items-center px-4 py-2 mb-2 rounded-lg transition-colors bg-blue-600 hover:bg-blue-700 text-white font-medium"
               >
                 Use Xero Data
               </button>
               <button
                 onClick={handleDisconnect}
                 disabled={isLoading}
-                className={`flex items-center px-4 py-2 rounded-lg transition-colors ${isLoading ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white font-medium`}
+                className={`flex items-center px-4 py-2 mb-2 rounded-lg transition-colors ${isLoading ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white font-medium`}
               >
                 {isLoading ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+              <button
+                onClick={handleCheckTokens}
+                className="flex items-center px-4 py-2 mb-2 rounded-lg transition-colors bg-gray-600 hover:bg-gray-700 text-white font-medium text-sm"
+              >
+                Check Token Status
               </button>
             </div>
           </div>
