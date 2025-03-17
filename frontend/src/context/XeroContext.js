@@ -28,11 +28,11 @@ export const XeroProvider = ({ children }) => {
       const apiUrl = getApiUrl();
       console.log('Checking auth status with backend:', apiUrl);
       
+      // Simplified headers to avoid CORS issues
       const response = await fetch(`${apiUrl}/auth/xero/status`, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store'
+          'Accept': 'application/json'
         }
       });
       
