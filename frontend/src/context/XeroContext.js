@@ -21,22 +21,83 @@ export const XeroProvider = ({ children }) => {
     return 'http://localhost:3002';
   };
 
+  // Function to check authentication status with the server
+  const checkServerAuth = async () => {
+    try {
+      setIsCheckingAuth(true);
+      console.log('Checking Xero auth status with server...');
+      
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/auth/xero/status`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Auth check failed:', errorText);
+        return false;
+      }
+      
+      const data = await response.json();
+      console.log('Server auth response:', data);
+      return data.isAuthenticated === true;
+    } catch (error) {
+      console.error('Error checking auth with server:', error);
+      return false;
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
   useEffect(() => {
     // Only do the initial auth check once
     if (!initialCheckDone.current) {
       initialCheckDone.current = true;
-      // Initialize auth state from localStorage
-      const storedAuth = localStorage.getItem('xeroAuth') === 'true';
-      setIsAuthenticated(storedAuth);
-      setLoading(false);
+      
+      const checkAuth = async () => {
+        try {
+          setLoading(true);
+          
+          // Try to get authentication from localStorage first
+          const storedAuth = localStorage.getItem('xeroAuth') === 'true';
+          
+          if (storedAuth) {
+            // If locally stored as authenticated, verify with server
+            const serverAuth = await checkServerAuth();
+            
+            if (serverAuth) {
+              // Both client and server are authenticated
+              setIsAuthenticated(true);
+            } else {
+              // Server says not authenticated, update local storage
+              localStorage.removeItem('xeroAuth');
+              setIsAuthenticated(false);
+            }
+          } else {
+            // Not authenticated locally
+            setIsAuthenticated(false);
+          }
+        } catch (err) {
+          console.error('Auth check error:', err);
+          setError(err.message);
+          setIsAuthenticated(false);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      checkAuth();
     }
   }, []);
 
   // This function is used to check authentication status with the server
   const checkAuth = async () => {
-    // Just use localStorage for now - simpler and more reliable
-    const storedAuth = localStorage.getItem('xeroAuth') === 'true';
-    return storedAuth;
+    const serverAuth = await checkServerAuth();
+    
+    // Update local state if needed
+    if (serverAuth !== isAuthenticated) {
+      setAuth(serverAuth);
+    }
+    
+    return serverAuth;
   };
 
   // Function to set authentication state
