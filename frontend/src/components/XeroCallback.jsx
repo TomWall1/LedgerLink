@@ -5,9 +5,10 @@ import { useXero } from '../context/XeroContext';
 const XeroCallback = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setIsAuthenticated } = useXero();
+  const { setIsAuthenticated, checkBackendTokens } = useXero();
   const [error, setError] = useState(null);
   const [processing, setProcessing] = useState(true);
+  const [debugInfo, setDebugInfo] = useState(null);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -29,13 +30,23 @@ const XeroCallback = () => {
           throw new Error(`Xero authentication failed: ${errorMessage}`);
         }
         
-        // Auto-authenticate without requiring the 'authenticated' param
-        // This assumes that if we reach this page without an error, authentication succeeded
-        console.log('No error found, assuming successful Xero authentication');
+        // Auto-authenticate - check with backend first
+        console.log('No error found, verifying authentication with backend...');
+        
+        // Check backend token status to confirm authentication was successful
+        const tokenStatus = await checkBackendTokens();
+        console.log('Backend token status:', tokenStatus);
+        
+        if (!tokenStatus?.tokenInfo?.hasTokens) {
+          throw new Error('Backend reports no valid tokens - authentication failed');
+        }
+        
+        // Store debug info
+        setDebugInfo(tokenStatus);
         
         // Update auth state in context
         await setIsAuthenticated(true);
-        console.log('Authentication state updated');
+        console.log('Authentication state updated successfully');
         
         // Navigate back to upload page with success message
         navigate('/upload', { 
@@ -53,7 +64,7 @@ const XeroCallback = () => {
     };
 
     handleCallback();
-  }, [location, navigate, setIsAuthenticated]);
+  }, [location, navigate, setIsAuthenticated, checkBackendTokens]);
 
   const handleRetry = () => {
     // Clear error and redirect to upload page to try again
@@ -89,6 +100,18 @@ const XeroCallback = () => {
                 Return to Upload Page
               </button>
             </div>
+          </div>
+        )}
+        
+        {/* Debug information (only visible if available) */}
+        {debugInfo && (
+          <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono">
+            <div className="flex justify-between items-center mb-1">
+              <span className="font-medium">Debug Info:</span>
+            </div>
+            <pre className="overflow-auto max-h-32 p-2 bg-gray-100 rounded">
+              {JSON.stringify(debugInfo, null, 2)}
+            </pre>
           </div>
         )}
       </div>
