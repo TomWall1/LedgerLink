@@ -150,12 +150,13 @@ async function callXeroApi(url, options = {}) {
   }
 }
 
-// Options handler for preflight requests
+// Options handler for preflight requests - EXPANDED HEADERS LIST for CORS
 router.options('*', (req, res) => {
   // Allow any origin for now to debug CORS issues
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+  // Include all potentially needed headers, especially Cache-Control which was missing
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.status(204).end();
 });
@@ -163,10 +164,10 @@ router.options('*', (req, res) => {
 // DEBUG ENDPOINT: Check token status
 router.get('/debug-auth', (req, res) => {
   try {
-    // CORS headers for this specific route
+    // CORS headers for this specific route - EXPANDED HEADERS LIST
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     const tokenStatus = {
@@ -196,10 +197,10 @@ router.get('/auth-url', async (req, res) => {
   try {
     console.log('Backend Xero auth-url endpoint accessed from:', req.headers.origin);
     
-    // CORS headers for this specific route
+    // CORS headers for this specific route - EXPANDED HEADERS LIST
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     // Use the redirect URI from the env variable
@@ -223,10 +224,10 @@ router.get('/auth-url', async (req, res) => {
 // Initial Xero connection route
 router.get('/connect', async (req, res) => {
   try {
-    // CORS - headers for this specific route
+    // CORS headers for this specific route - EXPANDED HEADERS LIST
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     console.log('Connect endpoint accessed - checking environment variables:', {
@@ -265,10 +266,10 @@ router.get('/connect', async (req, res) => {
 // Disconnect from Xero
 router.post('/disconnect', async (req, res) => {
   try {
-    // CORS - headers for this specific route
+    // CORS headers for this specific route - EXPANDED HEADERS LIST
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     await tokenStore.clearTokens();
@@ -285,10 +286,10 @@ router.post('/disconnect', async (req, res) => {
 // Check authentication status
 router.get('/status', (req, res) => {
   try {
-    // CORS - headers for this specific route
+    // CORS headers for this specific route - EXPANDED HEADERS LIST
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     // Add cache control headers to prevent caching
@@ -371,10 +372,10 @@ router.get('/callback', async (req, res) => {
 // Get Xero customers
 router.get('/customers', requireXeroAuth, async (req, res) => {
   try {
-    // CORS - headers for this specific route
+    // CORS headers for this specific route - EXPANDED HEADERS LIST
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     console.log('Fetching tenants...');
