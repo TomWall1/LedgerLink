@@ -160,7 +160,38 @@ router.options('*', (req, res) => {
   res.status(204).end();
 });
 
-// NEW: Add auth-url endpoint to match the root index.js
+// DEBUG ENDPOINT: Check token status
+router.get('/debug-auth', (req, res) => {
+  try {
+    // CORS headers for this specific route
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    const tokenStatus = {
+      hasTokens: tokenStore.hasTokens(),
+      expiry: tokenStore.expiry,
+      isExpired: tokenStore.expiry ? new Date() > tokenStore.expiry : true,
+      hasAccessToken: !!tokenStore.tokens?.access_token,
+      hasRefreshToken: !!tokenStore.tokens?.refresh_token,
+      currentTime: new Date()
+    };
+    
+    res.json({
+      status: 'Debug information',
+      tokenInfo: tokenStatus
+    });
+  } catch (error) {
+    console.error('Error in debug endpoint:', error);
+    res.status(500).json({
+      error: 'Failed to fetch debug information',
+      details: error.message
+    });
+  }
+});
+
+// Auth URL endpoint
 router.get('/auth-url', async (req, res) => {
   try {
     console.log('Backend Xero auth-url endpoint accessed from:', req.headers.origin);
@@ -197,6 +228,12 @@ router.get('/connect', async (req, res) => {
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control');
     res.header('Access-Control-Allow-Credentials', 'true');
+    
+    console.log('Connect endpoint accessed - checking environment variables:', {
+      clientId: process.env.XERO_CLIENT_ID ? 'Set' : 'Not Set',
+      clientSecret: process.env.XERO_CLIENT_SECRET ? 'Set' : 'Not Set',
+      redirectUri: process.env.XERO_REDIRECT_URI
+    });
     
     // Generate a random state for security
     const state = crypto.randomBytes(16).toString('hex');
@@ -318,8 +355,12 @@ router.get('/callback', async (req, res) => {
     // Store tokens
     await tokenStore.saveTokens(tokens);
 
+    // Get the correct frontend URL
     const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
-    res.redirect(`${frontendUrl}/auth/xero/callback?authenticated=true`);
+    console.log('Redirecting to frontend URL:', frontendUrl);
+    
+    // Redirect to the callback page on the frontend
+    res.redirect(`${frontendUrl}/auth/xero/callback`);
   } catch (error) {
     console.error('Error in Xero callback:', error);
     const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
