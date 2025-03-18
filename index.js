@@ -58,32 +58,33 @@ app.get('/', (req, res) => {
   res.json({ status: 'API is running' });
 });
 
+// Middleware to sync the token between tokenStore and xeroClient
+app.use(async (req, res, next) => {
+  // Skip if this is not a Xero-related route
+  if (!req.path.includes('/xero/')) {
+    return next();
+  }
+  
+  try {
+    // Check if we have valid tokens
+    const tokens = await tokenStore.getValidTokens();
+    if (tokens) {
+      // Ensure the XeroClient is using the same token
+      xero.setTokenSet(tokens);
+      console.log('XeroClient token synchronized with tokenStore');
+    }
+    next();
+  } catch (error) {
+    console.error('Error synchronizing tokens:', error);
+    next();
+  }
+});
+
 // Mount the Xero auth routes module
 app.use('/auth/xero', xeroRoutes);
 
 // Also mount the Xero auth routes at /api/xero to maintain backward compatibility
 app.use('/api/xero', xeroRoutes);
-
-// Forward the main auth check endpoint to the proper route
-app.get('/auth/xero/status', async (req, res) => {
-  console.log('Forwarding auth status check to xeroAuth module');
-  
-  // Get valid tokens from the token store (shared with xeroAuth)
-  try {
-    const tokens = await tokenStore.getValidTokens();
-    
-    if (tokens) {
-      // Update the client's token set if valid tokens were found
-      xero.setTokenSet(tokens);
-    }
-    
-    // Forward to the next handler for actual processing
-    next();
-  } catch (error) {
-    console.error('Error in token validation:', error);
-    next();
-  }
-});
 
 // Backward compatibility for the Xero customer and invoice endpoints
 // These will delegate to the xeroAuth implementation
