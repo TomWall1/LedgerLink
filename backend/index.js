@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
+import { XeroClient } from 'xero-node';
+import crypto from 'crypto';
 import xeroAuthRouter from './src/routes/xeroAuth.js';
 import accountLinkRouter from './src/routes/accountLinkRoutes.js';
 import processRouter from './src/routes/processRoutes.js';
@@ -13,6 +15,15 @@ dotenv.config();
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3002;
+
+// Create Xero client for direct endpoint
+const xero = new XeroClient({
+  clientId: process.env.XERO_CLIENT_ID,
+  clientSecret: process.env.XERO_CLIENT_SECRET,
+  redirectUris: [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/auth/xero/callback'],
+  scopes: ['offline_access', 'accounting.transactions.read', 'accounting.contacts.read'],
+  httpTimeout: 30000
+});
 
 // Configure CORS
 const allowedOrigins = [
@@ -69,18 +80,33 @@ app.get('/', (req, res) => {
   res.send('LedgerLink API is running');
 });
 
-// Add a direct route for Xero auth URL
+// Add a direct route for Xero auth URL for more reliable connection
 app.get('/direct-xero-auth', async (req, res) => {
   try {
-    console.log('Direct endpoint accessed');
+    console.log('Direct Xero auth endpoint accessed');
     res.header('Access-Control-Allow-Origin', '*');
-    res.json({ url: 'https://login.xero.com/identity/connect/authorize' });
+    
+    // Update the redirect URI from environment
+    const redirectUri = process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/auth/xero/callback';
+    xero.config.redirectUris = [redirectUri];
+    
+    // Generate a random state for security
+    const state = crypto.randomBytes(16).toString('hex');
+    
+    // Generate consent URL
+    const consentUrl = await xero.buildConsentUrl();
+    const url = new URL(consentUrl);
+    url.searchParams.set('state', state);
+    
+    console.log('Generated Xero auth URL:', url.toString());
+    res.json({ url: url.toString() });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error generating Xero auth URL:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
+// Use router modules
 app.use('/auth', xeroAuthRouter);
 app.use('/accountLink', accountLinkRouter);
 app.use('/process', processRouter);
