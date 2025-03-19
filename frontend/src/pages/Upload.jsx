@@ -246,7 +246,8 @@ const Upload = () => {
       
       const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
       
-      const response = await axios.post(`${apiUrl}/api/match`, formData, {
+      // Changed from /api/match to /process/match to match the backend router path
+      const response = await axios.post(`${apiUrl}/process/match`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
