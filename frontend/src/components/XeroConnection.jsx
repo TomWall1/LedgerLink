@@ -50,10 +50,13 @@ const XeroConnection = ({ onUseXeroData }) => {
       
       // Use the most reliable path from our experience
       const response = await fetch(url, {
+        method: 'GET',
         headers: {
+          'Accept': 'application/json',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache'
-        }
+        },
+        mode: 'cors' // Explicitly set CORS mode
       });
       
       if (!response.ok) {
@@ -94,8 +97,10 @@ const XeroConnection = ({ onUseXeroData }) => {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'Cache-Control': 'no-cache'
-          }
+          },
+          mode: 'cors'
         });
         
         if (!response.ok) {
