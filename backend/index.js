@@ -85,6 +85,62 @@ app.options('*', (req, res) => {
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Helper function to make authenticated Xero API calls
+async function callXeroApi(url, options = {}) {
+  try {
+    console.log('Making API call to Xero:', url);
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const text = await response.text();
+    console.log(`Response from ${url}:`, {
+      status: response.status,
+      statusText: response.statusText
+    });
+
+    if (!response.ok) {
+      console.error('API call failed:', {
+        status: response.status,
+        text: text.substring(0, 500) // Limit response size in logs
+      });
+      throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      console.error('Failed to parse response:', text.substring(0, 500));
+      throw new Error('Invalid JSON response from Xero');
+    }
+  } catch (error) {
+    console.error('Error in callXeroApi:', error);
+    throw error;
+  }
+}
+
+// Middleware to verify Xero authentication
+const requireXeroAuth = async (req, res, next) => {
+  try {
+    const tokens = await tokenStore.getValidTokens();
+    if (!tokens) {
+      throw new Error('Not authenticated with Xero');
+    }
+    req.xeroTokens = tokens;
+    next();
+  } catch (error) {
+    res.status(401).json({
+      error: 'Authentication required',
+      details: error.message
+    });
+  }
+};
+
 // API Routes
 app.get('/', (req, res) => {
   res.send('LedgerLink API is running');
@@ -237,6 +293,100 @@ app.get('/direct-debug-auth', (req, res) => {
       error: 'Failed to fetch debug information',
       details: error.message,
       stack: error.stack
+    });
+  }
+});
+
+// Add direct route for Xero customers
+app.get('/api/xero/customers', requireXeroAuth, async (req, res) => {
+  try {
+    console.log('Direct Xero customers endpoint accessed');
+    res.header('Access-Control-Allow-Origin', '*');
+    
+    // Get the tokens from middleware
+    const tokens = req.xeroTokens;
+    console.log('Using tokens with expiry:', tokens.expires_in || 'unknown');
+    
+    // Get organization first
+    const tenants = await callXeroApi('https://api.xero.com/connections', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+
+    if (!tenants || tenants.length === 0) {
+      throw new Error('No organizations found');
+    }
+
+    const tenantId = tenants[0].tenantId;
+    console.log('Using tenant:', { id: tenantId, name: tenants[0].tenantName });
+
+    // Get customers
+    const customersData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Contacts?where=IsCustomer=true', {
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Xero-tenant-id': tenantId
+        }
+      }
+    );
+
+    console.log(`Found ${customersData.Contacts?.length || 0} customers`);
+    res.json({
+      success: true,
+      customers: customersData.Contacts || []
+    });
+  } catch (error) {
+    console.error('Error fetching Xero customers:', error);
+    res.status(500).json({
+      error: 'Failed to fetch customers',
+      details: error.message
+    });
+  }
+});
+
+// Add direct route for Xero invoices
+app.get('/api/xero/invoices', requireXeroAuth, async (req, res) => {
+  try {
+    console.log('Direct Xero invoices endpoint accessed');
+    res.header('Access-Control-Allow-Origin', '*');
+    
+    // Get the tokens from middleware
+    const tokens = req.xeroTokens;
+    
+    // Get organization first
+    const tenants = await callXeroApi('https://api.xero.com/connections', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+
+    if (!tenants || tenants.length === 0) {
+      throw new Error('No organizations found');
+    }
+
+    const tenantId = tenants[0].tenantId;
+
+    // Fetch invoices
+    const invoicesData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Invoices?where=Status!="PAID" AND Status!="VOIDED"', {
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Xero-tenant-id': tenantId
+        }
+      }
+    );
+
+    console.log(`Found ${invoicesData.Invoices?.length || 0} invoices`);
+    res.json({
+      success: true,
+      invoices: invoicesData.Invoices || []
+    });
+  } catch (error) {
+    console.error('Error fetching Xero invoices:', error);
+    res.status(500).json({
+      error: 'Failed to fetch invoices',
+      details: error.message
     });
   }
 });
