@@ -391,6 +391,71 @@ app.get('/api/xero/invoices', requireXeroAuth, async (req, res) => {
   }
 });
 
+// Add direct route for customer invoices
+app.get('/api/xero/customers/:customerId/invoices', requireXeroAuth, async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { includeHistory } = req.query;
+    
+    console.log(`Direct Xero customer invoices endpoint accessed for customer ${customerId}`);
+    res.header('Access-Control-Allow-Origin', '*');
+    
+    // Get the tokens from middleware
+    const tokens = req.xeroTokens;
+    
+    // Get organization first
+    const tenants = await callXeroApi('https://api.xero.com/connections', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+
+    if (!tenants || tenants.length === 0) {
+      throw new Error('No organizations found');
+    }
+
+    const tenantId = tenants[0].tenantId;
+
+    // Build query URL
+    let baseUrl = 'https://api.xero.com/api.xro/2.0/Invoices';
+    const params = new URLSearchParams();
+    
+    // Add the customer ID constraint
+    params.set('where', `Contact.ContactID=guid("${customerId}")`);
+    
+    // Only filter out PAID and VOIDED if we're not including history
+    if (includeHistory !== 'true') {
+      params.append('where', 'Status!="PAID" AND Status!="VOIDED"');
+    }
+    
+    // Sort by date
+    params.set('order', 'Date DESC');
+    
+    const url = `${baseUrl}?${params.toString()}`;
+    console.log('Fetching customer invoices with URL:', url);
+
+    // Fetch invoices for the customer
+    const invoicesData = await callXeroApi(url, {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`,
+        'Xero-tenant-id': tenantId
+      }
+    });
+
+    console.log(`Found ${invoicesData.Invoices?.length || 0} invoices for customer ${customerId}`);
+    res.json({
+      success: true,
+      invoices: invoicesData.Invoices || []
+    });
+  } catch (error) {
+    console.error('Error fetching customer invoices:', error);
+    res.status(500).json({
+      error: 'Failed to fetch customer invoices',
+      details: error.message
+    });
+  }
+});
+
 // Use router modules
 app.use('/auth', xeroAuthRouter);
 app.use('/accountLink', accountLinkRouter);
