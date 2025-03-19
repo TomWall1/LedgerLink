@@ -19,18 +19,11 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
-// Very permissive CORS configuration to resolve issues
+// More permissive CORS configuration to resolve preflight issues
 app.use((req, res, next) => {
-  // Allow both production and development origins
-  const allowedOrigins = [
-    'https://lledgerlink.vercel.app',
-    'https://ledgerlink.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:3002'
-  ];
-  
   const origin = req.headers.origin;
+  
+  // Always allow the vercel frontend origins
   if (allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
   } else {
@@ -39,39 +32,30 @@ app.use((req, res, next) => {
   }
   
   res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-  // Include all potentially needed headers, especially Cache-Control which was missing
+  // Include all potentially needed headers
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, X-CSRF-Token, X-Auth-Token');
   res.header('Access-Control-Expose-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
   
+  // Handle OPTIONS preflight requests immediately
   if (req.method === 'OPTIONS') {
-    // Pre-flight request
     return res.status(204).end();
   }
+  
   next();
 });
 
-// Standard CORS configuration
+// Standard CORS middleware - now configured to be more permissive
 const corsOptions = {
   origin: function(origin, callback) {
-    const allowedOrigins = [
-      'https://lledgerlink.vercel.app',
-      'https://ledgerlink.vercel.app',
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002'
-    ];
-    
-    // Allow requests with no origin (like mobile apps, curl, etc)
+    // Always allow requests with no origin (like mobile apps, curl, etc)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
-    } else if (process.env.NODE_ENV === 'development') {
-      // In development, allow all origins
-      callback(null, true);
     } else {
-      console.log('CORS blocked for origin:', origin);
-      callback(null, false); 
+      // In development or to ensure connectivity, allow all origins
+      callback(null, true);
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -92,7 +76,7 @@ const corsOptions = {
   maxAge: 86400 // Cache preflight requests for 24 hours
 };
 
-// Regular CORS middleware
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
 // Handle OPTIONS preflight requests
