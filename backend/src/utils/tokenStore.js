@@ -71,7 +71,17 @@ class TokenStore {
   // Check if the current token is expired
   isExpired() {
     if (!this.expiry) return true;
-    return new Date() > this.expiry;
+    
+    // Add some logging to help diagnose expiry issues
+    const now = new Date();
+    const isExpired = now > this.expiry;
+    console.log('Token expiry check:', {
+      currentTime: now.toISOString(),
+      expiryTime: this.expiry.toISOString(),
+      isExpired: isExpired
+    });
+    
+    return isExpired;
   }
 
   // Save tokens to file
@@ -84,29 +94,46 @@ class TokenStore {
       
       fs.writeFileSync(TOKEN_FILE_PATH, data, 'utf8');
       console.log(`Saved tokens to file, expires at ${this.expiry.toISOString()}`);
+      return true;
     } catch (error) {
       console.error('Error saving tokens to file:', error);
+      return false;
     }
   }
 
   // Save tokens (in-memory and to file)
   saveTokens(tokens) {
-    if (!tokens || !tokens.access_token) {
-      console.error('Invalid tokens provided to tokenStore.saveTokens');
+    try {
+      if (!tokens) {
+        console.error('Null tokens provided to tokenStore.saveTokens');
+        return false;
+      }
+      
+      if (!tokens.access_token) {
+        console.error('Invalid tokens provided to tokenStore.saveTokens (missing access_token)');
+        return false;
+      }
+
+      this.tokens = tokens;
+      
+      // Calculate expiry time (subtract 5 minutes for safety margin)
+      const expiresIn = tokens.expires_in || 1800; // Default to 30 minutes if not specified
+      this.expiry = new Date(Date.now() + (expiresIn * 1000) - (5 * 60 * 1000));
+      
+      // Save to file for persistence
+      const saved = this.saveTokensToFile();
+      
+      if (saved) {
+        console.log(`Tokens saved successfully, expires at ${this.expiry.toISOString()}`);
+      } else {
+        console.warn('Tokens saved in memory only - could not save to file');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error in saveTokens:', error);
       return false;
     }
-
-    this.tokens = tokens;
-    
-    // Calculate expiry time (subtract 5 minutes for safety margin)
-    const expiresIn = tokens.expires_in || 1800; // Default to 30 minutes if not specified
-    this.expiry = new Date(Date.now() + (expiresIn * 1000) - (5 * 60 * 1000));
-    
-    // Save to file for persistence
-    this.saveTokensToFile();
-    
-    console.log(`Tokens saved, expires at ${this.expiry.toISOString()}`);
-    return true;
   }
 
   // Get valid tokens or null if expired/not available
@@ -124,6 +151,7 @@ class TokenStore {
       if (this.tokens.refresh_token) {
         const refreshed = await this.refreshTokens();
         if (refreshed) {
+          console.log('Token refresh successful, returning new tokens');
           return this.tokens;
         }
       }
@@ -132,6 +160,7 @@ class TokenStore {
       return null;
     }
 
+    console.log('Returning valid tokens');
     return this.tokens;
   }
   
@@ -194,16 +223,40 @@ class TokenStore {
   
   // Synchronous check for tokens existence (useful for status check)
   hasTokens() {
-    if (!this.tokens || !this.expiry) {
+    try {
+      // More detailed checks for token validity
+      if (!this.tokens) {
+        console.log('hasTokens: No tokens object exists');
+        return false;
+      }
+      
+      if (!this.tokens.access_token) {
+        console.log('hasTokens: No access token found');
+        return false;
+      }
+      
+      if (!this.tokens.refresh_token) {
+        console.log('hasTokens: No refresh token found');
+        return false;
+      }
+      
+      if (!this.expiry) {
+        console.log('hasTokens: No expiry time set');
+        return false;
+      }
+      
+      // Check if tokens are expired
+      if (this.isExpired()) {
+        console.log('hasTokens: Tokens are expired');
+        return false;
+      }
+      
+      console.log('hasTokens: Valid tokens found');
+      return true;
+    } catch (error) {
+      console.error('Error in hasTokens check:', error);
       return false;
     }
-    
-    // Check if tokens are expired
-    if (this.isExpired()) {
-      return false;
-    }
-    
-    return true;
   }
 
   // Clear stored tokens
