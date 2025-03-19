@@ -44,30 +44,31 @@ const XeroConnection = ({ onUseXeroData }) => {
       const apiUrl = getApiUrl();
       console.log('Connecting to Xero using API URL:', apiUrl);
       
-      // Add cache busting parameter
-      const timestamp = Date.now();
-      
-      // First, get the authorization URL from the server
-      const response = await fetch(`${apiUrl}/auth/xero/auth-url?nocache=${timestamp}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
+      // Try the direct endpoint first
+      try {
+        const response = await fetch(`${apiUrl}/direct-xero-auth`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.url) {
+            console.log('Got authorization URL:', data.url);
+            window.location.href = data.url;
+            return;
+          }
         }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to get authorization URL: ${response.status}`);
+      } catch (directError) {
+        console.warn('Direct auth-url endpoint failed:', directError);
+        // Continue to other methods
       }
       
-      const data = await response.json();
-      const authUrl = data.url;
-      
-      if (!authUrl) {
-        throw new Error('No authorization URL provided in the response');
-      }
-      
-      console.log('Redirecting to Xero auth URL:', authUrl);
-      window.location.href = authUrl;
+      // Fall back to direct redirect
+      console.log('Falling back to direct redirect...');
+      window.location.href = `${apiUrl}/auth/xero/connect`;
     } catch (error) {
       console.error('Error connecting to Xero:', error);
       setError(`Failed to connect to Xero: ${error.message || 'Unknown error'}. Please try again.`);

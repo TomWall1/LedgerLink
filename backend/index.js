@@ -69,6 +69,18 @@ app.get('/', (req, res) => {
   res.send('LedgerLink API is running');
 });
 
+// Add a direct route for Xero auth URL
+app.get('/direct-xero-auth', async (req, res) => {
+  try {
+    console.log('Direct endpoint accessed');
+    res.header('Access-Control-Allow-Origin', '*');
+    res.json({ url: 'https://login.xero.com/identity/connect/authorize' });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.use('/auth', xeroAuthRouter);
 app.use('/accountLink', accountLinkRouter);
 app.use('/process', processRouter);
