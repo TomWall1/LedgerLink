@@ -1,16 +1,20 @@
 import express from 'express';
 import cors from 'cors';
+import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
-import xeroRoutes from './src/routes/xeroAuth.js';
-import processRoutes from './src/routes/processRoutes.js';
-import testRoutes from './src/routes/test.js';
-import accountLinkRoutes from './src/routes/accountLinkRoutes.js';
+import xeroAuthRouter from './src/routes/xeroAuth.js';
+import accountLinkRouter from './src/routes/accountLinkRoutes.js';
+import processRouter from './src/routes/processRoutes.js';
+import testRouter from './src/routes/test.js';
 
+// Initialize environment variables
 dotenv.config();
 
+// Create Express app
 const app = express();
+const PORT = process.env.PORT || 3002;
 
-// Define allowed origins with the exact frontend URL
+// Configure CORS
 const allowedOrigins = [
   'https://lledgerlink.vercel.app',
   'https://ledgerlink.vercel.app',
@@ -19,159 +23,67 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
-// More permissive CORS configuration to resolve preflight issues
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  // Always allow the vercel frontend origins
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    // In development, allow all origins
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-  // Include all potentially needed headers
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, X-CSRF-Token, X-Auth-Token');
-  res.header('Access-Control-Expose-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Handle OPTIONS preflight requests immediately
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-  
-  next();
-});
-
-// Standard CORS middleware - now configured to be more permissive
-const corsOptions = {
+app.use(cors({
   origin: function(origin, callback) {
-    // Always allow requests with no origin (like mobile apps, curl, etc)
+    // allow requests with no origin (like mobile apps, curl, etc)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      // In development or to ensure connectivity, allow all origins
-      callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      console.log(`CORS request from non-allowed origin: ${origin}`);
+      // Still allow the request to go through
+      return callback(null, true);
     }
+    return callback(null, true);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With',
-    'Content-Type',
-    'Accept',
-    'Authorization',
-    'X-CSRF-Token',
-    'X-Auth-Token',
-    'Cache-Control',
-    'Pragma',
-    'Expires'
-  ],
-  exposedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  maxAge: 86400 // Cache preflight requests for 24 hours
-};
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
+  credentials: true
+}));
 
-// Apply CORS middleware
-app.use(cors(corsOptions));
-
-// Handle OPTIONS preflight requests
-app.options('*', cors(corsOptions));
-
-// Body parsing middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Log all requests
+// Add response headers for all requests
 app.use((req, res, next) => {
-  console.log('Request received:', {
-    method: req.method,
-    path: req.path,
-    headers: {
-      origin: req.headers.origin,
-      host: req.headers.host,
-      referer: req.headers.referer
-    },
-    query: req.query,
-    body: Object.keys(req.body || {}).length > 0 ? '(body present)' : '(no body)'
-  });
+  // Log the request
+  console.log(`${req.method} ${req.path} from ${req.headers.origin || 'Unknown origin'}`);
+  
+  // Additional CORS headers for all responses
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Continue to the next middleware
   next();
 });
 
-// Mount test routes first
-app.use('/test', testRoutes);
-
-// Mount other routes
-app.use('/auth', xeroRoutes);
-
-// IMPORTANT: Add this specific route to match frontend expectations
-app.use('/auth/xero', xeroRoutes);
-
-app.use('/process-csv', processRoutes);
-app.use('/match-data', processRoutes);
-
-// Add the account linking routes
-app.use('/link', accountLinkRoutes);
-
-// Add direct mount for the /api path to handle /api/match requests
-app.use('/api', processRoutes);
-
-// IMPORTANT: Also mount Xero routes under /api/xero to match frontend expectations
-app.use('/api/xero', xeroRoutes);
-
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    status: 'API is running',
-    endpoints: {
-      test: '/test/upload',
-      auth: ['/auth/*', '/auth/xero/*'],
-      process: '/process-csv',
-      match: '/match-data',
-      link: '/link',
-      api: '/api/match',
-      xero: ['/auth/xero/*', '/api/xero/*']
-    },
-    version: '1.1.0' // Added version to track deployment
-  });
+// Handle OPTIONS preflight requests
+app.options('*', (req, res) => {
+  res.status(204).end();
 });
+
+// Middleware for parsing request bodies
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// API Routes
+app.get('/', (req, res) => {
+  res.send('LedgerLink API is running');
+});
+
+app.use('/auth', xeroAuthRouter);
+app.use('/accountLink', accountLinkRouter);
+app.use('/process', processRouter);
+app.use('/test', testRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Global error handler:', {
-    error: err,
-    message: err.message,
-    code: err.code,
-    field: err.field,
-    storageErrors: err.storageErrors,
-    stack: err.stack
-  });
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
-    path: req.path,
-    timestamp: new Date().toISOString(),
-    details: JSON.stringify(err, Object.getOwnPropertyNames(err))
+  console.error('Global error handler:', err);
+  res.status(500).json({
+    error: 'An unexpected error occurred',
+    details: err.message
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 3002; // Changed default port to 3002
+// Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log('Environment:', {
-    node_env: process.env.NODE_ENV,
-    clientId: process.env.XERO_CLIENT_ID ? '✓ Set' : '✗ Missing',
-    clientSecret: process.env.XERO_CLIENT_SECRET ? '✓ Set' : '✗ Missing',
-    redirectUri: process.env.XERO_REDIRECT_URI,
-    frontend: process.env.FRONTEND_URL
-  });
-});
-
-// Add unhandled rejection handler
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
