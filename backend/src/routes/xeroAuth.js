@@ -158,7 +158,7 @@ async function callXeroApi(url, options = {}) {
   }
 }
 
-// Options handler for preflight requests - EXPANDED HEADERS LIST for CORS
+// Options handler for preflight requests
 router.options('*', (req, res) => {
   // Get the request origin
   const origin = req.headers.origin || '*';
@@ -166,20 +166,11 @@ router.options('*', (req, res) => {
   // Check if the origin is in our allowedOrigins list
   const isAllowedOrigin = allowedOrigins.includes(origin) || origin === '*';
   
-  // Always allow the request during development or for allowed origins
+  // Set appropriate CORS headers
   res.header('Access-Control-Allow-Origin', isAllowedOrigin ? origin : '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  // Include all potentially needed headers, especially Cache-Control which was missing
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
   res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Log the preflight request
-  console.log('Handling CORS preflight for:', {
-    path: req.path,
-    origin,
-    method: req.method,
-    allowedOrigin: isAllowedOrigin ? origin : '*'
-  });
   
   // Return immediately for OPTIONS requests
   res.status(204).end();
@@ -188,18 +179,12 @@ router.options('*', (req, res) => {
 // DEBUG ENDPOINT: Check token status with enhanced details
 router.get('/debug-auth', (req, res) => {
   try {
-    // CORS headers for this specific route - EXPANDED HEADERS LIST
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    // Basic CORS headers
+    res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
-    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     
-    // Add cache control headers to prevent caching
-    res.header('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.header('Pragma', 'no-cache');
-    res.header('Expires', '0');
-    
-    // Gather more detailed token info
+    // Gather detailed token info
     const now = new Date();
     const tokenFilePath = tokenStore.getTokenFilePath ? tokenStore.getTokenFilePath() : TOKEN_FILE_PATH;
     
@@ -215,42 +200,7 @@ router.get('/debug-auth', (req, res) => {
       fileStatus: tokenFilePath && fs.existsSync(tokenFilePath) ? 'exists' : 'missing',
       tokenFileLocation: tokenFilePath || 'not set',
       environment: process.env.NODE_ENV || 'not set',
-      tmpDirWritable: false,
-      cwdWritable: false
     };
-    
-    // Test if we can write to the /tmp directory (common in serverless environments)
-    try {
-      const tmpTestPath = '/tmp/write-test.txt';
-      fs.writeFileSync(tmpTestPath, 'test', 'utf8');
-      fs.unlinkSync(tmpTestPath);
-      tokenStatus.tmpDirWritable = true;
-    } catch (err) {
-      tokenStatus.tmpDirError = err.message;
-    }
-    
-    // Test if we can write to the current working directory
-    try {
-      const cwdTestPath = path.join(process.cwd(), 'write-test.txt');
-      fs.writeFileSync(cwdTestPath, 'test', 'utf8');
-      fs.unlinkSync(cwdTestPath);
-      tokenStatus.cwdWritable = true;
-    } catch (err) {
-      tokenStatus.cwdError = err.message;
-    }
-    
-    // Check if tokens are present but reported as invalid
-    const hasSomeTokenData = !!tokenStore.tokens?.access_token || !!tokenStore.tokens?.refresh_token;
-    if (hasSomeTokenData && !tokenStatus.hasTokens) {
-      tokenStatus.hasSomeTokenData = true;
-      tokenStatus.possibleIssue = 'Tokens present but reported as invalid';
-      
-      // If we have tokens but they're reported as invalid, let's try to save them again
-      if (tokenStore.tokens?.access_token && tokenStore.tokens?.refresh_token && tokenStore.tokens?.expires_in) {
-        const reSaved = tokenStore.saveTokens(tokenStore.tokens);
-        tokenStatus.attemptedReSave = reSaved;
-      }
-    }
     
     res.json({
       status: 'Debug information',
@@ -266,35 +216,6 @@ router.get('/debug-auth', (req, res) => {
   }
 });
 
-// Auth URL endpoint
-router.get('/auth-url', async (req, res) => {
-  try {
-    console.log('Backend Xero auth-url endpoint accessed from:', req.headers.origin);
-    
-    // CORS headers for this specific route - EXPANDED HEADERS LIST
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    
-    // Use the redirect URI from the env variable
-    const redirectUri = process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/auth/xero/callback';
-    console.log('Using redirect URI:', redirectUri);
-    
-    // Generate consent URL
-    const consentUrl = await xero.buildConsentUrl();
-    console.log('Generated consent URL:', {
-      url: consentUrl,
-      state: xero.state
-    });
-    
-    res.json({ url: consentUrl });
-  } catch (error) {
-    console.error('Error generating consent URL:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Initial Xero connection route
 router.get('/connect', async (req, res) => {
   try {
@@ -307,18 +228,8 @@ router.get('/connect', async (req, res) => {
       query: req.query
     });
     
-    // CORS headers for this specific route - EXPANDED HEADERS LIST
-    // Make sure we're very explicit about the allowed origin
-    const origin = req.headers.origin || '*';
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    
-    // Add cache control headers to prevent caching
-    res.header('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.header('Pragma', 'no-cache');
-    res.header('Expires', '0');
+    // Allow CORS - simplified approach
+    res.header('Access-Control-Allow-Origin', '*');
     
     console.log('Connect endpoint accessed - checking environment variables:', {
       clientId: process.env.XERO_CLIENT_ID ? 'Set' : 'Not Set',
@@ -356,16 +267,8 @@ router.get('/connect', async (req, res) => {
 // Check authentication status
 router.get('/status', (req, res) => {
   try {
-    // CORS headers for this specific route - EXPANDED HEADERS LIST
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    
-    // Add cache control headers to prevent caching
-    res.header('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.header('Pragma', 'no-cache');
-    res.header('Expires', '0');
+    // Allow CORS
+    res.header('Access-Control-Allow-Origin', '*');
     
     // Check token status
     const isAuthenticated = tokenStore.hasTokens();
@@ -383,11 +286,8 @@ router.get('/status', (req, res) => {
 // Disconnect from Xero
 router.post('/disconnect', async (req, res) => {
   try {
-    // CORS headers for this specific route - EXPANDED HEADERS LIST
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
-    res.header('Access-Control-Allow-Credentials', 'true');
+    // Allow CORS
+    res.header('Access-Control-Allow-Origin', '*');
     
     await tokenStore.clearTokens();
     res.json({ success: true });
@@ -470,11 +370,8 @@ router.get('/callback', async (req, res) => {
 // Get Xero customers
 router.get('/customers', requireXeroAuth, async (req, res) => {
   try {
-    // CORS headers for this specific route - EXPANDED HEADERS LIST
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
-    res.header('Access-Control-Allow-Credentials', 'true');
+    // Allow CORS
+    res.header('Access-Control-Allow-Origin', '*');
     
     console.log('Fetching tenants...');
     // Get organization first
@@ -518,16 +415,8 @@ router.get('/customers', requireXeroAuth, async (req, res) => {
 // New endpoint to get historical invoice data for matching
 router.get('/historical-invoices', requireXeroAuth, async (req, res) => {
   try {
-    // Add CORS headers for the historical-invoices endpoint
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, If-Modified-Since, X-CSRF-Token, X-Auth-Token');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    
-    // Add cache control headers to prevent caching
-    res.header('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.header('Pragma', 'no-cache');
-    res.header('Expires', '0');
+    // Allow CORS
+    res.header('Access-Control-Allow-Origin', '*');
     
     console.log('Fetching historical invoices...');
     
