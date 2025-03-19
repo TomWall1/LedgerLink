@@ -32,13 +32,17 @@ export const XeroProvider = ({ children }) => {
       // Add cache-busting parameter if requested
       const cacheParam = skipCache ? `?nocache=${Date.now()}` : '';
       
-      // Simplified headers to avoid CORS issues
+      // Improved fetch options to handle CORS properly
       const response = await fetch(`${apiUrl}/auth/xero/status${cacheParam}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        mode: 'cors',
+        credentials: 'omit' // Don't send credentials to avoid CORS issues
       });
       
       if (!response.ok) {
@@ -128,8 +132,11 @@ export const XeroProvider = ({ children }) => {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
-              'Cache-Control': 'no-cache'
-            }
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            },
+            mode: 'cors'
           });
           console.log('Backend notified of disconnect');
         } catch (err) {
@@ -147,9 +154,14 @@ export const XeroProvider = ({ children }) => {
     try {
       const apiUrl = getApiUrl();
       const response = await fetch(`${apiUrl}/auth/xero/debug-auth?nocache=${Date.now()}`, {
+        method: 'GET',
         headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        mode: 'cors'
       });
       if (!response.ok) {
         throw new Error(`Debug check failed: ${response.status}`);
