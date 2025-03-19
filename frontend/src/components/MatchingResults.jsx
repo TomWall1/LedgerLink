@@ -32,7 +32,7 @@ const MatchingResults = ({ matchResults }) => {
       if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}/)) {
         const [year, month, day] = date.split('-');
         // Format as DD/MM/YYYY for Xero compatibility
-        return `${day}/${month}/${year}`;
+        return `${day.substring(0,2)}/${month}/${year}`;
       }
       
       // For anything else, try the standard Date parsing
@@ -49,6 +49,23 @@ const MatchingResults = ({ matchResults }) => {
       console.error('Date formatting error:', error, 'Date value:', date);
       return String(date) || 'N/A';
     }
+  };
+
+  // Format Xero transaction number to display as invoice number
+  const formatTransactionNumber = (transactionId) => {
+    if (!transactionId) return 'N/A';
+    
+    // Check if it's a UUID (typical Xero format)
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (uuidPattern.test(transactionId)) {
+      // This is a UUID, so we should display a more user-friendly format
+      // Check if we have any other identifier to use instead
+      return 'INV-' + transactionId.substring(0, 6); // Show shortened version with prefix
+    }
+    
+    // If it's already in a good format, return as is
+    return transactionId;
   };
 
   const formatPercentage = (amount, total) => {
@@ -131,6 +148,7 @@ const MatchingResults = ({ matchResults }) => {
     );
   };
 
+  // Modified table component to properly handle cell spacing and wrapping
   const ResultTable = ({ title, data, columns }) => (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200">
       <div className="overflow-x-auto" style={{ maxHeight: '400px' }}>
@@ -138,7 +156,7 @@ const MatchingResults = ({ matchResults }) => {
           <thead className="bg-blue-50 sticky top-0">
             <tr>
               {columns.map((col, index) => (
-                <th key={index} className="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">
+                <th key={index} className="px-6 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider" style={{ minWidth: '120px' }}>
                   {col}
                 </th>
               ))}
@@ -147,8 +165,8 @@ const MatchingResults = ({ matchResults }) => {
           <tbody className="bg-white divide-y divide-gray-200">
             {data.map((row, index) => (
               <tr key={index} className="hover:bg-gray-50 transition-colors">
-                {Object.values(row).map((value, cellIndex) => (
-                  <td key={cellIndex} className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                {Object.entries(row).map(([key, value], cellIndex) => (
+                  <td key={cellIndex} className="px-6 py-4 text-sm text-gray-600" style={{ minWidth: '120px' }}>
                     {value}
                   </td>
                 ))}
@@ -270,10 +288,12 @@ const MatchingResults = ({ matchResults }) => {
               getPartialPaymentBadge(match.company1) : 
               (match.company2?.is_partially_paid ? getPartialPaymentBadge(match.company2) : null);
               
+            const transactionId = match?.company1?.transactionNumber || match?.company2?.transactionNumber || 'N/A';
+            
             return {
               'Transaction #': (
                 <div className="flex items-center">
-                  <span>{match?.company1?.transactionNumber || match?.company2?.transactionNumber || 'N/A'}</span>
+                  <span>{formatTransactionNumber(transactionId)}</span>
                   {partialPaymentBadge}
                 </div>
               ),
@@ -326,10 +346,12 @@ const MatchingResults = ({ matchResults }) => {
               paymentInfo = formatCurrency(mismatch?.company2?.amount || 0);
             }
             
+            const transactionId = mismatch?.company1?.transactionNumber || mismatch?.company2?.transactionNumber || 'N/A';
+            
             return {
               'Transaction #': (
                 <div className="flex items-center">
-                  <span>{mismatch?.company1?.transactionNumber || mismatch?.company2?.transactionNumber || 'N/A'}</span>
+                  <span>{formatTransactionNumber(transactionId)}</span>
                   {partialPaymentBadge}
                 </div>
               ),
@@ -359,11 +381,12 @@ const MatchingResults = ({ matchResults }) => {
             <ResultTable
               data={(safeUnmatchedItems.company1 || []).map(item => {
                 const partialPaymentBadge = item.is_partially_paid ? getPartialPaymentBadge(item) : null;
+                const transactionId = item?.transactionNumber || 'N/A';
                 
                 return {
                   'Transaction #': (
                     <div className="flex items-center">
-                      <span>{item?.transactionNumber || 'N/A'}</span>
+                      <span>{formatTransactionNumber(transactionId)}</span>
                       {partialPaymentBadge}
                     </div>
                   ),
@@ -381,11 +404,12 @@ const MatchingResults = ({ matchResults }) => {
             <ResultTable
               data={(safeUnmatchedItems.company2 || []).map(item => {
                 const partialPaymentBadge = item.is_partially_paid ? getPartialPaymentBadge(item) : null;
+                const transactionId = item?.transactionNumber || 'N/A';
                 
                 return {
                   'Transaction #': (
                     <div className="flex items-center">
-                      <span>{item?.transactionNumber || 'N/A'}</span>
+                      <span>{formatTransactionNumber(transactionId)}</span>
                       {partialPaymentBadge}
                     </div>
                   ),
@@ -419,8 +443,10 @@ const MatchingResults = ({ matchResults }) => {
                 ? 'Transaction Date' 
                 : 'Due Date';
               
+              const transactionId = mismatch?.company1?.transactionNumber || mismatch?.company2?.transactionNumber || 'N/A';
+              
               return {
-                'Transaction #': mismatch?.company1?.transactionNumber || mismatch?.company2?.transactionNumber || 'N/A',
+                'Transaction #': formatTransactionNumber(transactionId),
                 'Type': mismatch?.company1?.type || mismatch?.company2?.type || 'N/A',
                 'Amount': formatCurrency(mismatch?.company1?.amount || 0),
                 'Discrepancy Type': mismatchType,
@@ -446,13 +472,16 @@ const MatchingResults = ({ matchResults }) => {
           <div className="space-y-4">
             {safeHistoricalInsights.map((insight, index) => {
               const badgeClass = getInsightBadgeClass(insight.insight.severity);
+              const apTransactionId = insight.apItem?.transactionNumber || 'N/A';
+              const arTransactionId = insight.historicalMatch?.transactionNumber || 'N/A';
+              
               return (
                 <div key={index} className="border rounded-lg overflow-hidden">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
                     <div className="space-y-2">
                       <h3 className="font-medium text-blue-700">AP Item</h3>
                       <div className="text-sm">
-                        <p><span className="font-medium">Transaction #:</span> {insight.apItem?.transactionNumber || 'N/A'}</p>
+                        <p><span className="font-medium">Transaction #:</span> {formatTransactionNumber(apTransactionId)}</p>
                         <p><span className="font-medium">Amount:</span> {formatCurrency(insight.apItem?.amount || 0)}</p>
                         <p><span className="font-medium">Date:</span> {formatDate(insight.apItem?.date)}</p>
                         <p><span className="font-medium">Status:</span> {insight.apItem?.status || 'N/A'}</p>
@@ -461,7 +490,7 @@ const MatchingResults = ({ matchResults }) => {
                     <div className="space-y-2">
                       <h3 className="font-medium text-blue-700">AR Historical Match</h3>
                       <div className="text-sm">
-                        <p><span className="font-medium">Transaction #:</span> {insight.historicalMatch?.transactionNumber || 'N/A'}</p>
+                        <p><span className="font-medium">Transaction #:</span> {formatTransactionNumber(arTransactionId)}</p>
                         <p><span className="font-medium">Original Amount:</span> {formatCurrency(insight.historicalMatch?.original_amount || 0)}</p>
                         {insight.historicalMatch?.is_partially_paid && (
                           <p>
