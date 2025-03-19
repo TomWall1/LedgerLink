@@ -5,7 +5,7 @@ import { useXero } from '../context/XeroContext';
 const XeroCallback = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setIsAuthenticated, checkBackendTokens } = useXero();
+  const { setIsAuthenticated, checkBackendTokens, getApiUrl } = useXero();
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -17,7 +17,7 @@ const XeroCallback = () => {
         // Parse URL parameters
         console.log('Callback URL params:', location.search);
         const params = new URLSearchParams(location.search);
-        const error = params.get('error');
+        const errorParam = params.get('error');
         const code = params.get('code');
         
         // Log all parameters for debugging
@@ -28,24 +28,57 @@ const XeroCallback = () => {
         console.log('All URL parameters:', allParams);
         
         // Check if there's an error parameter
-        if (error) {
-          throw new Error(`Xero authentication error: ${error}`);
+        if (errorParam) {
+          throw new Error(`Xero authentication error: ${errorParam}`);
         }
         
-        // Proceed with authentication verification
-        console.log('No error found, verifying authentication with backend...');
-        
-        // Check token status
-        const tokenStatus = await checkBackendTokens();
-        console.log('Backend token status:', tokenStatus);
-        
-        // Validate that the auth was successful
-        if (tokenStatus.error) {
-          throw new Error('Backend returned invalid token status response');
+        // Step 1: Notify the backend about the authentication code for proper token exchange
+        if (code) {
+          console.log('Exchanging authorization code for tokens...');
+          try {
+            const apiUrl = getApiUrl();
+            const response = await fetch(`${apiUrl}/auth/xero/callback-notify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({ code, state: allParams.state })
+            });
+            
+            if (response.ok) {
+              console.log('Backend token exchange successful');
+            } else {
+              console.warn('Backend token exchange response:', await response.text());
+            }
+          } catch (exchangeError) {
+            console.warn('Error exchanging code for tokens:', exchangeError);
+            // Continue anyway - tokens might have been exchanged on server redirect
+          }
         }
         
-        const isAuthenticated = tokenStatus.tokenInfo?.hasTokens === true;
-        if (!isAuthenticated) {
+        // Step 2: Verify authentication status after a brief delay for token processing
+        console.log('Waiting for backend to process tokens...');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+        
+        // Step 3: Check authentication status
+        console.log('Verifying authentication with backend...');
+        const apiUrl = getApiUrl();
+        const authResponse = await fetch(`${apiUrl}/direct-auth-status?nocache=${Date.now()}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (!authResponse.ok) {
+          throw new Error(`Failed to verify authentication: ${authResponse.status}`);
+        }
+        
+        const authData = await authResponse.json();
+        console.log('Authentication status response:', authData);
+        
+        if (!authData.isAuthenticated) {
           throw new Error('Failed to connect to Xero. Please try again.');
         }
         
@@ -64,7 +97,7 @@ const XeroCallback = () => {
     
     // Only run once when component mounts
     handleCallback();
-  }, [location.search, navigate, setIsAuthenticated, checkBackendTokens]);
+  }, [location.search, navigate, setIsAuthenticated, checkBackendTokens, getApiUrl]);
 
   // Handle manual retry
   const handleRetry = () => {
