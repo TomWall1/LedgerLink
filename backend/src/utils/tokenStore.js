@@ -9,37 +9,75 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const TOKEN_FILE_PATH = path.join(__dirname, '..', '..', 'data', 'xero-tokens.json');
+
+// Define multiple possible storage locations to handle different environments
+const possiblePaths = [
+  // Standard path relative to this file
+  path.join(__dirname, '..', '..', 'data', 'xero-tokens.json'),
+  // Render.com specific path (ensure it's writable)
+  '/tmp/xero-tokens.json',
+  // Fallback path in case the data directory can't be created
+  path.join(process.cwd(), 'xero-tokens.json')
+];
 
 class TokenStore {
   constructor() {
     this.tokens = null;
     this.expiry = null;
+    this.tokenFilePath = null;
     this.initializeTokenStore();
   }
 
-  // Initialize the token store and ensure the data directory exists
+  // Initialize the token store and ensure a writable location exists
   initializeTokenStore() {
     try {
-      // Make sure the data directory exists
-      const dataDir = path.join(__dirname, '..', '..', 'data');
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-        console.log('Created data directory for token storage');
+      // Try each possible path until we find one that works
+      for (const potentialPath of possiblePaths) {
+        try {
+          // For paths with directories, make sure the directory exists
+          const dirPath = path.dirname(potentialPath);
+          if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+            console.log(`Created directory for token storage: ${dirPath}`);
+          }
+          
+          // Test if we can write to this location
+          const testFile = path.join(dirPath, '.write-test');
+          fs.writeFileSync(testFile, 'test', 'utf8');
+          fs.unlinkSync(testFile); // Clean up test file
+          
+          // This path works, let's use it
+          this.tokenFilePath = potentialPath;
+          console.log(`Using token file path: ${this.tokenFilePath}`);
+          break;
+        } catch (err) {
+          console.warn(`Cannot use path ${potentialPath} for token storage: ${err.message}`);
+          // Continue to the next path
+        }
       }
       
-      // Try to load tokens from file
-      this.loadTokensFromFile();
+      if (!this.tokenFilePath) {
+        // If none of the paths worked, use memory-only storage
+        console.error('Could not find a writable location for token storage. Using memory-only storage (tokens will not persist across restarts).');
+      } else {
+        // Load tokens from the selected file path
+        this.loadTokensFromFile();
+      }
     } catch (error) {
       console.error('Error initializing token store:', error);
     }
   }
 
+  // Return the token file path (for debug info)
+  getTokenFilePath() {
+    return this.tokenFilePath;
+  }
+
   // Load tokens from file
   loadTokensFromFile() {
     try {
-      if (fs.existsSync(TOKEN_FILE_PATH)) {
-        const data = fs.readFileSync(TOKEN_FILE_PATH, 'utf8');
+      if (this.tokenFilePath && fs.existsSync(this.tokenFilePath)) {
+        const data = fs.readFileSync(this.tokenFilePath, 'utf8');
         const storedData = JSON.parse(data);
         
         if (storedData && storedData.tokens) {
@@ -87,16 +125,22 @@ class TokenStore {
   // Save tokens to file
   saveTokensToFile() {
     try {
+      // If we don't have a token file path, we can't save to file
+      if (!this.tokenFilePath) {
+        console.warn('Token file path not set, cannot save tokens to file');
+        return false;
+      }
+
       const data = JSON.stringify({
         tokens: this.tokens,
         expiry: this.expiry
       }, null, 2);
       
-      fs.writeFileSync(TOKEN_FILE_PATH, data, 'utf8');
-      console.log(`Saved tokens to file, expires at ${this.expiry.toISOString()}`);
+      fs.writeFileSync(this.tokenFilePath, data, 'utf8');
+      console.log(`Saved tokens to file at ${this.tokenFilePath}, expires at ${this.expiry.toISOString()}`);
       return true;
     } catch (error) {
-      console.error('Error saving tokens to file:', error);
+      console.error(`Error saving tokens to file (${this.tokenFilePath}):`, error);
       return false;
     }
   }
@@ -120,13 +164,16 @@ class TokenStore {
       const expiresIn = tokens.expires_in || 1800; // Default to 30 minutes if not specified
       this.expiry = new Date(Date.now() + (expiresIn * 1000) - (5 * 60 * 1000));
       
-      // Save to file for persistence
-      const saved = this.saveTokensToFile();
+      // Only try to save to file if we have a token file path
+      let saved = false;
+      if (this.tokenFilePath) {
+        saved = this.saveTokensToFile();
+      }
       
       if (saved) {
-        console.log(`Tokens saved successfully, expires at ${this.expiry.toISOString()}`);
+        console.log(`Tokens saved successfully to ${this.tokenFilePath}, expires at ${this.expiry.toISOString()}`);
       } else {
-        console.warn('Tokens saved in memory only - could not save to file');
+        console.warn('Tokens saved in memory only');
       }
       
       return true;
@@ -266,12 +313,12 @@ class TokenStore {
     
     // Clear the token file if it exists
     try {
-      if (fs.existsSync(TOKEN_FILE_PATH)) {
-        fs.unlinkSync(TOKEN_FILE_PATH);
-        console.log('Token file deleted');
+      if (this.tokenFilePath && fs.existsSync(this.tokenFilePath)) {
+        fs.unlinkSync(this.tokenFilePath);
+        console.log(`Token file deleted: ${this.tokenFilePath}`);
       }
     } catch (error) {
-      console.error('Error deleting token file:', error);
+      console.error(`Error deleting token file (${this.tokenFilePath}):`, error);
     }
     
     console.log('Tokens cleared from store');
