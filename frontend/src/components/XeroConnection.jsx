@@ -44,8 +44,30 @@ const XeroConnection = ({ onUseXeroData }) => {
       const apiUrl = getApiUrl();
       console.log('Connecting to Xero using API URL:', apiUrl);
       
-      // Use direct approach to avoid CORS issues
-      window.location.href = `${apiUrl}/auth/xero/connect`;
+      // Add cache busting parameter
+      const timestamp = Date.now();
+      
+      // First, get the authorization URL from the server
+      const response = await fetch(`${apiUrl}/auth/xero/auth-url?nocache=${timestamp}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get authorization URL: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const authUrl = data.url;
+      
+      if (!authUrl) {
+        throw new Error('No authorization URL provided in the response');
+      }
+      
+      console.log('Redirecting to Xero auth URL:', authUrl);
+      window.location.href = authUrl;
     } catch (error) {
       console.error('Error connecting to Xero:', error);
       setError(`Failed to connect to Xero: ${error.message || 'Unknown error'}. Please try again.`);
@@ -64,8 +86,7 @@ const XeroConnection = ({ onUseXeroData }) => {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
+            'Accept': 'application/json'
           }
         });
         
