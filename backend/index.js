@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 import xeroAuthRouter from './src/routes/xeroAuth.js';
 import accountLinkRouter from './src/routes/accountLinkRoutes.js';
 import processRouter from './src/routes/processRoutes.js';
@@ -111,6 +112,74 @@ app.get('/direct-xero-auth', async (req, res) => {
     res.json({ url: url.toString() });
   } catch (error) {
     console.error('Error generating Xero auth URL:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add direct callback notification route
+app.post('/auth/xero/callback-notify', async (req, res) => {
+  try {
+    console.log('Callback notification received:', req.body);
+    res.header('Access-Control-Allow-Origin', '*');
+    
+    const { code, state } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'Missing authorization code' });
+    }
+    
+    // Get the redirect URI from environment
+    const redirectUri = process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/auth/xero/callback';
+    console.log('Using redirect URI for token exchange:', redirectUri);
+    
+    // Exchange code for tokens manually
+    try {
+      const tokenResponse = await fetch('https://identity.xero.com/connect/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': 'Basic ' + Buffer.from(
+            `${process.env.XERO_CLIENT_ID}:${process.env.XERO_CLIENT_SECRET}`
+          ).toString('base64')
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri
+        }).toString()
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error('Token exchange failed:', errorText);
+        return res.status(400).json({ error: `Token exchange failed: ${tokenResponse.status} ${errorText}` });
+      }
+
+      const tokens = await tokenResponse.json();
+      console.log('Token exchange successful:', {
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+        expiresIn: tokens.expires_in
+      });
+
+      // Store tokens
+      const saveResult = await tokenStore.saveTokens(tokens);
+      console.log('Token save result:', saveResult);
+      
+      // Double-check token save was successful
+      if (!saveResult) {
+        console.warn('Token save may have failed - attempting second save');
+        // Try one more time with explicit expiry
+        tokens.expires_in = tokens.expires_in || 1800; // Default to 30 min if not set
+        await tokenStore.saveTokens(tokens);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error exchanging code for tokens:', error);
+      res.status(500).json({ error: error.message });
+    }
+  } catch (error) {
+    console.error('Error in callback notification:', error);
     res.status(500).json({ error: error.message });
   }
 });
