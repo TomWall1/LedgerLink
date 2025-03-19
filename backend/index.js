@@ -416,36 +416,37 @@ app.get('/api/xero/customers/:customerId/invoices', requireXeroAuth, async (req,
 
     const tenantId = tenants[0].tenantId;
 
-    // Build query URL
-    let baseUrl = 'https://api.xero.com/api.xro/2.0/Invoices';
-    const params = new URLSearchParams();
-    
-    // Add the customer ID constraint
-    params.set('where', `Contact.ContactID=guid("${customerId}")`);
-    
-    // Only filter out PAID and VOIDED if we're not including history
-    if (includeHistory !== 'true') {
-      params.append('where', 'Status!="PAID" AND Status!="VOIDED"');
-    }
-    
-    // Sort by date
-    params.set('order', 'Date DESC');
-    
-    const url = `${baseUrl}?${params.toString()}`;
-    console.log('Fetching customer invoices with URL:', url);
+    // Use a simpler approach - get all invoices and filter in memory
+    // This avoids complex query parameter issues with the Xero API
+    const invoicesData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Invoices', {
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Xero-tenant-id': tenantId
+        }
+      }
+    );
 
-    // Fetch invoices for the customer
-    const invoicesData = await callXeroApi(url, {
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-        'Xero-tenant-id': tenantId
+    // Filter invoices for the specific customer
+    const customerInvoices = (invoicesData.Invoices || []).filter(invoice => {
+      // First check if the invoice belongs to the specified customer
+      const isForCustomer = invoice.Contact && invoice.Contact.ContactID === customerId;
+      
+      // Then check if we should include all invoices or only unpaid ones
+      if (!isForCustomer) return false;
+      
+      if (includeHistory === 'true') {
+        return true; // Include all customer invoices
+      } else {
+        // Only include unpaid/unvoided invoices
+        return invoice.Status !== 'PAID' && invoice.Status !== 'VOIDED';
       }
     });
 
-    console.log(`Found ${invoicesData.Invoices?.length || 0} invoices for customer ${customerId}`);
+    console.log(`Found ${customerInvoices.length} invoices for customer ${customerId}`);
     res.json({
       success: true,
-      invoices: invoicesData.Invoices || []
+      invoices: customerInvoices
     });
   } catch (error) {
     console.error('Error fetching customer invoices:', error);
