@@ -32,17 +32,31 @@ export const XeroProvider = ({ children }) => {
       // Add cache-busting parameter if requested
       const cacheParam = skipCache ? `?nocache=${Date.now()}` : '';
       
-      // Improved fetch options to handle CORS properly
+      // Try direct endpoint first
+      try {
+        const response = await fetch(`${apiUrl}/direct-auth-status${cacheParam}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Direct auth status response:', data);
+          return data.isAuthenticated;
+        }
+      } catch (directError) {
+        console.warn('Direct auth status failed:', directError);
+        // Continue to standard endpoint
+      }
+      
+      // Fall back to standard endpoint
       const response = await fetch(`${apiUrl}/auth/xero/status${cacheParam}`, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-        mode: 'cors',
-        credentials: 'omit' // Don't send credentials to avoid CORS issues
+          'Accept': 'application/json'
+        }
       });
       
       if (!response.ok) {
@@ -132,11 +146,8 @@ export const XeroProvider = ({ children }) => {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            },
-            mode: 'cors'
+              'Accept': 'application/json'
+            }
           });
           console.log('Backend notified of disconnect');
         } catch (err) {
@@ -153,19 +164,38 @@ export const XeroProvider = ({ children }) => {
   const checkBackendTokens = async () => {
     try {
       const apiUrl = getApiUrl();
+      
+      // Try direct endpoint first
+      try {
+        const response = await fetch(`${apiUrl}/direct-debug-auth?nocache=${Date.now()}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Direct debug status response:', data);
+          return data;
+        }
+      } catch (directError) {
+        console.warn('Direct debug endpoint failed:', directError);
+        // Continue to standard endpoint
+      }
+      
+      // Fall back to standard endpoint
       const response = await fetch(`${apiUrl}/auth/xero/debug-auth?nocache=${Date.now()}`, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-        mode: 'cors'
+          'Accept': 'application/json'
+        }
       });
+      
       if (!response.ok) {
         throw new Error(`Debug check failed: ${response.status}`);
       }
+      
       const data = await response.json();
       console.log('Backend token status:', data);
       return data;

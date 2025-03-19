@@ -7,156 +7,98 @@ const XeroCallback = () => {
   const location = useLocation();
   const { setIsAuthenticated, checkBackendTokens } = useXero();
   const [error, setError] = useState(null);
-  const [processing, setProcessing] = useState(true);
-  const [debugInfo, setDebugInfo] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        setProcessing(true);
+        setLoading(true);
+        
+        // Parse URL parameters
         console.log('Callback URL params:', location.search);
         const params = new URLSearchParams(location.search);
+        const error = params.get('error');
+        const code = params.get('code');
         
-        // Debug log all parameters
+        // Log all parameters for debugging
         const allParams = {};
         params.forEach((value, key) => {
           allParams[key] = value;
         });
         console.log('All URL parameters:', allParams);
         
-        // Check for error parameter
-        if (params.has('error')) {
-          const errorMessage = params.get('error');
-          throw new Error(`Xero authentication failed: ${errorMessage}`);
+        // Check if there's an error parameter
+        if (error) {
+          throw new Error(`Xero authentication error: ${error}`);
         }
         
-        // Auto-authenticate - check with backend first
+        // Proceed with authentication verification
         console.log('No error found, verifying authentication with backend...');
         
-        // Check backend token status to confirm authentication was successful
+        // Check token status
         const tokenStatus = await checkBackendTokens();
         console.log('Backend token status:', tokenStatus);
         
-        // Store debug info in any case
-        setDebugInfo(tokenStatus);
-        
-        // More detailed check of token status
-        if (!tokenStatus || !tokenStatus.tokenInfo) {
+        // Validate that the auth was successful
+        if (tokenStatus.error) {
           throw new Error('Backend returned invalid token status response');
         }
         
-        // If token info exists but hasTokens is false, try a more lenient check
-        if (!tokenStatus.tokenInfo.hasTokens) {
-          // The backend might still have valid tokens even if hasTokens is false
-          // Check for presence of access token and refresh token
-          if (tokenStatus.tokenInfo.hasAccessToken && tokenStatus.tokenInfo.hasRefreshToken) {
-            console.log('Backend reports tokens present despite hasTokens=false, proceeding with authentication');
-            // Continue with authentication
-          } else {
-            throw new Error('Backend reports no valid tokens - authentication failed');
-          }
+        const isAuthenticated = tokenStatus.tokenInfo?.hasTokens === true;
+        if (!isAuthenticated) {
+          throw new Error('Failed to connect to Xero. Please try again.');
         }
         
-        // Update auth state in context
+        // Update authentication state
         await setIsAuthenticated(true);
-        console.log('Authentication state updated successfully');
+        console.log('Successfully connected to Xero!');
         
-        // Navigate back to upload page with success message
-        navigate('/upload', { 
-          state: { 
-            xeroEnabled: true, 
-            message: 'Successfully connected to Xero!' 
-          }
-        });
-        return;
-      } catch (err) {
-        console.error('Error handling Xero callback:', err);
-        setError(err.message);
-        setProcessing(false);
+        // Redirect to home page
+        navigate('/');
+      } catch (error) {
+        console.error('Error handling Xero callback:', error);
+        setError(error.message || 'Failed to connect to Xero');
+        setLoading(false);
       }
     };
-
-    handleCallback();
-  }, [location, navigate, setIsAuthenticated, checkBackendTokens]);
-
-  const handleRetry = () => {
-    // Clear error and try again
-    setError(null);
-    setProcessing(true);
     
-    // Attempt to check tokens again
-    checkBackendTokens()
-      .then(tokenStatus => {
-        setDebugInfo(tokenStatus);
-        
-        // If we have tokens, consider authentication successful
-        if (tokenStatus?.tokenInfo?.hasTokens || 
-            (tokenStatus?.tokenInfo?.hasAccessToken && tokenStatus?.tokenInfo?.hasRefreshToken)) {
-          return setIsAuthenticated(true)
-            .then(() => {
-              navigate('/upload', { 
-                state: { 
-                  xeroEnabled: true, 
-                  message: 'Successfully connected to Xero!' 
-                }
-              });
-            });
-        } else {
-          throw new Error('Still no valid tokens after retry');
-        }
-      })
-      .catch(err => {
-        console.error('Error in retry:', err);
-        setError(`Retry failed: ${err.message}`);
-        setProcessing(false);
-      });
+    // Only run once when component mounts
+    handleCallback();
+  }, [location.search, navigate, setIsAuthenticated, checkBackendTokens]);
+
+  // Handle manual retry
+  const handleRetry = () => {
+    navigate('/');
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
-        <h1 className="text-2xl font-bold text-center mb-6">Xero Authentication</h1>
-        
-        {processing && !error && (
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Processing Xero authentication...</p>
-          </div>
-        )}
-        
-        {error && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
-            <p className="font-bold">Authentication Error</p>
-            <p>{error}</p>
-            <div className="mt-4 flex space-x-4">
-              <button 
-                onClick={handleRetry} 
-                className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition-colors">
-                Try Again
-              </button>
-              <button 
-                onClick={() => navigate('/upload')} 
-                className="bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded transition-colors">
-                Return to Upload Page
-              </button>
-            </div>
-          </div>
-        )}
-        
-        {/* Debug information (only visible if available) */}
-        {debugInfo && (
-          <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono">
-            <div className="flex justify-between items-center mb-1">
-              <span className="font-medium">Debug Info:</span>
-            </div>
-            <pre className="overflow-auto max-h-32 p-2 bg-gray-100 rounded">
-              {JSON.stringify(debugInfo, null, 2)}
-            </pre>
-          </div>
-        )}
+  if (loading && !error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+        <h2 className="text-xl font-semibold mb-2">Completing Xero Connection</h2>
+        <p className="text-gray-600">Please wait while we finish connecting your Xero account...</p>
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md w-full">
+          <h2 className="text-xl font-semibold mb-4 text-red-700">Connection Error</h2>
+          <p className="text-gray-700 mb-6">{error}</p>
+          <button
+            onClick={handleRetry}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 };
 
 export default XeroCallback;

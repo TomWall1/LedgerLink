@@ -4,10 +4,14 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import { XeroClient } from 'xero-node';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import xeroAuthRouter from './src/routes/xeroAuth.js';
 import accountLinkRouter from './src/routes/accountLinkRoutes.js';
 import processRouter from './src/routes/processRoutes.js';
 import testRouter from './src/routes/test.js';
+import { tokenStore } from './src/utils/tokenStore.js';
 
 // Initialize environment variables
 dotenv.config();
@@ -15,6 +19,11 @@ dotenv.config();
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3002;
+
+// Get token file path for debug info
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TOKEN_FILE_PATH = tokenStore.getTokenFilePath ? tokenStore.getTokenFilePath() : path.join(__dirname, 'data', 'xero-tokens.json');
 
 // Create Xero client for direct endpoint
 const xero = new XeroClient({
@@ -103,6 +112,63 @@ app.get('/direct-xero-auth', async (req, res) => {
   } catch (error) {
     console.error('Error generating Xero auth URL:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Add direct auth status endpoint
+app.get('/direct-auth-status', (req, res) => {
+  try {
+    console.log('Direct auth status endpoint accessed');
+    res.header('Access-Control-Allow-Origin', '*');
+    
+    // Check token status
+    const isAuthenticated = tokenStore.hasTokens();
+    console.log('Authentication status:', isAuthenticated);
+    res.json({ isAuthenticated });
+  } catch (error) {
+    console.error('Error checking authentication status:', error);
+    res.status(500).json({
+      error: 'Failed to check authentication status',
+      details: error.message
+    });
+  }
+});
+
+// Add direct debug endpoint
+app.get('/direct-debug-auth', (req, res) => {
+  try {
+    console.log('Direct debug auth endpoint accessed');
+    res.header('Access-Control-Allow-Origin', '*');
+    
+    // Gather detailed token info
+    const now = new Date();
+    const tokenFilePath = tokenStore.getTokenFilePath ? tokenStore.getTokenFilePath() : TOKEN_FILE_PATH;
+    
+    const tokenStatus = {
+      hasTokens: tokenStore.hasTokens(),
+      expiry: tokenStore.expiry,
+      isExpired: tokenStore.expiry ? now > tokenStore.expiry : true,
+      timeUntilExpiry: tokenStore.expiry ? Math.floor((tokenStore.expiry - now) / 1000) + ' seconds' : 'N/A',
+      hasAccessToken: !!tokenStore.tokens?.access_token,
+      hasRefreshToken: !!tokenStore.tokens?.refresh_token,
+      tokenType: tokenStore.tokens?.token_type || 'none',
+      currentTime: now,
+      fileStatus: tokenFilePath && fs.existsSync(tokenFilePath) ? 'exists' : 'missing',
+      tokenFileLocation: tokenFilePath || 'not set',
+      environment: process.env.NODE_ENV || 'not set',
+    };
+    
+    res.json({
+      status: 'Debug information',
+      tokenInfo: tokenStatus
+    });
+  } catch (error) {
+    console.error('Error in debug endpoint:', error);
+    res.status(500).json({
+      error: 'Failed to fetch debug information',
+      details: error.message,
+      stack: error.stack
+    });
   }
 });
 
