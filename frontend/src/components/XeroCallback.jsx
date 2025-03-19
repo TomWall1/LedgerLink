@@ -37,12 +37,25 @@ const XeroCallback = () => {
         const tokenStatus = await checkBackendTokens();
         console.log('Backend token status:', tokenStatus);
         
-        if (!tokenStatus?.tokenInfo?.hasTokens) {
-          throw new Error('Backend reports no valid tokens - authentication failed');
+        // Store debug info in any case
+        setDebugInfo(tokenStatus);
+        
+        // More detailed check of token status
+        if (!tokenStatus || !tokenStatus.tokenInfo) {
+          throw new Error('Backend returned invalid token status response');
         }
         
-        // Store debug info
-        setDebugInfo(tokenStatus);
+        // If token info exists but hasTokens is false, try a more lenient check
+        if (!tokenStatus.tokenInfo.hasTokens) {
+          // The backend might still have valid tokens even if hasTokens is false
+          // Check for presence of access token and refresh token
+          if (tokenStatus.tokenInfo.hasAccessToken && tokenStatus.tokenInfo.hasRefreshToken) {
+            console.log('Backend reports tokens present despite hasTokens=false, proceeding with authentication');
+            // Continue with authentication
+          } else {
+            throw new Error('Backend reports no valid tokens - authentication failed');
+          }
+        }
         
         // Update auth state in context
         await setIsAuthenticated(true);
@@ -67,9 +80,36 @@ const XeroCallback = () => {
   }, [location, navigate, setIsAuthenticated, checkBackendTokens]);
 
   const handleRetry = () => {
-    // Clear error and redirect to upload page to try again
+    // Clear error and try again
     setError(null);
-    navigate('/upload');
+    setProcessing(true);
+    
+    // Attempt to check tokens again
+    checkBackendTokens()
+      .then(tokenStatus => {
+        setDebugInfo(tokenStatus);
+        
+        // If we have tokens, consider authentication successful
+        if (tokenStatus?.tokenInfo?.hasTokens || 
+            (tokenStatus?.tokenInfo?.hasAccessToken && tokenStatus?.tokenInfo?.hasRefreshToken)) {
+          return setIsAuthenticated(true)
+            .then(() => {
+              navigate('/upload', { 
+                state: { 
+                  xeroEnabled: true, 
+                  message: 'Successfully connected to Xero!' 
+                }
+              });
+            });
+        } else {
+          throw new Error('Still no valid tokens after retry');
+        }
+      })
+      .catch(err => {
+        console.error('Error in retry:', err);
+        setError(`Retry failed: ${err.message}`);
+        setProcessing(false);
+      });
   };
 
   return (
