@@ -29,9 +29,6 @@ import { tokenStore } from './src/utils/tokenStore.js';
 // Initialize environment variables
 dotenv.config();
 
-// Connect to MongoDB
-connectDB();
-
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -468,15 +465,29 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('MongoDB: Connected');
-  console.log('Xero Integration:', {
-    clientId: process.env.XERO_CLIENT_ID ? '✓ Set' : '✗ Missing',
-    clientSecret: process.env.XERO_CLIENT_SECRET ? '✓ Set' : '✗ Missing',
-    redirectUri: process.env.XERO_REDIRECT_URI || 'Default',
-  });
-  console.log(`Server ready at: http://localhost:${PORT}`);
-});
+// Start server
+const startServer = async () => {
+  try {
+    // Connect to MongoDB before starting the server
+    const conn = await connectDB();
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    
+    // Start the Express server
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log('Xero Integration:', {
+        clientId: process.env.XERO_CLIENT_ID ? '✓ Set' : '✗ Missing',
+        clientSecret: process.env.XERO_CLIENT_SECRET ? '✓ Set' : '✗ Missing',
+        redirectUri: process.env.XERO_REDIRECT_URI || 'Default',
+      });
+      console.log(`Server ready at: http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error.message);
+    process.exit(1);
+  }
+};
+
+// Initialize server
+startServer();
