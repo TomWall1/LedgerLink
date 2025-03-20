@@ -8,14 +8,29 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
+
+// Import database connection
+import connectDB from './src/config/db.js';
+
+// Import routes
 import xeroAuthRouter from './src/routes/xeroAuth.js';
 import accountLinkRouter from './src/routes/accountLinkRoutes.js';
 import processRouter from './src/routes/processRoutes.js';
 import testRouter from './src/routes/test.js';
+import authRoutes from './src/routes/authRoutes.js';
+import userRoutes from './src/routes/userRoutes.js';
+import companyRoutes from './src/routes/companyRoutes.js';
+import companyLinkRoutes from './src/routes/companyLinkRoutes.js';
+import transactionRoutes from './src/routes/transactionRoutes.js';
+
+// Import utilities
 import { tokenStore } from './src/utils/tokenStore.js';
 
 // Initialize environment variables
 dotenv.config();
+
+// Connect to MongoDB
+connectDB();
 
 // Create Express app
 const app = express();
@@ -141,10 +156,19 @@ const requireXeroAuth = async (req, res, next) => {
   }
 };
 
-// API Routes
+// Base API Routes
 app.get('/', (req, res) => {
   res.send('LedgerLink API is running');
 });
+
+// Mount our new API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/companies', companyRoutes);
+app.use('/api/links', companyLinkRoutes);
+app.use('/api/transactions', transactionRoutes);
+
+// Xero Integration Routes
 
 // Add a direct route for Xero auth URL for more reliable connection
 app.get('/direct-xero-auth', async (req, res) => {
@@ -255,44 +279,6 @@ app.get('/direct-auth-status', (req, res) => {
     res.status(500).json({
       error: 'Failed to check authentication status',
       details: error.message
-    });
-  }
-});
-
-// Add direct debug endpoint
-app.get('/direct-debug-auth', (req, res) => {
-  try {
-    console.log('Direct debug auth endpoint accessed');
-    res.header('Access-Control-Allow-Origin', '*');
-    
-    // Gather detailed token info
-    const now = new Date();
-    const tokenFilePath = tokenStore.getTokenFilePath ? tokenStore.getTokenFilePath() : TOKEN_FILE_PATH;
-    
-    const tokenStatus = {
-      hasTokens: tokenStore.hasTokens(),
-      expiry: tokenStore.expiry,
-      isExpired: tokenStore.expiry ? now > tokenStore.expiry : true,
-      timeUntilExpiry: tokenStore.expiry ? Math.floor((tokenStore.expiry - now) / 1000) + ' seconds' : 'N/A',
-      hasAccessToken: !!tokenStore.tokens?.access_token,
-      hasRefreshToken: !!tokenStore.tokens?.refresh_token,
-      tokenType: tokenStore.tokens?.token_type || 'none',
-      currentTime: now,
-      fileStatus: tokenFilePath && fs.existsSync(tokenFilePath) ? 'exists' : 'missing',
-      tokenFileLocation: tokenFilePath || 'not set',
-      environment: process.env.NODE_ENV || 'not set',
-    };
-    
-    res.json({
-      status: 'Debug information',
-      tokenInfo: tokenStatus
-    });
-  } catch (error) {
-    console.error('Error in debug endpoint:', error);
-    res.status(500).json({
-      error: 'Failed to fetch debug information',
-      details: error.message,
-      stack: error.stack
     });
   }
 });
@@ -457,22 +443,40 @@ app.get('/api/xero/customers/:customerId/invoices', requireXeroAuth, async (req,
   }
 });
 
-// Use router modules
-app.use('/auth', xeroAuthRouter);
+// Use legacy router modules
+app.use('/auth/xero', xeroAuthRouter);
 app.use('/accountLink', accountLinkRouter);
 app.use('/process', processRouter);
 app.use('/test', testRouter);
 
-// Error handling middleware
+// Global 404 handler
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    error: `Route not found: ${req.method} ${req.originalUrl}`
+  });
+});
+
+// Global error handling middleware
 app.use((err, req, res, next) => {
   console.error('Global error handler:', err);
   res.status(500).json({
+    success: false,
     error: 'An unexpected error occurred',
-    details: err.message
+    details: err.message,
+    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
   });
 });
 
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('MongoDB: Connected');
+  console.log('Xero Integration:', {
+    clientId: process.env.XERO_CLIENT_ID ? '✓ Set' : '✗ Missing',
+    clientSecret: process.env.XERO_CLIENT_SECRET ? '✓ Set' : '✗ Missing',
+    redirectUri: process.env.XERO_REDIRECT_URI || 'Default',
+  });
+  console.log(`Server ready at: http://localhost:${PORT}`);
 });
