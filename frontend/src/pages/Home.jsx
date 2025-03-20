@@ -119,24 +119,13 @@ const Home = () => {
         </div>
       </div>
       
-      {/* Footer Section */}
+      {/* Footer Section - Simplified with only copyright */}
       <footer className="bg-gray-50 py-6 border-t border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-center md:justify-between items-center">
+          <div className="flex justify-center items-center">
             <p className="text-gray-600 text-sm">
               © 2025 LedgerLink
             </p>
-            <div className="hidden md:flex space-x-6">
-              <Link to="/upload" className="text-gray-500 hover:text-indigo-600 text-sm">
-                Upload
-              </Link>
-              <Link to="/results" className="text-gray-500 hover:text-indigo-600 text-sm">
-                Results
-              </Link>
-              <Link to="/account-links" className="text-gray-500 hover:text-indigo-600 text-sm">
-                Account Links
-              </Link>
-            </div>
           </div>
         </div>
       </footer>
