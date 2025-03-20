@@ -3,123 +3,111 @@ import { Link } from 'react-router-dom';
 
 const Home = () => {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-primary mt-8 mb-4">LedgerLink</h1>
-          <p className="text-xl text-text">A powerful tool for reconciling accounts and linking financial systems</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-            <h2 className="text-xl font-semibold mb-4 text-primary">Accounts Receivable Data</h2>
-            <div className="space-y-3">
-              <Link
-                to="/upload"
-                className="block bg-accent text-white px-6 py-3 rounded-lg hover:bg-opacity-90 transition-colors text-center font-medium"
-              >
-                <div className="flex items-center justify-center">
-                  <img 
-                    src="/xero-logo.svg" 
-                    alt="Xero logo" 
-                    className="w-5 h-5 mr-2"
-                  />
-                  Connect to Xero
-                </div>
-              </Link>
-              <Link
-                to="/upload"
-                className="block bg-secondary text-white px-6 py-3 rounded-lg hover:bg-opacity-90 transition-colors text-center font-medium"
-              >
-                <div className="flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                  Upload CSV
-                </div>
-              </Link>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-            <h2 className="text-xl font-semibold mb-4 text-primary">Accounts Payable Data</h2>
-            <Link
-              to="/upload"
-              className="block bg-secondary text-white px-6 py-3 rounded-lg hover:bg-opacity-90 transition-colors text-center font-medium"
-            >
-              <div className="flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-                Upload CSV
+    <div className="min-h-screen bg-white">
+      {/* Hero Section */}
+      <div className="bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            {/* Left Content */}
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <h1 className="text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
+                  Reconcile Faster.<br />
+                  Get Paid Sooner.
+                </h1>
+                <p className="text-xl text-gray-600">
+                  Automate your account reconciliation and identify discrepancies in seconds.
+                </p>
               </div>
-            </Link>
-          </div>
-        </div>
-
-        <div className="mt-8 bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-          <h2 className="text-lg font-semibold mb-3 text-primary">
-            Account Linking Features
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 my-6">
-            <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
-              <div className="text-secondary mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
+              
+              <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                <Link
+                  to="/upload"
+                  className="inline-block bg-indigo-600 text-white px-8 py-3 rounded-lg hover:bg-indigo-700 transition-colors text-center font-medium shadow-sm"
+                >
+                  Try for Free
+                </Link>
+                <Link
+                  to="/upload"
+                  className="inline-block bg-white text-indigo-600 border-2 border-indigo-600 px-8 py-3 rounded-lg hover:bg-indigo-50 transition-colors text-center font-medium"
+                >
+                  Sign In
+                </Link>
               </div>
-              <h3 className="text-lg font-medium mb-2 text-primary">Upload and Match</h3>
-              <p className="text-text">
-                Upload AR and AP ledgers from different systems and automatically match transactions.
-              </p>
-            </div>
-
-            <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
-              <div className="text-secondary mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium mb-2 text-primary">Link Accounts</h3>
-              <p className="text-text">
-                Create permanent links between accounts in different systems for ongoing reconciliation.
-              </p>
-            </div>
-
-            <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
-              <div className="text-secondary mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium mb-2 text-primary">Analyze Results</h3>
-              <p className="text-text">
-                View detailed reports of matches, mismatches, and exceptions to resolve discrepancies.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8 bg-primary bg-opacity-5 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-3 text-primary">
-            CSV Data Format Requirements
-          </h2>
-          <div className="space-y-6">
-            <div>
-              <h3 className="font-medium text-primary mb-2">Required Columns:</h3>
-              <ul className="list-disc list-inside space-y-2 text-text">
-                <li><span className="font-medium">transaction_number</span> - Unique identifier for each transaction</li>
-                <li><span className="font-medium">transaction_type</span> - Type of transaction (e.g., INVOICE, BILL, CREDIT_NOTE)</li>
-                <li><span className="font-medium">amount</span> - Decimal number (positive for AR, negative for AP)</li>
-                <li><span className="font-medium">issue_date</span> - Date the transaction was issued</li>
-                <li><span className="font-medium">due_date</span> - Date the transaction is due</li>
-                <li><span className="font-medium">status</span> - Current status of the transaction (e.g., OPEN, PAID, VOIDED)</li>
-                <li><span className="font-medium">reference</span> - Additional reference identifier (optional but useful for matching)</li>
-              </ul>
             </div>
             
-            <div className="text-sm text-text italic">
-              Tip: Matching is based primarily on transaction numbers and references. Use consistent date formats (YYYY-MM-DD recommended).
+            {/* Right Content - Dashboard Illustration */}
+            <div className="hidden md:block">
+              <div className="bg-white rounded-lg shadow-xl p-4 md:p-6 border border-gray-200">
+                <div className="bg-gray-50 p-3 rounded-t-lg border-b border-gray-200 flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                  <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                  <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                </div>
+                <div className="p-4 space-y-6">
+                  <div className="space-y-2">
+                    <div className="h-6 bg-gray-100 rounded w-1/3"></div>
+                    <div className="h-4 bg-gray-100 rounded w-full"></div>
+                    <div className="h-4 bg-gray-100 rounded w-5/6"></div>
+                  </div>
+                  
+                  <div className="flex space-x-4">
+                    <div className="w-1/3 h-28 bg-blue-50 rounded-lg flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="w-2/3 space-y-4">
+                      <div className="h-12 bg-gray-100 rounded"></div>
+                      <div className="h-12 bg-gray-100 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* How It Works Section */}
+      <div className="py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">How It Works</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Step 1 */}
+            <div className="text-center">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-indigo-600">1</span>
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Connect</h3>
+              <p className="text-gray-600">Import your ledger data directly from Xero or upload a CSV file.</p>
+            </div>
+            
+            {/* Step 2 */}
+            <div className="text-center">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-indigo-600">2</span>
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Reconcile</h3>
+              <p className="text-gray-600">Match transactions and identify discrepancies automatically in real-time.</p>
+            </div>
+            
+            {/* Step 3 */}
+            <div className="text-center">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-indigo-600">3</span>
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Accelerate</h3>
+              <p className="text-gray-600">Resolve discrepancies quickly and get paid faster with clear reporting.</p>
             </div>
           </div>
         </div>
