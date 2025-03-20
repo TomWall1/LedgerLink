@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 const Home = () => {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white flex flex-col">  {/* Added flex-col for footer positioning */}
       {/* Hero Section */}
       <div className="bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -16,7 +16,7 @@ const Home = () => {
                   Get Paid Sooner.
                 </h1>
                 <p className="text-xl text-gray-600">
-                  Automate your account reconciliation and identify discrepancies in seconds.
+                  Automated ledger reconciliations across ERPs
                 </p>
               </div>
               
@@ -72,7 +72,7 @@ const Home = () => {
       </div>
       
       {/* How It Works Section */}
-      <div className="py-16">
+      <div className="py-16 flex-grow">  {/* Added flex-grow to push footer down */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">How It Works</h2>
           
@@ -85,7 +85,7 @@ const Home = () => {
                 </div>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Connect</h3>
-              <p className="text-gray-600">Import your ledger data directly from Xero or upload a CSV file.</p>
+              <p className="text-gray-600">Import your ledger and link with your network</p>
             </div>
             
             {/* Step 2 */}
@@ -96,7 +96,7 @@ const Home = () => {
                 </div>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Reconcile</h3>
-              <p className="text-gray-600">Match transactions and identify discrepancies automatically in real-time.</p>
+              <p className="text-gray-600">Automatically match transactions and identify discrepancies in real-time</p>
             </div>
             
             {/* Step 3 */}
@@ -112,6 +112,28 @@ const Home = () => {
           </div>
         </div>
       </div>
+      
+      {/* Footer Section */}
+      <footer className="bg-gray-50 py-6 border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-center md:justify-between items-center">
+            <p className="text-gray-600 text-sm">
+              © 2025 LedgerLink
+            </p>
+            <div className="hidden md:flex space-x-6">
+              <Link to="/upload" className="text-gray-500 hover:text-indigo-600 text-sm">
+                Upload
+              </Link>
+              <Link to="/results" className="text-gray-500 hover:text-indigo-600 text-sm">
+                Results
+              </Link>
+              <Link to="/account-links" className="text-gray-500 hover:text-indigo-600 text-sm">
+                Account Links
+              </Link>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
