@@ -9,17 +9,16 @@ const connectionString = process.env.MONGODB_URI || 'mongodb://localhost:27017/l
 // Connect to MongoDB
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(connectionString, {
-      // Use new URL parser
-      useNewUrlParser: true,
-      // Use new server discovery and monitoring engine
-      useUnifiedTopology: true,
-    });
+    console.log('Attempting to connect to MongoDB at:', connectionString);
+    
+    // Remove deprecation warnings settings as they're no longer needed in newer versions
+    const conn = await mongoose.connect(connectionString);
 
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     return conn;
   } catch (error) {
-    console.error(`Error connecting to MongoDB: ${error.message}`);
+    console.error('MongoDB connection error:', error);
+    console.error('Full error details:', JSON.stringify(error, null, 2));
     // Exit process with failure
     process.exit(1);
   }
