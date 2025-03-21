@@ -17,6 +17,8 @@ import xeroAuthRouter from './src/routes/xeroAuth.js';
 import accountLinkRouter from './src/routes/accountLinkRoutes.js';
 import processRouter from './src/routes/processRoutes.js';
 import testRouter from './src/routes/test.js';
+
+// Import the new API routes
 import authRoutes from './src/routes/authRoutes.js';
 import userRoutes from './src/routes/userRoutes.js';
 import companyRoutes from './src/routes/companyRoutes.js';
@@ -469,8 +471,8 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     // Connect to MongoDB before starting the server
+    console.log('Connecting to MongoDB...');
     const conn = await connectDB();
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
     
     // Start the Express server
     app.listen(PORT, () => {
@@ -479,12 +481,13 @@ const startServer = async () => {
       console.log('Xero Integration:', {
         clientId: process.env.XERO_CLIENT_ID ? '✓ Set' : '✗ Missing',
         clientSecret: process.env.XERO_CLIENT_SECRET ? '✓ Set' : '✗ Missing',
-        redirectUri: process.env.XERO_REDIRECT_URI || 'Default',
+        redirectUri: process.env.XERO_REDIRECT_URI || 'Default'
       });
       console.log(`Server ready at: http://localhost:${PORT}`);
     });
   } catch (error) {
     console.error('Failed to start server:', error.message);
+    console.error('Full error details:', error);
     process.exit(1);
   }
 };
