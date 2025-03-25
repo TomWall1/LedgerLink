@@ -1,8 +1,8 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const ProtectedRoute = () => {
+const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
   
   // While checking authentication status, show loading
@@ -16,11 +16,11 @@ const ProtectedRoute = () => {
   
   // If not authenticated, redirect to login
   if (!isAuthenticated()) {
-    return <Navigate to="/auth/login" replace />;
+    return <Navigate to="/login" replace />;
   }
   
   // If authenticated, show the protected component/route
-  return <Outlet />;
+  return children;
 };
 
 export default ProtectedRoute;
