@@ -1,19 +1,30 @@
 import express from 'express';
-import { getUsers, createUser, updateUser, deleteUser } from '../controllers/userController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { 
+  getUsers, 
+  getCompanyUsers, 
+  getUserById,
+  updateUserProfile,
+  updateUser,
+  deleteUser 
+} from '../controllers/userController.js';
+import { protect, admin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// All routes are protected
+// Protected routes
 router.use(protect);
 
-// Routes restricted to admin role
 router.route('/')
-  .get(authorize('admin'), getUsers)
-  .post(authorize('admin'), createUser);
+  .get(admin, getUsers); // Admin only: Get all users
+
+router.get('/company', getCompanyUsers); // Get users from the same company
+
+router.route('/profile')
+  .put(updateUserProfile); // Update own profile
 
 router.route('/:id')
-  .put(updateUser) // Users can update themselves, admins can update anyone in their company
-  .delete(authorize('admin'), deleteUser);
+  .get(getUserById)
+  .put(admin, updateUser) // Admin only: Update any user
+  .delete(admin, deleteUser); // Admin only: Delete user
 
 export default router;
