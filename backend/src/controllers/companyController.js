@@ -2,18 +2,19 @@ import Company from '../models/Company.js';
 
 // @desc    Create a new company
 // @route   POST /api/companies
-// @access  Private
+// @access  Public (for registration)
 export const createCompany = async (req, res) => {
   try {
     const { name, address, taxId, industry } = req.body;
 
-    // Create company
+    // Create company without requiring user
     const company = await Company.create({
       name,
       address,
       taxId,
       industry,
-      createdBy: req.user._id
+      // createdBy is optional now
+      createdBy: req.user?._id || null
     });
 
     res.status(201).json({
