@@ -56,6 +56,11 @@ const NavHeader = () => {
                   </Link>
                 </li>
                 <li>
+                  <Link to="/erp-connections" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/erp-connections' || location.pathname.startsWith('/erp-data') ? 'text-indigo-600 font-medium' : ''}`}>
+                    ERP Connections
+                  </Link>
+                </li>
+                <li>
                   <Link to="/system" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/system' ? 'text-indigo-600 font-medium' : ''}`}>
                     System Status
                   </Link>
@@ -100,6 +105,13 @@ const NavHeader = () => {
                       onClick={() => setShowUserMenu(false)}
                     >
                       Company Settings
+                    </Link>
+                    <Link 
+                      to="/erp-connections" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      ERP Connections
                     </Link>
                     <button
                       onClick={handleLogout}
@@ -150,6 +162,11 @@ const NavHeader = () => {
               <li>
                 <Link to="/account-links" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/account-links' ? 'text-indigo-600 font-medium' : ''}`}>
                   Links
+                </Link>
+              </li>
+              <li>
+                <Link to="/erp-connections" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/erp-connections' || location.pathname.startsWith('/erp-data') ? 'text-indigo-600 font-medium' : ''}`}>
+                  ERP
                 </Link>
               </li>
               <li>
