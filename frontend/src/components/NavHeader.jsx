@@ -41,6 +41,11 @@ const NavHeader = () => {
                     Account Links
                   </Link>
                 </li>
+                <li>
+                  <Link to="/system" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/system' ? 'text-indigo-600 font-medium' : ''}`}>
+                    System Status
+                  </Link>
+                </li>
               </ul>
             </nav>
           )}
