@@ -1,207 +1,247 @@
 import CompanyLink from '../models/CompanyLink.js';
 import Company from '../models/Company.js';
 
-// @desc    Request a company link
+// @desc    Create a new company link request
 // @route   POST /api/links
-// @access  Private (Admin only)
-export const requestCompanyLink = async (req, res) => {
+// @access  Private
+export const createCompanyLink = async (req, res) => {
   try {
-    const { targetCompanyId, relationshipType } = req.body;
+    const { targetCompanyId, linkNotes } = req.body;
 
-    // Validate inputs
-    if (!targetCompanyId || !relationshipType) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide target company ID and relationship type',
-      });
-    }
+    // Get source company from authenticated user
+    const sourceCompanyId = req.user.company;
 
-    // Check if target company exists
+    // Check if companies exist
+    const sourceCompany = await Company.findById(sourceCompanyId);
     const targetCompany = await Company.findById(targetCompanyId);
-    if (!targetCompany) {
+
+    if (!sourceCompany || !targetCompany) {
       return res.status(404).json({
         success: false,
-        error: 'Target company not found',
+        error: 'One or both companies not found'
       });
     }
 
-    // Check if link already exists
+    // Check if link already exists or is pending
     const existingLink = await CompanyLink.findOne({
       $or: [
-        {
-          requestingCompany: req.user.company,
-          targetCompany: targetCompanyId,
-        },
-        {
-          requestingCompany: targetCompanyId,
-          targetCompany: req.user.company,
-        },
-      ],
+        { sourceCompany: sourceCompanyId, targetCompany: targetCompanyId },
+        { sourceCompany: targetCompanyId, targetCompany: sourceCompanyId }
+      ]
     });
 
     if (existingLink) {
       return res.status(400).json({
         success: false,
-        error: 'A link with this company already exists',
-        data: existingLink,
+        error: 'A link or link request already exists between these companies',
+        data: existingLink
       });
     }
 
-    // Create new company link
+    // Create new link request
     const companyLink = await CompanyLink.create({
-      requestingCompany: req.user.company,
+      sourceCompany: sourceCompanyId,
       targetCompany: targetCompanyId,
-      relationshipType,
       status: 'pending',
+      linkNotes,
+      requestedBy: req.user._id
     });
 
     res.status(201).json({
       success: true,
-      data: companyLink,
+      data: companyLink
     });
   } catch (error) {
-    console.error('Request company link error:', error);
+    console.error('Error creating company link:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error requesting company link',
+      error: error.message
     });
   }
 };
 
-// @desc    Update company link status
-// @route   PUT /api/links/:id
-// @access  Private (Admin only)
-export const updateLinkStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-
-    // Validate status
-    if (!status || !['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide a valid status (approved or rejected)',
-      });
-    }
-
-    // Find the link
-    const link = await CompanyLink.findById(req.params.id);
-
-    if (!link) {
-      return res.status(404).json({
-        success: false,
-        error: 'Company link not found',
-      });
-    }
-
-    // Ensure the user's company is the target company
-    if (link.targetCompany.toString() !== req.user.company.toString()) {
-      return res.status(403).json({
-        success: false,
-        error: 'Not authorized to update this link',
-      });
-    }
-
-    // Update link status
-    link.status = status;
-    if (status === 'approved') {
-      link.approvedAt = new Date();
-    }
-
-    await link.save();
-
-    res.status(200).json({
-      success: true,
-      data: link,
-    });
-  } catch (error) {
-    console.error('Update link status error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server error updating link status',
-    });
-  }
-};
-
-// @desc    Get all company links
+// @desc    Get all company links relevant to user's company
 // @route   GET /api/links
 // @access  Private
 export const getCompanyLinks = async (req, res) => {
   try {
-    // Find all links where the company is either requesting or target
-    const links = await CompanyLink.find({
-      $or: [
-        { requestingCompany: req.user.company },
-        { targetCompany: req.user.company },
-      ],
-    })
-      .populate('requestingCompany', 'name taxId')
-      .populate('targetCompany', 'name taxId');
+    const userCompanyId = req.user.company;
 
-    res.status(200).json({
+    // Find all links where user's company is involved
+    const companyLinks = await CompanyLink.find({
+      $or: [
+        { sourceCompany: userCompanyId },
+        { targetCompany: userCompanyId }
+      ]
+    })
+    .populate('sourceCompany', 'name')
+    .populate('targetCompany', 'name')
+    .populate('requestedBy', 'name email');
+
+    res.json({
       success: true,
-      count: links.length,
-      data: links,
+      count: companyLinks.length,
+      data: companyLinks
     });
   } catch (error) {
-    console.error('Get company links error:', error);
+    console.error('Error getting company links:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error fetching company links',
+      error: error.message
     });
   }
 };
 
-// @desc    Get pending link requests
-// @route   GET /api/links/pending
+// @desc    Get a single company link
+// @route   GET /api/links/:id
 // @access  Private
-export const getPendingLinkRequests = async (req, res) => {
+export const getCompanyLink = async (req, res) => {
   try {
-    // Find all pending links where the company is the target
-    const pendingLinks = await CompanyLink.find({
-      targetCompany: req.user.company,
-      status: 'pending',
-    }).populate('requestingCompany', 'name taxId');
+    const companyLink = await CompanyLink.findById(req.params.id)
+      .populate('sourceCompany', 'name')
+      .populate('targetCompany', 'name')
+      .populate('requestedBy', 'name email');
 
-    res.status(200).json({
+    if (!companyLink) {
+      return res.status(404).json({
+        success: false,
+        error: 'Company link not found'
+      });
+    }
+
+    // Check if user has access to this link
+    const userCompanyId = req.user.company.toString();
+    const sourceCompanyId = companyLink.sourceCompany._id.toString();
+    const targetCompanyId = companyLink.targetCompany._id.toString();
+
+    if (userCompanyId !== sourceCompanyId && userCompanyId !== targetCompanyId && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to access this company link'
+      });
+    }
+
+    res.json({
       success: true,
-      count: pendingLinks.length,
-      data: pendingLinks,
+      data: companyLink
     });
   } catch (error) {
-    console.error('Get pending link requests error:', error);
+    console.error('Error getting company link:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error fetching pending link requests',
+      error: error.message
     });
   }
 };
 
-// @desc    Get approved links
-// @route   GET /api/links/approved
+// @desc    Update company link status (accept/reject/cancel)
+// @route   PUT /api/links/:id
 // @access  Private
-export const getApprovedLinks = async (req, res) => {
+export const updateCompanyLink = async (req, res) => {
   try {
-    // Find all approved links where the company is either requesting or target
-    const approvedLinks = await CompanyLink.find({
-      $or: [
-        { requestingCompany: req.user.company },
-        { targetCompany: req.user.company },
-      ],
-      status: 'approved',
-    })
-      .populate('requestingCompany', 'name taxId')
-      .populate('targetCompany', 'name taxId');
+    const { status, responseNotes } = req.body;
 
-    res.status(200).json({
+    // Find the link
+    let companyLink = await CompanyLink.findById(req.params.id);
+
+    if (!companyLink) {
+      return res.status(404).json({
+        success: false,
+        error: 'Company link not found'
+      });
+    }
+
+    // Check authorization - target company can update status to accept/reject
+    // source company can update to cancel
+    const userCompanyId = req.user.company.toString();
+    const sourceCompanyId = companyLink.sourceCompany.toString();
+    const targetCompanyId = companyLink.targetCompany.toString();
+
+    if (status === 'accepted' || status === 'rejected') {
+      // Only target company can accept/reject
+      if (userCompanyId !== targetCompanyId && req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          error: 'Not authorized to accept/reject this link'
+        });
+      }
+    } else if (status === 'cancelled') {
+      // Only source company can cancel
+      if (userCompanyId !== sourceCompanyId && req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          error: 'Not authorized to cancel this link'
+        });
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid status. Must be accepted, rejected, or cancelled'
+      });
+    }
+
+    // Update link status
+    companyLink = await CompanyLink.findByIdAndUpdate(
+      req.params.id,
+      { 
+        status, 
+        responseNotes: responseNotes || companyLink.responseNotes,
+        respondedBy: req.user._id,
+        respondedAt: Date.now()
+      },
+      { new: true, runValidators: true }
+    )
+    .populate('sourceCompany', 'name')
+    .populate('targetCompany', 'name')
+    .populate('requestedBy', 'name email')
+    .populate('respondedBy', 'name email');
+
+    res.json({
       success: true,
-      count: approvedLinks.length,
-      data: approvedLinks,
+      data: companyLink
     });
   } catch (error) {
-    console.error('Get approved links error:', error);
+    console.error('Error updating company link:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error fetching approved links',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Delete a company link
+// @route   DELETE /api/links/:id
+// @access  Private (Admin only)
+export const deleteCompanyLink = async (req, res) => {
+  try {
+    const companyLink = await CompanyLink.findById(req.params.id);
+
+    if (!companyLink) {
+      return res.status(404).json({
+        success: false,
+        error: 'Company link not found'
+      });
+    }
+
+    // Only admin can delete links
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to delete company links'
+      });
+    }
+
+    await companyLink.remove();
+
+    res.json({
+      success: true,
+      data: {}
+    });
+  } catch (error) {
+    console.error('Error deleting company link:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 };
