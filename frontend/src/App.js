@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import Upload from './pages/Upload';
 import Results from './pages/Results';
 import AccountLinks from './pages/AccountLinks';
+import System from './pages/System';
 import XeroCallback from './components/XeroCallback';
 import { XeroProvider } from './context/XeroContext';
 
@@ -29,6 +30,11 @@ function App() {
           <Route path="/account-links" element={
             <div className="container">
               <AccountLinks />
+            </div>
+          } />
+          <Route path="/system" element={
+            <div className="container">
+              <System />
             </div>
           } />
           <Route path="/auth/xero/callback" element={
