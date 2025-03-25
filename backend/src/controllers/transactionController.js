@@ -1,419 +1,324 @@
 import Transaction from '../models/Transaction.js';
+import Company from '../models/Company.js';
 import CompanyLink from '../models/CompanyLink.js';
-import { matchTransactions } from '../utils/transactionMatcher.js';
 
-// @desc    Import transactions (from CSV or Xero)
-// @route   POST /api/transactions/import
+// @desc    Upload transactions (bulk create)
+// @route   POST /api/transactions/upload
 // @access  Private
-export const importTransactions = async (req, res) => {
+export const uploadTransactions = async (req, res) => {
   try {
-    const { transactions, source } = req.body;
+    const { transactions } = req.body;
+    const companyId = req.user.company;
 
     if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Please provide a valid transactions array',
+        error: 'Please provide an array of transactions'
       });
     }
 
-    const validSources = ['XERO', 'CSV', 'MANUAL', 'API'];
-    if (!source || !validSources.includes(source)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide a valid source',
-      });
-    }
+    // Add company ID to each transaction
+    const transactionsWithCompany = transactions.map(transaction => ({
+      ...transaction,
+      company: companyId,
+      uploadedBy: req.user._id
+    }));
 
-    // Process each transaction
-    const results = {
-      created: 0,
-      updated: 0,
-      failed: 0,
-      errors: [],
-    };
+    // Create the transactions
+    const createdTransactions = await Transaction.insertMany(transactionsWithCompany);
 
-    for (const transaction of transactions) {
-      try {
-        // Check if transaction exists by company and transaction number
-        const existingTransaction = await Transaction.findOne({
-          company: req.user.company,
-          transactionNumber: transaction.transactionNumber,
-        });
-
-        if (existingTransaction) {
-          // Update existing transaction
-          existingTransaction.transactionType = transaction.transactionType;
-          existingTransaction.amount = transaction.amount;
-          existingTransaction.issueDate = transaction.issueDate;
-          existingTransaction.dueDate = transaction.dueDate;
-          existingTransaction.status = transaction.status;
-          existingTransaction.reference = transaction.reference;
-          existingTransaction.source = source;
-          existingTransaction.sourceId = transaction.sourceId || existingTransaction.sourceId;
-
-          await existingTransaction.save();
-          results.updated++;
-        } else {
-          // Create new transaction
-          await Transaction.create({
-            company: req.user.company,
-            transactionNumber: transaction.transactionNumber,
-            transactionType: transaction.transactionType,
-            amount: transaction.amount,
-            issueDate: transaction.issueDate,
-            dueDate: transaction.dueDate,
-            status: transaction.status,
-            reference: transaction.reference,
-            source,
-            sourceId: transaction.sourceId,
-          });
-          results.created++;
-        }
-      } catch (error) {
-        console.error('Transaction import error:', error);
-        results.failed++;
-        results.errors.push({
-          transactionNumber: transaction.transactionNumber,
-          error: error.message,
-        });
-      }
-    }
-
-    // After import, trigger matching process
-    await matchWithLinkedCompanies(req.user.company);
-
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      data: results,
+      count: createdTransactions.length,
+      data: createdTransactions
     });
   } catch (error) {
-    console.error('Import transactions error:', error);
+    console.error('Error uploading transactions:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error importing transactions',
+      error: error.message
     });
   }
 };
 
-// @desc    Get company's transactions
+// @desc    Get company transactions
 // @route   GET /api/transactions
 // @access  Private
 export const getTransactions = async (req, res) => {
   try {
-    const { status, type, startDate, endDate, matchStatus } = req.query;
+    // Get the user's company ID
+    const companyId = req.user.company;
 
-    // Build query
-    const query = { company: req.user.company };
+    // Build query based on filters
+    const queryFilters = { company: companyId };
 
-    // Add filters if provided
-    if (status) query.status = status;
-    if (type) query.transactionType = type;
-    if (matchStatus) query.matchStatus = matchStatus;
-
-    // Date range filter
-    if (startDate || endDate) {
-      query.issueDate = {};
-      if (startDate) query.issueDate.$gte = new Date(startDate);
-      if (endDate) query.issueDate.$lte = new Date(endDate);
+    // Add date range filter if provided
+    if (req.query.startDate && req.query.endDate) {
+      queryFilters.transactionDate = {
+        $gte: new Date(req.query.startDate),
+        $lte: new Date(req.query.endDate)
+      };
+    } else if (req.query.startDate) {
+      queryFilters.transactionDate = { $gte: new Date(req.query.startDate) };
+    } else if (req.query.endDate) {
+      queryFilters.transactionDate = { $lte: new Date(req.query.endDate) };
     }
 
-    const transactions = await Transaction.find(query)
-      .sort({ issueDate: -1 })
-      .populate('counterparty', 'name taxId')
-      .populate('counterpartyTransactionId');
+    // Add transaction type filter if provided
+    if (req.query.transactionType) {
+      queryFilters.transactionType = req.query.transactionType;
+    }
 
-    res.status(200).json({
+    // Add status filter if provided
+    if (req.query.status) {
+      queryFilters.status = req.query.status;
+    }
+
+    // Add amount range filter if provided
+    if (req.query.minAmount || req.query.maxAmount) {
+      queryFilters.amount = {};
+      if (req.query.minAmount) {
+        queryFilters.amount.$gte = parseFloat(req.query.minAmount);
+      }
+      if (req.query.maxAmount) {
+        queryFilters.amount.$lte = parseFloat(req.query.maxAmount);
+      }
+    }
+
+    // Pagination
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 100;
+    const skip = (page - 1) * limit;
+
+    // Execute query with pagination
+    const transactions = await Transaction.find(queryFilters)
+      .skip(skip)
+      .limit(limit)
+      .sort({ transactionDate: -1 });
+
+    // Get total count for pagination
+    const total = await Transaction.countDocuments(queryFilters);
+
+    res.json({
       success: true,
       count: transactions.length,
-      data: transactions,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      },
+      data: transactions
     });
   } catch (error) {
-    console.error('Get transactions error:', error);
+    console.error('Error getting transactions:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error fetching transactions',
+      error: error.message
     });
   }
 };
 
-// @desc    Get transaction by ID
+// @desc    Match transactions with counterparties
+// @route   GET /api/transactions/match
+// @access  Private
+export const matchTransactions = async (req, res) => {
+  try {
+    const companyId = req.user.company;
+    
+    // Get all active company links
+    const companyLinks = await CompanyLink.find({
+      $or: [
+        { sourceCompany: companyId },
+        { targetCompany: companyId }
+      ],
+      status: 'accepted'
+    });
+    
+    if (companyLinks.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No active company links found for matching',
+        data: []
+      });
+    }
+    
+    // Extract linked company IDs
+    const linkedCompanyIds = companyLinks.map(link => {
+      return link.sourceCompany.toString() === companyId.toString() 
+        ? link.targetCompany 
+        : link.sourceCompany;
+    });
+    
+    // Get company's transactions
+    const companyTransactions = await Transaction.find({ company: companyId });
+    
+    // Get counterparty transactions
+    const counterpartyTransactions = await Transaction.find({
+      company: { $in: linkedCompanyIds }
+    });
+    
+    // Match transactions based on reference numbers and amounts
+    const matchedTransactions = [];
+    
+    companyTransactions.forEach(transaction => {
+      // Look for potential matches
+      const matches = counterpartyTransactions.filter(counterpartyTx => {
+        // Match by reference number
+        if (transaction.referenceNumber && 
+            counterpartyTx.referenceNumber && 
+            transaction.referenceNumber === counterpartyTx.referenceNumber) {
+          return true;
+        }
+        
+        // Match by amount (opposite sign) and date proximity
+        if (Math.abs(transaction.amount + counterpartyTx.amount) < 0.01) { // Small tolerance for floating point
+          // Check if dates are within 5 days of each other
+          const dateDiff = Math.abs(
+            new Date(transaction.transactionDate) - new Date(counterpartyTx.transactionDate)
+          ) / (1000 * 60 * 60 * 24); // Convert to days
+          
+          if (dateDiff <= 5) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
+      
+      if (matches.length > 0) {
+        matchedTransactions.push({
+          companyTransaction: transaction,
+          counterpartyTransactions: matches,
+          matchConfidence: matches.length === 1 ? 'high' : 'medium'
+        });
+      }
+    });
+    
+    res.json({
+      success: true,
+      count: matchedTransactions.length,
+      data: matchedTransactions
+    });
+  } catch (error) {
+    console.error('Error matching transactions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get a single transaction
 // @route   GET /api/transactions/:id
 // @access  Private
-export const getTransactionById = async (req, res) => {
+export const getTransaction = async (req, res) => {
   try {
-    const transaction = await Transaction.findById(req.params.id)
-      .populate('counterparty', 'name taxId')
-      .populate('counterpartyTransactionId');
-
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        error: 'Transaction not found',
-      });
-    }
-
-    // Ensure transaction belongs to user's company
-    if (transaction.company.toString() !== req.user.company.toString()) {
-      return res.status(403).json({
-        success: false,
-        error: 'Not authorized to access this transaction',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: transaction,
-    });
-  } catch (error) {
-    console.error('Get transaction by ID error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server error fetching transaction',
-    });
-  }
-};
-
-// @desc    Get matched transactions
-// @route   GET /api/transactions/matched
-// @access  Private
-export const getMatchedTransactions = async (req, res) => {
-  try {
-    const transactions = await Transaction.find({
-      company: req.user.company,
-      matchStatus: { $in: ['MATCHED', 'PARTIALLY_MATCHED'] },
-    })
-      .sort({ issueDate: -1 })
-      .populate('counterparty', 'name taxId')
-      .populate('counterpartyTransactionId');
-
-    res.status(200).json({
-      success: true,
-      count: transactions.length,
-      data: transactions,
-    });
-  } catch (error) {
-    console.error('Get matched transactions error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server error fetching matched transactions',
-    });
-  }
-};
-
-// @desc    Get unmatched transactions
-// @route   GET /api/transactions/unmatched
-// @access  Private
-export const getUnmatchedTransactions = async (req, res) => {
-  try {
-    const transactions = await Transaction.find({
-      company: req.user.company,
-      matchStatus: 'UNMATCHED',
-    })
-      .sort({ issueDate: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: transactions.length,
-      data: transactions,
-    });
-  } catch (error) {
-    console.error('Get unmatched transactions error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server error fetching unmatched transactions',
-    });
-  }
-};
-
-// @desc    Get transactions with discrepancies
-// @route   GET /api/transactions/discrepancies
-// @access  Private
-export const getTransactionsWithDiscrepancies = async (req, res) => {
-  try {
-    const transactions = await Transaction.find({
-      company: req.user.company,
-      matchStatus: 'DISCREPANCY',
-    })
-      .sort({ issueDate: -1 })
-      .populate('counterparty', 'name taxId')
-      .populate('counterpartyTransactionId');
-
-    res.status(200).json({
-      success: true,
-      count: transactions.length,
-      data: transactions,
-    });
-  } catch (error) {
-    console.error('Get transactions with discrepancies error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server error fetching transactions with discrepancies',
-    });
-  }
-};
-
-// @desc    Manually match transactions
-// @route   POST /api/transactions/:id/match
-// @access  Private (Admin only)
-export const manuallyMatchTransactions = async (req, res) => {
-  try {
-    const { counterpartyTransactionId } = req.body;
-
-    if (!counterpartyTransactionId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Please provide counterpartyTransactionId',
-      });
-    }
-
-    // Get the transaction to match
     const transaction = await Transaction.findById(req.params.id);
+
     if (!transaction) {
       return res.status(404).json({
         success: false,
-        error: 'Transaction not found',
+        error: 'Transaction not found'
       });
     }
 
-    // Ensure transaction belongs to user's company
-    if (transaction.company.toString() !== req.user.company.toString()) {
+    // Check if user has access to this transaction
+    if (transaction.company.toString() !== req.user.company.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        error: 'Not authorized to match this transaction',
+        error: 'Not authorized to access this transaction'
       });
     }
 
-    // Get the counterparty transaction
-    const counterpartyTransaction = await Transaction.findById(counterpartyTransactionId);
-    if (!counterpartyTransaction) {
-      return res.status(404).json({
-        success: false,
-        error: 'Counterparty transaction not found',
-      });
-    }
-
-    // Check if companies are linked
-    const isLinked = await CompanyLink.findOne({
-      $or: [
-        { requestingCompany: transaction.company, targetCompany: counterpartyTransaction.company },
-        { requestingCompany: counterpartyTransaction.company, targetCompany: transaction.company },
-      ],
-      status: 'approved',
-    });
-
-    if (!isLinked) {
-      return res.status(403).json({
-        success: false,
-        error: 'Companies are not linked',
-      });
-    }
-
-    // Check for potential discrepancies
-    const { isMatch, discrepancies } = matchTransactionPair(transaction, counterpartyTransaction);
-
-    // Update both transactions
-    transaction.counterparty = counterpartyTransaction.company;
-    transaction.counterpartyTransactionId = counterpartyTransaction._id;
-    transaction.matchStatus = isMatch ? 'MATCHED' : 'DISCREPANCY';
-    transaction.discrepancies = discrepancies || [];
-
-    counterpartyTransaction.counterparty = transaction.company;
-    counterpartyTransaction.counterpartyTransactionId = transaction._id;
-    counterpartyTransaction.matchStatus = isMatch ? 'MATCHED' : 'DISCREPANCY';
-    counterpartyTransaction.discrepancies = discrepancies || [];
-
-    await transaction.save();
-    await counterpartyTransaction.save();
-
-    res.status(200).json({
+    res.json({
       success: true,
-      data: {
-        transaction,
-        counterpartyTransaction,
-        isMatch,
-        discrepancies: discrepancies || [],
-      },
+      data: transaction
     });
   } catch (error) {
-    console.error('Manually match transactions error:', error);
+    console.error('Error getting transaction:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error matching transactions',
+      error: error.message
     });
   }
 };
 
-// Helper function to match transactions between linked companies
-async function matchWithLinkedCompanies(companyId) {
+// @desc    Update a transaction
+// @route   PUT /api/transactions/:id
+// @access  Private
+export const updateTransaction = async (req, res) => {
   try {
-    // Find all approved links for the company
-    const links = await CompanyLink.find({
-      $or: [
-        { requestingCompany: companyId },
-        { targetCompany: companyId },
-      ],
-      status: 'approved',
-    });
+    let transaction = await Transaction.findById(req.params.id);
 
-    // For each linked company, match transactions
-    for (const link of links) {
-      const linkedCompanyId = link.requestingCompany.toString() === companyId.toString() 
-        ? link.targetCompany 
-        : link.requestingCompany;
-      
-      await matchTransactions(companyId, linkedCompanyId);
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        error: 'Transaction not found'
+      });
     }
+
+    // Check if user has access to this transaction
+    if (transaction.company.toString() !== req.user.company.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to update this transaction'
+      });
+    }
+
+    // Update transaction
+    transaction = await Transaction.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, lastUpdatedBy: req.user._id },
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      success: true,
+      data: transaction
+    });
   } catch (error) {
-    console.error('Match with linked companies error:', error);
-  }
-}
-
-// Helper function to match a pair of transactions
-function matchTransactionPair(transaction1, transaction2) {
-  const discrepancies = [];
-  
-  // Check amount (allowing for sign inversion between AR and AP)
-  const amount1 = transaction1.amount;
-  const amount2 = -transaction2.amount; // Invert for matching
-  
-  if (Math.abs(amount1 - amount2) > 0.01) {
-    discrepancies.push({
-      field: 'amount',
-      company1Value: amount1,
-      company2Value: -amount2, // Show original value
+    console.error('Error updating transaction:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
-  
-  // Check dates
-  if (transaction1.issueDate && transaction2.issueDate) {
-    const date1 = new Date(transaction1.issueDate).toISOString().split('T')[0];
-    const date2 = new Date(transaction2.issueDate).toISOString().split('T')[0];
-    
-    if (date1 !== date2) {
-      discrepancies.push({
-        field: 'issueDate',
-        company1Value: date1,
-        company2Value: date2,
+};
+
+// @desc    Delete a transaction
+// @route   DELETE /api/transactions/:id
+// @access  Private
+export const deleteTransaction = async (req, res) => {
+  try {
+    const transaction = await Transaction.findById(req.params.id);
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        error: 'Transaction not found'
       });
     }
-  }
-  
-  // Check due dates if both exist
-  if (transaction1.dueDate && transaction2.dueDate) {
-    const dueDate1 = new Date(transaction1.dueDate).toISOString().split('T')[0];
-    const dueDate2 = new Date(transaction2.dueDate).toISOString().split('T')[0];
-    
-    if (dueDate1 !== dueDate2) {
-      discrepancies.push({
-        field: 'dueDate',
-        company1Value: dueDate1,
-        company2Value: dueDate2,
+
+    // Check if user has access to this transaction
+    if (transaction.company.toString() !== req.user.company.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to delete this transaction'
       });
     }
+
+    await transaction.remove();
+
+    res.json({
+      success: true,
+      data: {}
+    });
+  } catch (error) {
+    console.error('Error deleting transaction:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
-  
-  return {
-    isMatch: discrepancies.length === 0,
-    discrepancies: discrepancies.length > 0 ? discrepancies : null,
-  };
-}
+};
