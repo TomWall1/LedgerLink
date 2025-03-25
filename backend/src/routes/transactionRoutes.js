@@ -1,38 +1,29 @@
 import express from 'express';
-import {
-  importTransactions,
+import { 
+  uploadTransactions,
   getTransactions,
-  getTransactionById,
-  getMatchedTransactions,
-  getUnmatchedTransactions,
-  getTransactionsWithDiscrepancies,
-  manuallyMatchTransactions
+  getTransaction,
+  updateTransaction,
+  deleteTransaction,
+  matchTransactions 
 } from '../controllers/transactionController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // All routes are protected
 router.use(protect);
 
-// Transaction routes
 router.route('/')
-  .get(getTransactions)
-  .post(importTransactions);
+  .post(uploadTransactions) // Upload/create transactions
+  .get(getTransactions); // Get transactions with filters
 
-// Get transaction by ID
-router.get('/:id', getTransactionById);
+// Special route for matching transactions with counterparties
+router.get('/match', matchTransactions);
 
-// Get matched transactions
-router.get('/status/matched', getMatchedTransactions);
-
-// Get unmatched transactions
-router.get('/status/unmatched', getUnmatchedTransactions);
-
-// Get transactions with discrepancies
-router.get('/status/discrepancies', getTransactionsWithDiscrepancies);
-
-// Manually match transactions
-router.post('/:id/match', authorize('admin'), manuallyMatchTransactions);
+router.route('/:id')
+  .get(getTransaction) // Get transaction by ID
+  .put(updateTransaction) // Update transaction
+  .delete(deleteTransaction); // Delete transaction
 
 export default router;
