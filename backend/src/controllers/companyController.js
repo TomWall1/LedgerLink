@@ -1,148 +1,171 @@
 import Company from '../models/Company.js';
-import CompanyLink from '../models/CompanyLink.js';
 
-// @desc    Get company profile
-// @route   GET /api/companies/profile
+// @desc    Create a new company
+// @route   POST /api/companies
 // @access  Private
-export const getCompanyProfile = async (req, res) => {
+export const createCompany = async (req, res) => {
   try {
-    const company = await Company.findById(req.user.company);
+    const { name, address, taxId, industry } = req.body;
 
-    if (!company) {
-      return res.status(404).json({
-        success: false,
-        error: 'Company not found',
-      });
-    }
+    // Create company
+    const company = await Company.create({
+      name,
+      address,
+      taxId,
+      industry,
+      createdBy: req.user._id
+    });
 
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      data: company,
+      data: company
     });
   } catch (error) {
-    console.error('Get company profile error:', error);
+    console.error('Error creating company:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error fetching company profile',
+      error: error.message
     });
   }
 };
 
-// @desc    Update company profile
-// @route   PUT /api/companies/profile
-// @access  Private (Admin only)
-export const updateCompanyProfile = async (req, res) => {
-  try {
-    const { name, address } = req.body;
-
-    const company = await Company.findById(req.user.company);
-
-    if (!company) {
-      return res.status(404).json({
-        success: false,
-        error: 'Company not found',
-      });
-    }
-
-    // Update fields
-    company.name = name || company.name;
-    if (address) {
-      company.address = {
-        ...company.address,
-        ...address,
-      };
-    }
-
-    const updatedCompany = await company.save();
-
-    res.status(200).json({
-      success: true,
-      data: updatedCompany,
-    });
-  } catch (error) {
-    console.error('Update company profile error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server error updating company profile',
-    });
-  }
-};
-
-// @desc    Search for companies by name or tax ID
-// @route   GET /api/companies/search
+// @desc    Get all companies
+// @route   GET /api/companies
 // @access  Private
-export const searchCompanies = async (req, res) => {
+export const getCompanies = async (req, res) => {
   try {
-    const { query } = req.query;
-
-    if (!query || query.length < 3) {
-      return res.status(400).json({
-        success: false,
-        error: 'Search query must be at least 3 characters',
-      });
+    // If admin, get all companies, otherwise get only user's company
+    let companies;
+    if (req.user.role === 'admin') {
+      companies = await Company.find();
+    } else {
+      // Assuming user.company references the company ID
+      companies = await Company.find({ _id: req.user.company });
     }
 
-    // Search by name or tax ID, excluding the current company
-    const companies = await Company.find({
-      $and: [
-        { _id: { $ne: req.user.company } }, // Exclude current company
-        {
-          $or: [
-            { name: { $regex: query, $options: 'i' } }, // Case-insensitive name search
-            { taxId: { $regex: query, $options: 'i' } }, // Case-insensitive tax ID search
-          ],
-        },
-      ],
-    }).select('name taxId address');
-
-    res.status(200).json({
+    res.json({
       success: true,
       count: companies.length,
-      data: companies,
+      data: companies
     });
   } catch (error) {
-    console.error('Search companies error:', error);
+    console.error('Error getting companies:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error searching companies',
+      error: error.message
     });
   }
 };
 
-// @desc    Get company by ID
+// @desc    Get a single company
 // @route   GET /api/companies/:id
 // @access  Private
-export const getCompanyById = async (req, res) => {
+export const getCompany = async (req, res) => {
   try {
-    const company = await Company.findById(req.params.id).select('name taxId address');
+    const company = await Company.findById(req.params.id);
 
     if (!company) {
       return res.status(404).json({
         success: false,
-        error: 'Company not found',
+        error: 'Company not found'
       });
     }
 
-    // Check if there's an existing link
-    const link = await CompanyLink.findOne({
-      $or: [
-        { requestingCompany: req.user.company, targetCompany: company._id },
-        { requestingCompany: company._id, targetCompany: req.user.company },
-      ],
-    });
+    // Check if user has access to this company
+    if (req.user.role !== 'admin' && company._id.toString() !== req.user.company.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to access this company'
+      });
+    }
 
-    res.status(200).json({
+    res.json({
       success: true,
-      data: {
-        ...company.toObject(),
-        link: link ? link.toObject() : null,
-      },
+      data: company
     });
   } catch (error) {
-    console.error('Get company by ID error:', error);
+    console.error('Error getting company:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error fetching company',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Update a company
+// @route   PUT /api/companies/:id
+// @access  Private
+export const updateCompany = async (req, res) => {
+  try {
+    let company = await Company.findById(req.params.id);
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        error: 'Company not found'
+      });
+    }
+
+    // Check if user has access to this company
+    if (req.user.role !== 'admin' && company._id.toString() !== req.user.company.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to update this company'
+      });
+    }
+
+    company = await Company.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      success: true,
+      data: company
+    });
+  } catch (error) {
+    console.error('Error updating company:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// @desc    Delete a company
+// @route   DELETE /api/companies/:id
+// @access  Private (Admin only)
+export const deleteCompany = async (req, res) => {
+  try {
+    const company = await Company.findById(req.params.id);
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        error: 'Company not found'
+      });
+    }
+
+    // Only admin can delete companies
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to delete companies'
+      });
+    }
+
+    await company.remove();
+
+    res.json({
+      success: true,
+      data: {}
+    });
+  } catch (error) {
+    console.error('Error deleting company:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 };
