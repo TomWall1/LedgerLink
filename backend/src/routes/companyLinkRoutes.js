@@ -1,30 +1,25 @@
 import express from 'express';
-import {
-  requestCompanyLink,
-  updateLinkStatus,
+import { 
+  createCompanyLink,
   getCompanyLinks,
-  getPendingLinkRequests,
-  getApprovedLinks
+  getCompanyLink,
+  updateCompanyLink,
+  deleteCompanyLink 
 } from '../controllers/companyLinkController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, admin } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // All routes are protected
 router.use(protect);
 
-// Company link routes
 router.route('/')
-  .get(getCompanyLinks)
-  .post(authorize('admin'), requestCompanyLink);
+  .post(createCompanyLink) // Create a new company link request
+  .get(getCompanyLinks); // Get all links for user's company
 
-// Get pending link requests
-router.get('/pending', getPendingLinkRequests);
-
-// Get approved links
-router.get('/approved', getApprovedLinks);
-
-// Update link status
-router.put('/:id', authorize('admin'), updateLinkStatus);
+router.route('/:id')
+  .get(getCompanyLink) // Get link by ID (with access control)
+  .put(updateCompanyLink) // Update link status (with access control)
+  .delete(admin, deleteCompanyLink); // Admin only: Delete link
 
 export default router;
