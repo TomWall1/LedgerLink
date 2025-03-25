@@ -1,15 +1,30 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { XeroProvider } from './context/XeroContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import NavHeader from './components/NavHeader';
-import ProtectedRoute from './components/ProtectedRoute';
 import XeroCallback from './components/XeroCallback';
 import ERPConnectionManager from './components/ERPConnectionManager';
 import ERPDataView from './components/ERPDataView';
+import { useAuth } from './context/AuthContext';
+
+// Protected route wrapper component
+const ProtectedRouteWrapper = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex justify-center items-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+  
+  return isAuthenticated() ? children : <Navigate to="/login" replace />
+};
 
 function App() {
   return (
@@ -22,22 +37,29 @@ function App() {
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                
                 <Route path="/" element={
-                  <ProtectedRoute>
+                  <ProtectedRouteWrapper>
                     <Dashboard />
-                  </ProtectedRoute>
+                  </ProtectedRouteWrapper>
                 } />
+                
                 <Route path="/auth/xero/callback" element={<XeroCallback />} />
+                
                 <Route path="/erp-connections" element={
-                  <ProtectedRoute>
+                  <ProtectedRouteWrapper>
                     <ERPConnectionManager />
-                  </ProtectedRoute>
+                  </ProtectedRouteWrapper>
                 } />
+                
                 <Route path="/erp-data/:connectionId" element={
-                  <ProtectedRoute>
+                  <ProtectedRouteWrapper>
                     <ERPDataView />
-                  </ProtectedRoute>
+                  </ProtectedRouteWrapper>
                 } />
+                
+                {/* Catch-all route */}
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </div>
           </div>
