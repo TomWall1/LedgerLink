@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useXero } from '../context/XeroContext';
 import XeroConnection from './XeroConnection';
+import { navigateTo } from '../utils/customRouter';
 
 const ERPConnectionManager = () => {
   const [connections, setConnections] = useState([]);
@@ -16,8 +16,7 @@ const ERPConnectionManager = () => {
     type: 'AR' // Default to Accounts Receivable
   });
   
-  const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
   const { isAuthenticated: isXeroAuthenticated } = useXero();
   
   // Fetch existing ERP connections
@@ -74,7 +73,7 @@ const ERPConnectionManager = () => {
       // First save the basic connection info
       const response = await api.post('/erp-connections', {
         ...newConnection,
-        userId: user?._id
+        userId: currentUser?._id
       });
       
       // Process Xero authentication if that's the selected provider
@@ -84,7 +83,7 @@ const ERPConnectionManager = () => {
           await api.post(`/erp-connections/${response.data.data._id}/link-xero`);
         } else {
           // Otherwise navigate to the connection detail to complete setup
-          navigate(`/erp-data/${response.data.data._id}`);
+          navigateTo(`erp-data/${response.data.data._id}`);
           return;
         }
       }
@@ -105,7 +104,7 @@ const ERPConnectionManager = () => {
   };
   
   const handleViewConnection = (connectionId) => {
-    navigate(`/erp-data/${connectionId}`);
+    navigateTo(`erp-data/${connectionId}`);
   };
   
   const handleDeleteConnection = async (connectionId) => {
@@ -149,7 +148,7 @@ const ERPConnectionManager = () => {
       {/* Xero Direct Connection Widget */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Quick Connect</h2>
-        <XeroConnection />
+        <XeroConnection onUseXeroData={() => navigateTo('erp-connections')} />
       </div>
       
       {/* Existing Connections */}
