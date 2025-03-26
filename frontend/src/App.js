@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { XeroProvider } from './context/XeroContext';
 import Login from './pages/Login';
@@ -11,10 +11,14 @@ import ERPConnectionManager from './components/ERPConnectionManager';
 import ERPDataView from './components/ERPDataView';
 
 function App() {
+  // Default to the home route
+  const [initialEntries] = useState(['/', '/login', '/register']);
+
   return (
     <AuthProvider>
       <XeroProvider>
-        <BrowserRouter>
+        {/* Use MemoryRouter which doesn't use the URL */}
+        <MemoryRouter initialEntries={initialEntries} initialIndex={0}>
           <div className="min-h-screen bg-gray-100">
             <NavHeader />
             <div className="pt-16"> 
@@ -29,7 +33,7 @@ function App() {
               </Routes>
             </div>
           </div>
-        </BrowserRouter>
+        </MemoryRouter>
       </XeroProvider>
     </AuthProvider>
   );
