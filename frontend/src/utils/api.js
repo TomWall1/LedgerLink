@@ -12,7 +12,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Get token from localStorage
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('authToken'); // Changed from 'token' to 'authToken'
     
     // If token exists, add to headers
     if (token) {
@@ -36,10 +36,11 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       // If not on login page, redirect to login
       if (!window.location.pathname.includes('/login')) {
-        // Clear token
-        localStorage.removeItem('token');
+        // Clear tokens and user data
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userData');
         
-        // Redirect to login
+        // Redirect to login (using simple window.location instead of navigation)
         window.location.href = '/login';
       }
     }
