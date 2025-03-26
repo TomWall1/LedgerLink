@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { XeroProvider } from './context/XeroContext';
-import NavHeader from './components/NavHeader';
+import NavHeader from './components/NavHeader.jsx';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ERPConnectionManager from './components/ERPConnectionManager';
+import XeroCallback from './components/XeroCallback';
+import ERPDataView from './components/ERPDataView';
 import { getCurrentRoute, initRouteListener, getRouteParam } from './utils/customRouter';
 
 // Custom route-based App
@@ -41,6 +44,11 @@ function App() {
       );
     }
     
+    // Special route for Xero callback (bypass auth check)
+    if (currentRoute === 'auth/xero/callback') {
+      return <XeroCallback />;
+    }
+    
     // Authentication routes (accessible when not logged in)
     if (!isAuthenticated) {
       switch(currentRoute) {
@@ -65,20 +73,10 @@ function App() {
         window.location.href = '/';
         return null;
       case 'erp-connections':
-        return (
-          <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4">ERP Connections</h1>
-            <p className="text-gray-600 mb-4">This page will be implemented soon.</p>
-          </div>
-        );
+        return <ERPConnectionManager />;
       case 'erp-data':
         const connectionId = getRouteParam('connectionId');
-        return (
-          <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4">ERP Data</h1>
-            <p className="text-gray-600 mb-4">Viewing data for connection: {connectionId || 'unknown'}</p>
-          </div>
-        );
+        return <ERPDataView connectionId={connectionId} />;
       default:
         return (
           <div className="container mx-auto p-4">
