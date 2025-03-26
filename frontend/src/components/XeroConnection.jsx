@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useXero } from '../context/XeroContext';
+import { navigateTo } from '../utils/customRouter';
 
 const XeroConnection = ({ onUseXeroData }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState(null);
-  const navigate = useNavigate();
   const { 
     isAuthenticated, 
     setIsAuthenticated, 
@@ -120,7 +119,7 @@ const XeroConnection = ({ onUseXeroData }) => {
       onUseXeroData(); // Call the function from parent component
     } else {
       // Fallback to navigation
-      navigate('/upload', { state: { xeroEnabled: true } });
+      navigateTo('upload');
     }
   };
 
