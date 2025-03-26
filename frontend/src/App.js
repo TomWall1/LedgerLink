@@ -1,22 +1,36 @@
 import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { XeroProvider } from './context/XeroContext';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import NavHeader from './components/NavHeader';
+import XeroCallback from './components/XeroCallback';
+import ERPConnectionManager from './components/ERPConnectionManager';
+import ERPDataView from './components/ERPDataView';
 
-// Ultra-minimal App with no routing
+// Basic App with simple routing
 function App() {
   return (
     <AuthProvider>
       <XeroProvider>
-        <div className="min-h-screen bg-gray-100 p-8">
-          <h1 className="text-3xl font-bold mb-4">LedgerLink</h1>
-          <p className="mb-8">If you can see this message, the basic app is working.</p>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Dashboard</h2>
-            <Dashboard />
+        <BrowserRouter>
+          <div className="min-h-screen bg-gray-100">
+            <NavHeader />
+            <div className="pt-16">
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/auth/xero/callback" element={<XeroCallback />} />
+                <Route path="/erp-connections" element={<ERPConnectionManager />} />
+                <Route path="/erp-data/:connectionId" element={<ERPDataView />} />
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </div>
           </div>
-        </div>
+        </BrowserRouter>
       </XeroProvider>
     </AuthProvider>
   );
