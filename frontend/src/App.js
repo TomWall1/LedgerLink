@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { XeroProvider } from './context/XeroContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -9,10 +9,9 @@ import NavHeader from './components/NavHeader';
 import XeroCallback from './components/XeroCallback';
 import ERPConnectionManager from './components/ERPConnectionManager';
 import ERPDataView from './components/ERPDataView';
-import { useAuth } from './context/AuthContext';
 
-// Protected route wrapper component
-const ProtectedRouteWrapper = ({ children }) => {
+// Main app with routing
+function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
   
   if (loading) {
@@ -23,46 +22,41 @@ const ProtectedRouteWrapper = ({ children }) => {
     );
   }
   
-  return isAuthenticated() ? children : <Navigate to="/login" replace />
-};
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <NavHeader />
+      <div className="pt-16"> {/* Add padding to account for fixed navbar */}
+        <Routes>
+          <Route path="/login" element={!isAuthenticated() ? <Login /> : <Navigate to="/" />} />
+          <Route path="/register" element={!isAuthenticated() ? <Register /> : <Navigate to="/" />} />
+          
+          <Route path="/" element={isAuthenticated() ? <Dashboard /> : <Navigate to="/login" />} />
+          
+          <Route path="/auth/xero/callback" element={<XeroCallback />} />
+          
+          <Route path="/erp-connections" element={
+            isAuthenticated() ? <ERPConnectionManager /> : <Navigate to="/login" />
+          } />
+          
+          <Route path="/erp-data/:connectionId" element={
+            isAuthenticated() ? <ERPDataView /> : <Navigate to="/login" />
+          } />
+          
+          {/* Fallback route */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </div>
+    </div>
+  );
+}
 
+// Root component that provides context
 function App() {
   return (
     <Router>
       <AuthProvider>
         <XeroProvider>
-          <div className="min-h-screen bg-gray-100">
-            <NavHeader />
-            <div className="pt-16"> {/* Add padding to account for fixed navbar */}
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                
-                <Route path="/" element={
-                  <ProtectedRouteWrapper>
-                    <Dashboard />
-                  </ProtectedRouteWrapper>
-                } />
-                
-                <Route path="/auth/xero/callback" element={<XeroCallback />} />
-                
-                <Route path="/erp-connections" element={
-                  <ProtectedRouteWrapper>
-                    <ERPConnectionManager />
-                  </ProtectedRouteWrapper>
-                } />
-                
-                <Route path="/erp-data/:connectionId" element={
-                  <ProtectedRouteWrapper>
-                    <ERPDataView />
-                  </ProtectedRouteWrapper>
-                } />
-                
-                {/* Catch-all route */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </div>
-          </div>
+          <AppRoutes />
         </XeroProvider>
       </AuthProvider>
     </Router>
