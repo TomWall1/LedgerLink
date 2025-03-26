@@ -1,26 +1,35 @@
 import React from 'react';
-import { createHashRouter, RouterProvider, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { XeroProvider } from './context/XeroContext';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import NavHeader from './components/NavHeader';
+import XeroCallback from './components/XeroCallback';
+import ERPConnectionManager from './components/ERPConnectionManager';
+import ERPDataView from './components/ERPDataView';
 
-// Create a very basic router using hash routing instead of browser routing
-// Hash routing doesn't require server configuration and might bypass the issue
-const router = createHashRouter([
-  {
-    path: '/',
-    element: <Dashboard />
-  }
-]);
-
-// Minimal App with hash router
 function App() {
   return (
     <AuthProvider>
       <XeroProvider>
-        <div className="min-h-screen bg-gray-100">
-          <RouterProvider router={router} />
-        </div>
+        <BrowserRouter>
+          <div className="min-h-screen bg-gray-100">
+            <NavHeader />
+            <div className="pt-16"> 
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/auth/xero/callback" element={<XeroCallback />} />
+                <Route path="/erp-connections" element={<ERPConnectionManager />} />
+                <Route path="/erp-data/:connectionId" element={<ERPDataView />} />
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </div>
+          </div>
+        </BrowserRouter>
       </XeroProvider>
     </AuthProvider>
   );
