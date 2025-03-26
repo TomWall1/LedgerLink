@@ -1,31 +1,59 @@
-import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { getCurrentRoute, navigateTo } from '../utils/customRouter';
 
 const NavHeader = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
   const { currentUser, isAuthenticated, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  
+  // Update current path when location changes
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    
+    window.addEventListener('locationchange', handleLocationChange);
+    window.addEventListener('popstate', handleLocationChange);
+    
+    return () => {
+      window.removeEventListener('locationchange', handleLocationChange);
+      window.removeEventListener('popstate', handleLocationChange);
+    };
+  }, []);
   
   // Only show main navigation links on pages other than the home page
-  const isHomePage = location.pathname === '/';
-  const isAuthPage = location.pathname.startsWith('/auth/');
+  const isHomePage = currentPath === '/';
+  const isAuthPage = currentPath.startsWith('/auth/');
 
   const handleLogout = () => {
     logout();
-    navigate('/auth/login');
+    window.location.href = '/login';
   };
 
   const toggleUserMenu = () => {
     setShowUserMenu(!showUserMenu);
   };
 
+  // Custom link component
+  const CustomLink = ({ to, children, className }) => {
+    const handleClick = (e) => {
+      e.preventDefault();
+      navigateTo(to === '/' ? 'dashboard' : to.substring(1));
+    };
+    
+    return (
+      <a href={to} onClick={handleClick} className={className}>
+        {children}
+      </a>
+    );
+  };
+
   return (
-    <header className={`bg-white py-4 shadow-sm border-b border-gray-100`}>
+    <header className="bg-white py-4 shadow-sm border-b border-gray-100 fixed top-0 left-0 right-0 z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center">
-          <Link to="/" className="flex items-center space-x-2">
+          <CustomLink to="/" className="flex items-center space-x-2">
             <div className="relative">
               {/* Interlocking chains logo */}
               <div className="relative inline-flex">
@@ -34,36 +62,19 @@ const NavHeader = () => {
               </div>
             </div>
             <span className="font-bold text-xl text-gray-900">LedgerLink</span>
-          </Link>
+          </CustomLink>
           
           {/* Main navigation - only show if user is authenticated and not on auth pages */}
           {isAuthenticated && !isAuthPage && !isHomePage && (
             <nav className="hidden md:block">
               <ul className="flex flex-wrap space-x-6">
                 <li>
-                  <Link to="/upload" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/upload' ? 'text-indigo-600 font-medium' : ''}`}>
-                    Upload
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/results" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/results' ? 'text-indigo-600 font-medium' : ''}`}>
-                    Results
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/account-links" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/account-links' ? 'text-indigo-600 font-medium' : ''}`}>
-                    Account Links
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/erp-connections" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/erp-connections' || location.pathname.startsWith('/erp-data') ? 'text-indigo-600 font-medium' : ''}`}>
+                  <CustomLink 
+                    to="/erp-connections" 
+                    className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/erp-connections' || currentPath.startsWith('/erp-data') ? 'text-indigo-600 font-medium' : ''}`}
+                  >
                     ERP Connections
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/system" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/system' ? 'text-indigo-600 font-medium' : ''}`}>
-                    System Status
-                  </Link>
+                  </CustomLink>
                 </li>
               </ul>
             </nav>
@@ -92,27 +103,13 @@ const NavHeader = () => {
                       <div className="font-medium">{currentUser?.name}</div>
                       <div className="text-gray-500 truncate">{currentUser?.email}</div>
                     </div>
-                    <Link 
-                      to="/profile" 
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      Your Profile
-                    </Link>
-                    <Link 
-                      to="/company-settings" 
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      Company Settings
-                    </Link>
-                    <Link 
+                    <CustomLink 
                       to="/erp-connections" 
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setShowUserMenu(false)}
                     >
                       ERP Connections
-                    </Link>
+                    </CustomLink>
                     <button
                       onClick={handleLogout}
                       className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
@@ -125,18 +122,18 @@ const NavHeader = () => {
             ) : (
               !isAuthPage && (
                 <div className="space-x-2">
-                  <Link 
-                    to="/auth/login" 
+                  <CustomLink 
+                    to="/login" 
                     className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                   >
                     Log in
-                  </Link>
-                  <Link 
-                    to="/auth/register" 
+                  </CustomLink>
+                  <CustomLink 
+                    to="/register" 
                     className="bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium"
                   >
                     Sign up
-                  </Link>
+                  </CustomLink>
                 </div>
               )
             )}
@@ -150,29 +147,12 @@ const NavHeader = () => {
           <nav className="px-4">
             <ul className="flex flex-wrap space-x-4">
               <li>
-                <Link to="/upload" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/upload' ? 'text-indigo-600 font-medium' : ''}`}>
-                  Upload
-                </Link>
-              </li>
-              <li>
-                <Link to="/results" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/results' ? 'text-indigo-600 font-medium' : ''}`}>
-                  Results
-                </Link>
-              </li>
-              <li>
-                <Link to="/account-links" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/account-links' ? 'text-indigo-600 font-medium' : ''}`}>
-                  Links
-                </Link>
-              </li>
-              <li>
-                <Link to="/erp-connections" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/erp-connections' || location.pathname.startsWith('/erp-data') ? 'text-indigo-600 font-medium' : ''}`}>
-                  ERP
-                </Link>
-              </li>
-              <li>
-                <Link to="/system" className={`hover:text-indigo-600 transition-colors text-gray-700 ${location.pathname === '/system' ? 'text-indigo-600 font-medium' : ''}`}>
-                  System
-                </Link>
+                <CustomLink 
+                  to="/erp-connections" 
+                  className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/erp-connections' || currentPath.startsWith('/erp-data') ? 'text-indigo-600 font-medium' : ''}`}
+                >
+                  ERP Connections
+                </CustomLink>
               </li>
             </ul>
           </nav>
