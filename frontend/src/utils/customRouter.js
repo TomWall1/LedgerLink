@@ -1,14 +1,46 @@
 // Custom router implementation to avoid React Router issues
 
-// Track the current route
+// Parse the current route from the URL
 export const getCurrentRoute = () => {
   const path = window.location.pathname;
-  return path === '/' ? 'dashboard' : path.substring(1);
+  
+  // Special case for home/dashboard
+  if (path === '/') {
+    return 'dashboard';
+  }
+  
+  // Process potential dynamic routes
+  if (path.startsWith('/erp-data/')) {
+    return 'erp-data';
+  }
+  
+  // Special case for Xero OAuth callback
+  if (path.startsWith('/auth/xero/callback')) {
+    return 'auth/xero/callback';
+  }
+  
+  // Default case: just remove the leading slash
+  return path.substring(1);
 };
 
 // Navigate to a new route
 export const navigateTo = (route) => {
-  const newPath = route === 'dashboard' ? '/' : `/${route}`;
+  let newPath;
+  
+  // Handle home/dashboard
+  if (route === 'dashboard') {
+    newPath = '/';
+  } 
+  // Handle dynamic routes with params
+  else if (route.includes('/')) {
+    newPath = `/${route}`;
+  } 
+  // Regular routes
+  else {
+    newPath = `/${route}`;
+  }
+  
+  // Update browser history and URL
   window.history.pushState(null, '', newPath);
   
   // Dispatch a custom event so components can react to navigation
@@ -42,10 +74,18 @@ export const getRouteParam = (paramName) => {
   const path = window.location.pathname;
   const segments = path.split('/');
   
-  // Handle specific path patterns
+  // Handle different path patterns with parameters
   if (path.startsWith('/erp-data/') && segments.length >= 3) {
     if (paramName === 'connectionId') {
       return segments[2];
+    }
+  }
+  
+  // Extract any query parameters from URL
+  if (window.location.search) {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.has(paramName)) {
+      return searchParams.get(paramName);
     }
   }
   
