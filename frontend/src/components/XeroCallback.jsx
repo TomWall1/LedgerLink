@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { useXero } from '../context/XeroContext';
+import { navigateTo } from '../utils/customRouter';
 
 const XeroCallback = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
   const { setIsAuthenticated, checkBackendTokens, getApiUrl } = useXero();
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,14 +13,14 @@ const XeroCallback = () => {
         setLoading(true);
         
         // Parse URL parameters
-        console.log('Callback URL params:', location.search);
-        const params = new URLSearchParams(location.search);
-        const errorParam = params.get('error');
-        const code = params.get('code');
+        const urlSearchParams = new URLSearchParams(window.location.search);
+        console.log('Callback URL params:', window.location.search);
+        const errorParam = urlSearchParams.get('error');
+        const code = urlSearchParams.get('code');
         
         // Log all parameters for debugging
         const allParams = {};
-        params.forEach((value, key) => {
+        urlSearchParams.forEach((value, key) => {
           allParams[key] = value;
         });
         console.log('All URL parameters:', allParams);
@@ -86,8 +84,8 @@ const XeroCallback = () => {
         await setIsAuthenticated(true);
         console.log('Successfully connected to Xero!');
         
-        // Redirect to home page
-        navigate('/');
+        // Redirect to home page using custom router
+        navigateTo('dashboard');
       } catch (error) {
         console.error('Error handling Xero callback:', error);
         setError(error.message || 'Failed to connect to Xero');
@@ -97,11 +95,11 @@ const XeroCallback = () => {
     
     // Only run once when component mounts
     handleCallback();
-  }, [location.search, navigate, setIsAuthenticated, checkBackendTokens, getApiUrl]);
+  }, [setIsAuthenticated, checkBackendTokens, getApiUrl]);
 
   // Handle manual retry
   const handleRetry = () => {
-    navigate('/');
+    navigateTo('dashboard');
   };
 
   if (loading && !error) {
