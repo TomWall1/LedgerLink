@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import { navigateTo } from '../utils/customRouter';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -13,7 +13,6 @@ const Register = () => {
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
 
   const { name, email, password, confirmPassword, companyName, taxId } = formData;
 
@@ -61,8 +60,8 @@ const Register = () => {
           localStorage.setItem('authToken', userResponse.data.token);
           localStorage.setItem('userData', JSON.stringify(userResponse.data.user));
           
-          // Redirect to dashboard
-          navigate('/');
+          // Redirect to dashboard using custom routing
+          navigateTo('dashboard');
         } else {
           setError('Registration failed. Please try again.');
         }
@@ -78,6 +77,20 @@ const Register = () => {
       );
       setIsLoading(false);
     }
+  };
+
+  // Custom link for navigation
+  const CustomLink = ({ to, children, className }) => {
+    const handleClick = (e) => {
+      e.preventDefault();
+      navigateTo(to.substring(1)); // Remove the leading '/'
+    };
+    
+    return (
+      <a href={to} onClick={handleClick} className={className}>
+        {children}
+      </a>
+    );
   };
 
   return (
@@ -216,9 +229,9 @@ const Register = () => {
           <div className="text-center">
             <p className="text-sm text-gray-600">
               Already have an account?{' '}
-              <Link to="/auth/login" className="text-indigo-600 hover:text-opacity-80">
+              <CustomLink to="/login" className="text-indigo-600 hover:text-opacity-80">
                 Login here
-              </Link>
+              </CustomLink>
             </p>
           </div>
         </form>
