@@ -70,10 +70,34 @@ const NavHeader = () => {
               <ul className="flex flex-wrap space-x-6">
                 <li>
                   <CustomLink 
+                    to="/dashboard" 
+                    className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/' ? 'text-indigo-600 font-medium' : ''}`}
+                  >
+                    Dashboard
+                  </CustomLink>
+                </li>
+                <li>
+                  <CustomLink 
                     to="/erp-connections" 
                     className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/erp-connections' || currentPath.startsWith('/erp-data') ? 'text-indigo-600 font-medium' : ''}`}
                   >
                     ERP Connections
+                  </CustomLink>
+                </li>
+                <li>
+                  <CustomLink 
+                    to="/transaction-matching" 
+                    className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/transaction-matching' ? 'text-indigo-600 font-medium' : ''}`}
+                  >
+                    Match Transactions
+                  </CustomLink>
+                </li>
+                <li>
+                  <CustomLink 
+                    to="/company-links" 
+                    className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/company-links' ? 'text-indigo-600 font-medium' : ''}`}
+                  >
+                    Company Links
                   </CustomLink>
                 </li>
               </ul>
@@ -104,12 +128,34 @@ const NavHeader = () => {
                       <div className="text-gray-500 truncate">{currentUser?.email}</div>
                     </div>
                     <CustomLink 
+                      to="/dashboard" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      Dashboard
+                    </CustomLink>
+                    <CustomLink 
                       to="/erp-connections" 
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setShowUserMenu(false)}
                     >
                       ERP Connections
                     </CustomLink>
+                    <CustomLink 
+                      to="/transaction-matching" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      Match Transactions
+                    </CustomLink>
+                    <CustomLink 
+                      to="/company-links" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      Company Links
+                    </CustomLink>
+                    <div className="border-t border-gray-100 mt-1"></div>
                     <button
                       onClick={handleLogout}
                       className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
@@ -148,10 +194,34 @@ const NavHeader = () => {
             <ul className="flex flex-wrap space-x-4">
               <li>
                 <CustomLink 
+                  to="/dashboard" 
+                  className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/' ? 'text-indigo-600 font-medium' : ''}`}
+                >
+                  Dashboard
+                </CustomLink>
+              </li>
+              <li>
+                <CustomLink 
                   to="/erp-connections" 
                   className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/erp-connections' || currentPath.startsWith('/erp-data') ? 'text-indigo-600 font-medium' : ''}`}
                 >
                   ERP Connections
+                </CustomLink>
+              </li>
+              <li>
+                <CustomLink 
+                  to="/transaction-matching" 
+                  className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/transaction-matching' ? 'text-indigo-600 font-medium' : ''}`}
+                >
+                  Matching
+                </CustomLink>
+              </li>
+              <li>
+                <CustomLink 
+                  to="/company-links" 
+                  className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/company-links' ? 'text-indigo-600 font-medium' : ''}`}
+                >
+                  Links
                 </CustomLink>
               </li>
             </ul>
