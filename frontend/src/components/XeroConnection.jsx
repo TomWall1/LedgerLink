@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useXero } from '../context/XeroContext';
 import { navigateTo } from '../utils/customRouter';
+import api from '../utils/api';
 
 const XeroConnection = ({ onUseXeroData }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState(null);
+  const [connectionDetails, setConnectionDetails] = useState(null);
   const { 
     isAuthenticated, 
     setIsAuthenticated, 
@@ -19,6 +21,8 @@ const XeroConnection = ({ onUseXeroData }) => {
   useEffect(() => {
     if (isAuthenticated) {
       checkTokenStatus();
+      // Also fetch connection details when authenticated
+      fetchConnectionDetails();
     }
     
     // If context already has debug info, use it
@@ -29,8 +33,29 @@ const XeroConnection = ({ onUseXeroData }) => {
 
   // Function to check token status for debugging
   const checkTokenStatus = async () => {
-    const info = await checkBackendTokens();
-    setDebugInfo(info);
+    try {
+      const info = await checkBackendTokens();
+      setDebugInfo(info);
+      return info;
+    } catch (error) {
+      console.error('Error checking token status:', error);
+      setError(`Failed to check token status: ${error.message || 'Unknown error'}`);
+      return null;
+    }
+  };
+
+  // Function to fetch Xero connection details
+  const fetchConnectionDetails = async () => {
+    try {
+      const apiUrl = getApiUrl();
+      const response = await api.get(`${apiUrl}/direct-connection-details`);
+      if (response.data && response.data.organization) {
+        setConnectionDetails(response.data);
+      }
+    } catch (error) {
+      console.warn('Could not fetch connection details:', error);
+      // Don't set connection error here, just log it
+    }
   };
 
   // Function to handle the Xero connection
@@ -59,6 +84,10 @@ const XeroConnection = ({ onUseXeroData }) => {
             window.location.href = data.url;
             return;
           }
+        } else {
+          const errorText = await response.text();
+          console.error('Direct auth endpoint failed with status:', response.status, errorText);
+          throw new Error(`API returned ${response.status}: ${errorText}`);
         }
       } catch (directError) {
         console.warn('Direct auth-url endpoint failed:', directError);
@@ -91,7 +120,8 @@ const XeroConnection = ({ onUseXeroData }) => {
         });
         
         if (!response.ok) {
-          console.warn('Backend disconnect responded with status:', response.status);
+          const errorText = await response.text();
+          console.warn('Backend disconnect responded with status:', response.status, errorText);
         } else {
           console.log('Successfully disconnected from Xero backend');
         }
@@ -102,6 +132,7 @@ const XeroConnection = ({ onUseXeroData }) => {
       // Always disconnect locally even if backend call fails
       await setIsAuthenticated(false);
       setDebugInfo(null);
+      setConnectionDetails(null);
       console.log('Disconnected from Xero');
       
       setIsLoading(false);
@@ -109,6 +140,7 @@ const XeroConnection = ({ onUseXeroData }) => {
       console.warn('Error during Xero disconnect process:', error);
       // Still disconnect locally even if there was an error
       await setIsAuthenticated(false);
+      setConnectionDetails(null);
       setIsLoading(false);
     }
   };
@@ -132,6 +164,7 @@ const XeroConnection = ({ onUseXeroData }) => {
   // Handle manual token check (debug)
   const handleCheckTokens = async () => {
     await checkTokenStatus();
+    await fetchConnectionDetails();
   };
 
   return (
@@ -153,6 +186,19 @@ const XeroConnection = ({ onUseXeroData }) => {
           >
             Try Again
           </button>
+        </div>
+      )}
+
+      {/* Connection details when authenticated */}
+      {isAuthenticated && connectionDetails && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="font-medium text-green-700 mb-1">Connected to Xero Organization:</div>
+          <div className="text-sm text-green-800">
+            <p><strong>Name:</strong> {connectionDetails.organization.name}</p>
+            {connectionDetails.organization.legalName && (
+              <p><strong>Legal Name:</strong> {connectionDetails.organization.legalName}</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -232,7 +278,7 @@ const XeroConnection = ({ onUseXeroData }) => {
                 onClick={handleCheckTokens}
                 className="flex items-center px-4 py-2 mb-2 rounded-lg transition-colors bg-gray-600 hover:bg-gray-700 text-white font-medium text-sm"
               >
-                Check Token Status
+                Refresh Connection
               </button>
             </div>
           </div>
