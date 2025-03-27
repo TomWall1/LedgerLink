@@ -121,6 +121,22 @@ const ERPConnectionManager = () => {
       setError('Failed to delete connection. Please try again.');
     }
   };
+
+  // Function to handle click on Use Xero Data button  
+  const handleUseXeroData = () => {
+    // If there are existing connections, get the first one
+    if (connections && connections.length > 0) {
+      // Find a Xero connection if available
+      const xeroConnection = connections.find(conn => conn.provider === 'xero');
+      if (xeroConnection) {
+        navigateTo(`erp-data/${xeroConnection._id}`);
+        return;
+      }
+    }
+    
+    // If no connections exist, go to the default ERP data view
+    navigateTo('erp-data');
+  };
   
   if (loading) {
     return (
@@ -148,7 +164,7 @@ const ERPConnectionManager = () => {
       {/* Xero Direct Connection Widget */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Quick Connect</h2>
-        <XeroConnection onUseXeroData={() => navigateTo('erp-connections')} />
+        <XeroConnection onUseXeroData={handleUseXeroData} />
       </div>
       
       {/* Existing Connections */}
