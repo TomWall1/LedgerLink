@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
+import { navigateTo, getRouteParam } from '../utils/customRouter';
 
-const ERPDataView = () => {
-  const { connectionId } = useParams();
-  const navigate = useNavigate();
+const ERPDataView = ({ connectionId }) => {
+  // If connectionId is not passed as prop, try getting it from URL params
+  const urlConnectionId = connectionId || getRouteParam('connectionId');
   
   const [connection, setConnection] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,9 +17,15 @@ const ERPDataView = () => {
   // Fetch connection details
   useEffect(() => {
     const fetchConnection = async () => {
+      if (!urlConnectionId) {
+        setError('Connection ID is missing');
+        setLoading(false);
+        return;
+      }
+      
       try {
         setLoading(true);
-        const response = await api.get(`/erp-connections/${connectionId}`);
+        const response = await api.get(`/erp-connections/${urlConnectionId}`);
         setConnection(response.data.data);
         
         // Load invoices by default
@@ -33,15 +39,15 @@ const ERPDataView = () => {
     };
     
     fetchConnection();
-  }, [connectionId]);
+  }, [urlConnectionId]);
   
   // Fetch invoices for the connection
   const fetchInvoices = async () => {
-    if (!connectionId) return;
+    if (!urlConnectionId) return;
     
     try {
       setDataLoading(true);
-      const response = await api.get(`/auth/xero/historical-invoices/${connectionId}`);
+      const response = await api.get(`/auth/xero/historical-invoices/${urlConnectionId}`);
       setInvoices(response.data.invoices || []);
       setActiveTab('invoices');
     } catch (err) {
@@ -54,11 +60,11 @@ const ERPDataView = () => {
   
   // Fetch customers for the connection
   const fetchCustomers = async () => {
-    if (!connectionId) return;
+    if (!urlConnectionId) return;
     
     try {
       setDataLoading(true);
-      const response = await api.get(`/auth/xero/customers/${connectionId}`);
+      const response = await api.get(`/auth/xero/customers/${urlConnectionId}`);
       setCustomers(response.data.customers || []);
       setActiveTab('customers');
     } catch (err) {
@@ -92,6 +98,11 @@ const ERPDataView = () => {
       fetchCustomers();
     }
   };
+
+  // Navigate back to connections
+  const handleBackToConnections = () => {
+    navigateTo('erp-connections');
+  };
   
   if (loading) {
     return (
@@ -115,7 +126,7 @@ const ERPDataView = () => {
           <p>{error}</p>
         </div>
         <button
-          onClick={() => navigate('/erp-connections')}
+          onClick={handleBackToConnections}
           className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
         >
           Back to Connections
@@ -131,7 +142,7 @@ const ERPDataView = () => {
           <p>Connection not found</p>
         </div>
         <button
-          onClick={() => navigate('/erp-connections')}
+          onClick={handleBackToConnections}
           className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
         >
           Back to Connections
@@ -150,7 +161,7 @@ const ERPDataView = () => {
         </div>
         <div className="mt-4 md:mt-0">
           <button
-            onClick={() => navigate('/erp-connections')}
+            onClick={handleBackToConnections}
             className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             Back to Connections
