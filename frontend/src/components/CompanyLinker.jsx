@@ -151,65 +151,78 @@ const CompanyLinker = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Source Company</label>
-              <select
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                value={sourceCompany?._id || ''}
-                onChange={(e) => {
-                  const selected = companies.find(c => c._id === e.target.value);
-                  setSourceCompany(selected || null);
-                }}
-              >
-                <option value="">Select Source Company</option>
-                {companies.map(company => (
-                  <option key={`source-${company._id}`} value={company._id}>{company.name}</option>
+              <div className="mb-2">
+                <input
+                  type="text"
+                  placeholder="Search companies..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="border border-gray-300 rounded-md overflow-y-auto max-h-60">
+                {filteredCompanies.map(company => (
+                  <div
+                    key={company._id}
+                    className={`p-2 cursor-pointer ${sourceCompany?._id === company._id ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                    onClick={() => setSourceCompany(company)}
+                  >
+                    <div className="font-medium">{company.name}</div>
+                    {company.taxNumber && <div className="text-xs text-gray-600">Tax ID: {company.taxNumber}</div>}
+                  </div>
                 ))}
-              </select>
+                {filteredCompanies.length === 0 && (
+                  <div className="p-3 text-center text-gray-500">No companies found</div>
+                )}
+              </div>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Target Company</label>
-              <select
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                value={targetCompany?._id || ''}
-                onChange={(e) => {
-                  const selected = companies.find(c => c._id === e.target.value);
-                  setTargetCompany(selected || null);
-                }}
-              >
-                <option value="">Select Target Company</option>
+              <div className="border border-gray-300 rounded-md overflow-y-auto max-h-72">
                 {companies.map(company => (
-                  <option key={`target-${company._id}`} value={company._id}>{company.name}</option>
+                  <div
+                    key={company._id}
+                    className={`p-2 cursor-pointer ${targetCompany?._id === company._id ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                    onClick={() => setTargetCompany(company)}
+                  >
+                    <div className="font-medium">{company.name}</div>
+                    {company.taxNumber && <div className="text-xs text-gray-600">Tax ID: {company.taxNumber}</div>}
+                  </div>
                 ))}
-              </select>
+                {companies.length === 0 && (
+                  <div className="p-3 text-center text-gray-500">No companies available</div>
+                )}
+              </div>
             </div>
           </div>
           
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">Link Type</label>
             <select
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               value={linkType}
               onChange={(e) => setLinkType(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="customer">Customer</option>
               <option value="supplier">Supplier</option>
               <option value="subsidiary">Subsidiary</option>
-              <option value="parent">Parent</option>
+              <option value="parent">Parent Company</option>
               <option value="affiliate">Affiliate</option>
             </select>
           </div>
           
-          <div className="flex justify-end space-x-3">
+          <div className="mt-6 flex justify-end space-x-3">
             <button
               onClick={resetForm}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Cancel
             </button>
             <button
               onClick={createCompanyLink}
-              disabled={processingLink || !sourceCompany || !targetCompany}
-              className={`px-4 py-2 rounded-md text-white ${processingLink || !sourceCompany || !targetCompany ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'} transition-colors`}
+              disabled={!sourceCompany || !targetCompany || processingLink}
+              className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${!sourceCompany || !targetCompany || processingLink ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'}`}
             >
               {processingLink ? 'Creating...' : 'Create Link'}
             </button>
@@ -217,19 +230,10 @@ const CompanyLinker = () => {
         </div>
       )}
       
-      {/* Company links list */}
+      {/* Linked companies table */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="p-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold">Existing Company Links</h2>
-          <div className="mt-3">
-            <input
-              type="text"
-              placeholder="Search companies..."
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
         </div>
         
         {loading ? (
@@ -241,19 +245,19 @@ const CompanyLinker = () => {
             <span>Loading company data...</span>
           </div>
         ) : linkedCompanies.length === 0 ? (
-          <div className="text-center p-8 text-gray-500">
-            <p>No company links found. Create your first link by clicking the "Create New Link" button.</p>
+          <div className="p-6 text-center text-gray-500">
+            <p>No company links found. Create your first link using the button above.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Relationship</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source Company</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Relationship</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target Company</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -263,19 +267,19 @@ const CompanyLinker = () => {
                       {getCompanyName(link.sourceCompanyId)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold capitalize">
-                        {link.linkType}
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                        {link.linkType.charAt(0).toUpperCase() + link.linkType.slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {getCompanyName(link.targetCompanyId)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${link.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                        {link.status}
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${link.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                        {link.status.charAt(0).toUpperCase() + link.status.slice(1)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={() => deleteCompanyLink(link._id)}
                         className="text-red-600 hover:text-red-900"
