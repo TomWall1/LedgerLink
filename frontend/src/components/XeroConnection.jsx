@@ -48,9 +48,22 @@ const XeroConnection = ({ onUseXeroData }) => {
   const fetchConnectionDetails = async () => {
     try {
       const apiUrl = getApiUrl();
-      const response = await api.get(`${apiUrl}/direct-connection-details`);
-      if (response.data && response.data.organization) {
-        setConnectionDetails(response.data);
+      // Use the correct endpoint path
+      const response = await fetch(`${apiUrl}/direct-connection-details`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.organization) {
+          setConnectionDetails(data);
+          console.log('Connection details loaded:', data);
+        }
+      } else {
+        console.warn('Could not fetch connection details. Status:', response.status);
       }
     } catch (error) {
       console.warn('Could not fetch connection details:', error);
