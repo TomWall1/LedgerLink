@@ -34,9 +34,8 @@ export const XeroProvider = ({ children }) => {
         return isAuthenticated;
       }
       
-      const response = await api.get('/direct-auth-status', {
-        params: { nocache: Date.now() } // Prevent caching
-      });
+      // Use the enhanced API utility
+      const response = await api.xero.getAuthStatus();
       
       setLastChecked(now);
       const authenticated = response.data.isAuthenticated === true;
@@ -72,15 +71,21 @@ export const XeroProvider = ({ children }) => {
   // Fetch Xero connection details
   const fetchConnectionDetails = async () => {
     try {
-      const response = await api.get('/api/xero/connection-details');
+      // Only try to fetch details if we believe we're authenticated
+      if (!isAuthenticated) return null;
+      
+      const response = await api.xero.getConnectionDetails();
       if (response.data && response.data.organization) {
         setConnectionDetails(response.data);
+        return response.data;
       } else {
         setConnectionDetails(null);
+        return null;
       }
     } catch (error) {
       console.warn('Error fetching Xero connection details:', error);
       setConnectionDetails(null);
+      return null;
     }
   };
   
@@ -135,7 +140,8 @@ export const XeroProvider = ({ children }) => {
     connectionDetails,
     checkAuthStatus,
     refreshToken,
-    refreshingToken
+    refreshingToken,
+    fetchConnectionDetails
   };
   
   return (
