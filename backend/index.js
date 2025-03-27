@@ -160,6 +160,69 @@ app.use('/api/transactions', transactionRoutes);
 
 // Xero Integration Routes
 
+// Add a direct route for Xero connection details
+app.get('/direct-connection-details', requireXeroAuth, async (req, res) => {
+  try {
+    console.log('Direct connection details endpoint accessed');
+    res.header('Access-Control-Allow-Origin', '*');
+    
+    // Get the tokens from middleware
+    const tokens = req.xeroTokens;
+    
+    // Get organization details
+    const tenants = await callXeroApi('https://api.xero.com/connections', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+
+    if (!tenants || tenants.length === 0) {
+      throw new Error('No organizations found');
+    }
+
+    const tenant = tenants[0];
+    
+    // Get organization details
+    const organizationsData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Organisation', {
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Xero-tenant-id': tenant.tenantId
+        }
+      }
+    );
+
+    const organization = organizationsData.Organisations?.[0] || {
+      Name: tenant.tenantName,
+      LegalName: tenant.tenantName
+    };
+
+    // Return combined information
+    res.json({
+      success: true,
+      organization: {
+        id: tenant.tenantId,
+        name: organization.Name,
+        legalName: organization.LegalName,
+        shortCode: organization.ShortCode,
+        country: organization.CountryCode,
+        timezone: organization.TimeZone,
+        status: tenant.tenantType
+      },
+      connectionInfo: {
+        createdDate: tenant.createdDateUtc,
+        updatedDate: tenant.updatedDateUtc
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching connection details:', error);
+    res.status(500).json({
+      error: 'Failed to fetch connection details',
+      details: error.message
+    });
+  }
+});
+
 // Add a direct route for Xero auth URL for more reliable connection
 app.get('/direct-xero-auth', async (req, res) => {
   try {
