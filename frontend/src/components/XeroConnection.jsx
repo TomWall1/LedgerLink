@@ -150,8 +150,8 @@ const XeroConnection = ({ onUseXeroData }) => {
     if (typeof onUseXeroData === 'function') {
       onUseXeroData(); // Call the function from parent component
     } else {
-      // Fallback to navigation
-      navigateTo('upload');
+      // Fallback to navigation - direct to the erp-data view
+      navigateTo('erp-data');
     }
   };
 
