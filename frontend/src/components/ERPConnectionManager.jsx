@@ -123,19 +123,41 @@ const ERPConnectionManager = () => {
   };
 
   // Function to handle click on Use Xero Data button  
-  const handleUseXeroData = () => {
-    // If there are existing connections, get the first one
-    if (connections && connections.length > 0) {
-      // Find a Xero connection if available
-      const xeroConnection = connections.find(conn => conn.provider === 'xero');
-      if (xeroConnection) {
-        navigateTo(`erp-data/${xeroConnection._id}`);
-        return;
+  const handleUseXeroData = async () => {
+    try {
+      // If there are existing connections, get the first one
+      if (connections && connections.length > 0) {
+        // Find a Xero connection if available
+        const xeroConnection = connections.find(conn => conn.provider === 'xero');
+        if (xeroConnection && xeroConnection._id) {
+          navigateTo(`erp-data/${xeroConnection._id}`);
+          return;
+        }
       }
+      
+      // If no existing Xero connections were found, create a new one
+      setError('No existing Xero connection found. Creating a new connection...');
+      
+      // Create a new connection for Xero
+      const response = await api.post('/erp-connections', {
+        connectionName: 'My Xero Connection',
+        provider: 'xero',
+        type: 'AR',
+        userId: currentUser?._id
+      });
+      
+      // Navigate to the new connection
+      if (response && response.data && response.data.data && response.data.data._id) {
+        navigateTo(`erp-data/${response.data.data._id}`);
+        // Refresh connections list
+        fetchConnections();
+      } else {
+        throw new Error('Failed to create a new Xero connection.');
+      }
+    } catch (err) {
+      console.error('Error handling Xero data:', err);
+      setError('Failed to set up Xero connection. Please try adding a connection manually.');
     }
-    
-    // If no connections exist, go to the default ERP data view
-    navigateTo('erp-data');
   };
   
   if (loading) {
