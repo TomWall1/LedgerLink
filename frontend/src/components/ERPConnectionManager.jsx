@@ -16,6 +16,8 @@ const ERPConnectionManager = () => {
     type: 'AR' // Default to Accounts Receivable
   });
   const [serverStatus, setServerStatus] = useState('checking'); // 'checking', 'online', 'offline'
+  const [retryCount, setRetryCount] = useState(0);
+  const [retryTimeout, setRetryTimeout] = useState(null);
   
   const { currentUser } = useAuth();
   const { isAuthenticated: isXeroAuthenticated } = useXero();
@@ -23,6 +25,13 @@ const ERPConnectionManager = () => {
   // Check server status
   useEffect(() => {
     checkServerStatus();
+    
+    // Clean up any pending retry timeouts when component unmounts
+    return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
   }, []);
   
   // Fetch existing ERP connections
@@ -36,13 +45,50 @@ const ERPConnectionManager = () => {
   
   const checkServerStatus = async () => {
     try {
-      // Try to make a simple request to the backend
-      await api.get('/api/health-check');
+      // Try multiple endpoints in case one is not available
+      try {
+        // First try health-check endpoint
+        await api.get('/api/health-check');
+      } catch (healthCheckErr) {
+        // If health check fails, try the erp-connections endpoint
+        await api.get('/erp-connections');
+      }
+      
+      // If any request succeeds, set status to online
       setServerStatus('online');
+      setRetryCount(0); // Reset retry count on success
     } catch (err) {
       console.error('Server status check failed:', err);
       setServerStatus('offline');
-      setError('Unable to connect to the server. The backend service may be unavailable. Please try again later.');
+      
+      // Provide more specific error based on the actual error
+      if (err.response) {
+        // Server responded with an error code
+        if (err.response.status === 404) {
+          setError('Server endpoint not found (404). The API may have changed or the server might be misconfigured.');
+        } else if (err.response.status === 401 || err.response.status === 403) {
+          setError('Authentication error. Please try logging out and logging back in.');
+        } else {
+          setError(`Server error (${err.response.status}). The backend service may be experiencing issues.`);
+        }
+      } else if (err.request) {
+        // No response received from the server
+        setError('Unable to connect to the server. The backend service may be down or your internet connection may be unstable.');
+      } else {
+        // Something else went wrong
+        setError('An unexpected error occurred while checking server status. Please try again later.');
+      }
+      
+      // Set up automatic retry with exponential backoff, but only up to 3 attempts
+      if (retryCount < 3) {
+        const nextRetryDelay = Math.min(2000 * Math.pow(2, retryCount), 10000); // Exponential backoff with 10s max
+        const timeout = setTimeout(() => {
+          setRetryCount(prevCount => prevCount + 1);
+          checkServerStatus();
+        }, nextRetryDelay);
+        
+        setRetryTimeout(timeout);
+      }
     }
   };
   
@@ -216,6 +262,7 @@ const ERPConnectionManager = () => {
   };
   
   const handleServerRetry = () => {
+    setError(null);
     setServerStatus('checking');
     checkServerStatus();
   };
@@ -307,7 +354,18 @@ const ERPConnectionManager = () => {
             <li className="ml-4">The server is temporarily offline or down for maintenance</li>
             <li className="ml-4">Your internet connection is experiencing issues</li>
             <li className="ml-4">A firewall or network setting is blocking the connection</li>
+            <li className="ml-4">The API endpoints may have changed or been moved</li>
           </ul>
+          <div className="mb-4 p-4 bg-white rounded border border-yellow-200 text-left max-w-md mx-auto">
+            <h3 className="font-medium mb-2 text-yellow-700">Troubleshooting Steps:</h3>
+            <ol className="list-decimal ml-4 text-sm">
+              <li className="mb-1">Check if the backend service is running at <a href="https://ledgerlink.onrender.com/api/health" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">ledgerlink.onrender.com</a></li>
+              <li className="mb-1">Refresh this page and try again</li>
+              <li className="mb-1">Clear your browser cache and cookies</li>
+              <li className="mb-1">Try using a different browser or network connection</li>
+              <li className="mb-1">Contact support if the issue persists</li>
+            </ol>
+          </div>
           <button 
             onClick={handleServerRetry}
             className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors"
