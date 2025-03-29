@@ -45,18 +45,16 @@ const ERPConnectionManager = () => {
   
   const checkServerStatus = async () => {
     try {
-      // Try multiple endpoints in case one is not available
-      try {
-        // First try health-check endpoint
-        await api.get('/api/health-check');
-      } catch (healthCheckErr) {
-        // If health check fails, try the erp-connections endpoint
-        await api.get('/erp-connections');
-      }
+      // Use the api.checkHealth function from our API utility
+      const isHealthy = await api.checkHealth();
       
-      // If any request succeeds, set status to online
-      setServerStatus('online');
-      setRetryCount(0); // Reset retry count on success
+      if (isHealthy) {
+        setServerStatus('online');
+        setRetryCount(0); // Reset retry count on success
+        setError(null);
+      } else {
+        throw new Error('Server health check failed');
+      }
     } catch (err) {
       console.error('Server status check failed:', err);
       setServerStatus('offline');
@@ -95,15 +93,30 @@ const ERPConnectionManager = () => {
   const fetchConnections = async () => {
     try {
       setLoading(true);
-      // Endpoint to get ERP connections for the current user
-      const response = await api.get('/erp-connections');
+      // Try the API endpoint with the /api prefix as seen in SystemStatus.jsx
+      const response = await api.get('/api/erp-connections');
       setConnections(response.data.data || []);
       setError(null);
     } catch (err) {
       console.error('Error fetching ERP connections:', err);
+      // If 404, try other potential endpoints
+      if (err.response && err.response.status === 404) {
+        try {
+          // Try without the /api prefix
+          const altResponse = await api.get('/erp-connections');
+          setConnections(altResponse.data.data || []);
+          setError(null);
+          return;
+        } catch (altErr) {
+          console.error('Alternative endpoint also failed:', altErr);
+        }
+      }
+      
       // Check if it's a network/server error
       if (err.message && err.message.includes('Network Error')) {
         setError('Unable to connect to the server. Please check your internet connection or try again later.');
+      } else if (err.response && err.response.status === 404) {
+        setError('The ERP connections endpoint could not be found. The API structure may have changed.');
       } else {
         setError('Failed to load your ERP connections. Please try again.');
       }
@@ -143,17 +156,39 @@ const ERPConnectionManager = () => {
     }
     
     try {
-      // First save the basic connection info
-      const response = await api.post('/erp-connections', {
-        ...newConnection,
-        userId: currentUser?._id
-      });
+      // First save the basic connection info - try with /api prefix
+      let response;
+      try {
+        response = await api.post('/api/erp-connections', {
+          ...newConnection,
+          userId: currentUser?._id
+        });
+      } catch (err) {
+        if (err.response && err.response.status === 404) {
+          // Try without /api prefix if first attempt returns 404
+          response = await api.post('/erp-connections', {
+            ...newConnection,
+            userId: currentUser?._id
+          });
+        } else {
+          throw err; // Re-throw if it's not a 404
+        }
+      }
       
       // Process Xero authentication if that's the selected provider
       if (newConnection.provider === 'xero') {
         // If Xero is already authenticated, we can link it to this connection
         if (isXeroAuthenticated) {
-          await api.post(`/erp-connections/${response.data.data._id}/link-xero`);
+          try {
+            await api.post(`/api/erp-connections/${response.data.data._id}/link-xero`);
+          } catch (linkErr) {
+            if (linkErr.response && linkErr.response.status === 404) {
+              // Try without /api prefix
+              await api.post(`/erp-connections/${response.data.data._id}/link-xero`);
+            } else {
+              throw linkErr;
+            }
+          }
         } else {
           // Otherwise navigate to the connection detail to complete setup
           navigateTo(`erp-data/${response.data.data._id}`);
@@ -176,7 +211,7 @@ const ERPConnectionManager = () => {
       if (err.message && err.message.includes('Network Error')) {
         setError('Unable to connect to the server. Please check your internet connection or try again later.');
       } else {
-        setError('Failed to create connection. Please try again.');
+        setError(`Failed to create connection: ${api.getErrorMessage(err)}`);
       }
     }
   };
@@ -191,12 +226,22 @@ const ERPConnectionManager = () => {
     }
     
     try {
-      await api.delete(`/erp-connections/${connectionId}`);
+      // Try with /api prefix
+      try {
+        await api.delete(`/api/erp-connections/${connectionId}`);
+      } catch (err) {
+        if (err.response && err.response.status === 404) {
+          // Try without /api prefix
+          await api.delete(`/erp-connections/${connectionId}`);
+        } else {
+          throw err;
+        }
+      }
       // Refresh the list
       fetchConnections();
     } catch (err) {
       console.error('Error deleting connection:', err);
-      setError('Failed to delete connection. Please try again.');
+      setError(`Failed to delete connection: ${api.getErrorMessage(err)}`);
     }
   };
 
@@ -231,14 +276,29 @@ const ERPConnectionManager = () => {
       // If no existing Xero connections were found, create a new one
       setError('Creating a new Xero connection...');
       
-      // Create a new connection for Xero
+      // Create a new connection for Xero - try with /api prefix first
       try {
-        const response = await api.post('/erp-connections', {
-          connectionName: 'My Xero Connection',
-          provider: 'xero',
-          type: 'AR',
-          userId: currentUser?._id
-        });
+        let response;
+        try {
+          response = await api.post('/api/erp-connections', {
+            connectionName: 'My Xero Connection',
+            provider: 'xero',
+            type: 'AR',
+            userId: currentUser?._id
+          });
+        } catch (err) {
+          if (err.response && err.response.status === 404) {
+            // Try without /api prefix
+            response = await api.post('/erp-connections', {
+              connectionName: 'My Xero Connection',
+              provider: 'xero',
+              type: 'AR',
+              userId: currentUser?._id
+            });
+          } else {
+            throw err;
+          }
+        }
         
         // Navigate to the new connection
         if (response && response.data && response.data.data && response.data.data._id) {
@@ -252,7 +312,7 @@ const ERPConnectionManager = () => {
         if (createErr.response && createErr.response.status === 401) {
           setError('You need to be signed in to create a Xero connection. Please sign in and try again.');
         } else {
-          setError('Failed to create a Xero connection. Please try adding a connection manually.');
+          setError(`Failed to create a Xero connection: ${api.getErrorMessage(createErr)}`);
         }
       }
     } catch (err) {
@@ -359,13 +419,17 @@ const ERPConnectionManager = () => {
           <div className="mb-4 p-4 bg-white rounded border border-yellow-200 text-left max-w-md mx-auto">
             <h3 className="font-medium mb-2 text-yellow-700">Troubleshooting Steps:</h3>
             <ol className="list-decimal ml-4 text-sm">
-              <li className="mb-1">Check if the backend service is running at <a href="https://ledgerlink.onrender.com/api/health" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">ledgerlink.onrender.com</a></li>
+              <li className="mb-1">Check if the backend service is running at <a href="https://ledgerlink.onrender.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">ledgerlink.onrender.com</a></li>
+              <li className="mb-1">Check if the root endpoint works at <a href="https://ledgerlink.onrender.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Root URL</a></li>
               <li className="mb-1">Refresh this page and try again</li>
               <li className="mb-1">Clear your browser cache and cookies</li>
               <li className="mb-1">Try using a different browser or network connection</li>
               <li className="mb-1">Contact support if the issue persists</li>
             </ol>
           </div>
+          <p className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md text-blue-800 max-w-md mx-auto text-sm">
+            <strong>Developer Note:</strong> The API endpoint structure may have changed. Check the backend logs and verify that '/api/erp-connections' or '/erp-connections' endpoints are properly configured.
+          </p>
           <button 
             onClick={handleServerRetry}
             className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors"
