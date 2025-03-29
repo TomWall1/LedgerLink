@@ -64,6 +64,36 @@ api.interceptors.response.use(
   }
 );
 
+// Health check function to verify backend connectivity
+api.checkHealth = async () => {
+  try {
+    // Try multiple potential endpoints that should exist on the server
+    const endpoints = [
+      '/api/health-check',
+      '/health',
+      '/api/status',
+      '/'
+    ];
+    
+    // Try each endpoint until one succeeds
+    for (const endpoint of endpoints) {
+      try {
+        await api.get(endpoint, { timeout: 5000 }); // Shorter timeout for health checks
+        return true; // If any request succeeds, return true
+      } catch (err) {
+        console.log(`Health check failed for ${endpoint}:`, err.message);
+        // Continue to the next endpoint
+      }
+    }
+    
+    // If all endpoints fail, return false
+    return false;
+  } catch (error) {
+    console.error('Health check failed completely:', error);
+    return false;
+  }
+};
+
 // Add convenience methods for working with Xero API
 api.xero = {
   getAuthStatus: () => api.get('/direct-auth-status'),
