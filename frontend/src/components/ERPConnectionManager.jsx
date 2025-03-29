@@ -15,14 +15,36 @@ const ERPConnectionManager = () => {
     provider: 'xero',
     type: 'AR' // Default to Accounts Receivable
   });
+  const [serverStatus, setServerStatus] = useState('checking'); // 'checking', 'online', 'offline'
   
   const { currentUser } = useAuth();
   const { isAuthenticated: isXeroAuthenticated } = useXero();
   
+  // Check server status
+  useEffect(() => {
+    checkServerStatus();
+  }, []);
+  
   // Fetch existing ERP connections
   useEffect(() => {
-    fetchConnections();
-  }, []);
+    if (serverStatus === 'online') {
+      fetchConnections();
+    } else if (serverStatus === 'offline') {
+      setLoading(false);
+    }
+  }, [serverStatus]);
+  
+  const checkServerStatus = async () => {
+    try {
+      // Try to make a simple request to the backend
+      await api.get('/api/health-check');
+      setServerStatus('online');
+    } catch (err) {
+      console.error('Server status check failed:', err);
+      setServerStatus('offline');
+      setError('Unable to connect to the server. The backend service may be unavailable. Please try again later.');
+    }
+  };
   
   const fetchConnections = async () => {
     try {
@@ -33,7 +55,12 @@ const ERPConnectionManager = () => {
       setError(null);
     } catch (err) {
       console.error('Error fetching ERP connections:', err);
-      setError('Failed to load your ERP connections. Please try again.');
+      // Check if it's a network/server error
+      if (err.message && err.message.includes('Network Error')) {
+        setError('Unable to connect to the server. Please check your internet connection or try again later.');
+      } else {
+        setError('Failed to load your ERP connections. Please try again.');
+      }
       setConnections([]);
     } finally {
       setLoading(false);
@@ -99,7 +126,12 @@ const ERPConnectionManager = () => {
       setError(null);
     } catch (err) {
       console.error('Error creating ERP connection:', err);
-      setError('Failed to create connection. Please try again.');
+      // Check if it's a network/server error
+      if (err.message && err.message.includes('Network Error')) {
+        setError('Unable to connect to the server. Please check your internet connection or try again later.');
+      } else {
+        setError('Failed to create connection. Please try again.');
+      }
     }
   };
   
@@ -125,6 +157,15 @@ const ERPConnectionManager = () => {
   // Function to handle click on Use Xero Data button  
   const handleUseXeroData = async () => {
     try {
+      // Check server status first
+      if (serverStatus !== 'online') {
+        await checkServerStatus();
+        if (serverStatus !== 'online') {
+          setError('Cannot connect to the server. Please check your internet connection and try again.');
+          return;
+        }
+      }
+      
       // If there are existing connections, get the first one
       if (connections && connections.length > 0) {
         // Find a Xero connection if available
@@ -135,32 +176,51 @@ const ERPConnectionManager = () => {
         }
       }
       
+      // If we can't connect to Xero, show a user-friendly message
+      if (!isXeroAuthenticated) {
+        setError('You need to connect to Xero first. Please click the "Connect to Xero" button, then try again.');
+        return;
+      }
+      
       // If no existing Xero connections were found, create a new one
-      setError('No existing Xero connection found. Creating a new connection...');
+      setError('Creating a new Xero connection...');
       
       // Create a new connection for Xero
-      const response = await api.post('/erp-connections', {
-        connectionName: 'My Xero Connection',
-        provider: 'xero',
-        type: 'AR',
-        userId: currentUser?._id
-      });
-      
-      // Navigate to the new connection
-      if (response && response.data && response.data.data && response.data.data._id) {
-        navigateTo(`erp-data/${response.data.data._id}`);
-        // Refresh connections list
-        fetchConnections();
-      } else {
-        throw new Error('Failed to create a new Xero connection.');
+      try {
+        const response = await api.post('/erp-connections', {
+          connectionName: 'My Xero Connection',
+          provider: 'xero',
+          type: 'AR',
+          userId: currentUser?._id
+        });
+        
+        // Navigate to the new connection
+        if (response && response.data && response.data.data && response.data.data._id) {
+          navigateTo(`erp-data/${response.data.data._id}`);
+          // Refresh connections list
+          fetchConnections();
+        } else {
+          throw new Error('Failed to create a new Xero connection.');
+        }
+      } catch (createErr) {
+        if (createErr.response && createErr.response.status === 401) {
+          setError('You need to be signed in to create a Xero connection. Please sign in and try again.');
+        } else {
+          setError('Failed to create a Xero connection. Please try adding a connection manually.');
+        }
       }
     } catch (err) {
       console.error('Error handling Xero data:', err);
-      setError('Failed to set up Xero connection. Please try adding a connection manually.');
+      setError('An unexpected error occurred. Please try adding a connection manually or contact support.');
     }
   };
   
-  if (loading) {
+  const handleServerRetry = () => {
+    setServerStatus('checking');
+    checkServerStatus();
+  };
+  
+  if (loading && serverStatus !== 'offline') {
     return (
       <div className="container mx-auto p-4">
         <div className="flex justify-center items-center h-64">
@@ -177,76 +237,146 @@ const ERPConnectionManager = () => {
         <p className="text-gray-600">Connect your ERP systems to import transaction data</p>
       </div>
       
+      {/* Server Status Indicator */}
+      <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <h2 className="text-lg font-semibold mb-2">System Status</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="flex items-center mr-4">
+              <span className="inline-block w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+              <span>Frontend: Connected</span>
+            </div>
+            <div className="flex items-center">
+              {serverStatus === 'checking' && (
+                <>
+                  <span className="inline-block w-3 h-3 rounded-full bg-yellow-500 mr-2 animate-pulse"></span>
+                  <span>Backend: Checking...</span>
+                </>
+              )}
+              {serverStatus === 'online' && (
+                <>
+                  <span className="inline-block w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+                  <span>Backend: Connected</span>
+                </>
+              )}
+              {serverStatus === 'offline' && (
+                <>
+                  <span className="inline-block w-3 h-3 rounded-full bg-red-500 mr-2"></span>
+                  <span>Backend: Disconnected</span>
+                </>
+              )}
+            </div>
+          </div>
+          {serverStatus === 'offline' && (
+            <button 
+              onClick={handleServerRetry}
+              className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+            >
+              Retry Connection
+            </button>
+          )}
+        </div>
+      </div>
+      
       {error && (
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
           <p>{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="mt-2 text-sm text-red-700 underline"
+          >
+            Dismiss
+          </button>
         </div>
       )}
       
-      {/* Xero Direct Connection Widget */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Quick Connect</h2>
-        <XeroConnection onUseXeroData={handleUseXeroData} />
-      </div>
+      {/* Xero Direct Connection Widget - Only show if server is online */}
+      {serverStatus === 'online' && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Quick Connect</h2>
+          <XeroConnection onUseXeroData={handleUseXeroData} />
+        </div>
+      )}
       
-      {/* Existing Connections */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Your Connections</h2>
-          <button
-            onClick={handleAddConnection}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+      {/* Server Offline Message */}
+      {serverStatus === 'offline' && (
+        <div className="mb-8 p-6 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+          <h2 className="text-xl font-semibold mb-2 text-yellow-700">Server Connection Issue</h2>
+          <p className="mb-4">We're having trouble connecting to the LedgerLink server. This might be due to:</p>
+          <ul className="list-disc text-left max-w-md mx-auto mb-4">
+            <li className="ml-4">The server is temporarily offline or down for maintenance</li>
+            <li className="ml-4">Your internet connection is experiencing issues</li>
+            <li className="ml-4">A firewall or network setting is blocking the connection</li>
+          </ul>
+          <button 
+            onClick={handleServerRetry}
+            className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors"
           >
-            Add Connection
+            Try Again
           </button>
         </div>
-        
-        {connections.length === 0 ? (
-          <div className="bg-gray-50 rounded-lg p-6 text-center">
-            <p className="text-gray-500">You don't have any ERP connections yet.</p>
-            <p className="text-gray-500 mt-2">Add a connection to get started!</p>
+      )}
+      
+      {/* Existing Connections - Only show if server is online */}
+      {serverStatus === 'online' && (
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Your Connections</h2>
+            <button
+              onClick={handleAddConnection}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Add Connection
+            </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {connections.map((connection) => (
-              <div key={connection._id} className="bg-white rounded-lg shadow p-4 border border-gray-200">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-lg font-semibold">{connection.connectionName}</h3>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                    connection.status === 'active' ? 'bg-green-100 text-green-800' :
-                    connection.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {connection.status || 'Unknown'}
-                  </span>
+          
+          {connections.length === 0 ? (
+            <div className="bg-gray-50 rounded-lg p-6 text-center">
+              <p className="text-gray-500">You don't have any ERP connections yet.</p>
+              <p className="text-gray-500 mt-2">Add a connection to get started!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {connections.map((connection) => (
+                <div key={connection._id} className="bg-white rounded-lg shadow p-4 border border-gray-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="text-lg font-semibold">{connection.connectionName}</h3>
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      connection.status === 'active' ? 'bg-green-100 text-green-800' :
+                      connection.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {connection.status || 'Unknown'}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 mb-1">
+                    {connection.provider === 'xero' ? 'Xero' : connection.provider.toUpperCase()}
+                  </p>
+                  <p className="text-gray-600 mb-3">
+                    {connection.type === 'AR' ? 'Accounts Receivable' : 
+                     connection.type === 'AP' ? 'Accounts Payable' : 
+                     'Unknown Type'}
+                  </p>
+                  <div className="flex justify-between mt-4">
+                    <button
+                      onClick={() => handleViewConnection(connection._id)}
+                      className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      View Details
+                    </button>
+                    <button
+                      onClick={() => handleDeleteConnection(connection._id)}
+                      className="px-3 py-1 text-sm font-medium text-red-600 hover:text-red-800"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                <p className="text-gray-600 mb-1">
-                  {connection.provider === 'xero' ? 'Xero' : connection.provider.toUpperCase()}
-                </p>
-                <p className="text-gray-600 mb-3">
-                  {connection.type === 'AR' ? 'Accounts Receivable' : 
-                   connection.type === 'AP' ? 'Accounts Payable' : 
-                   'Unknown Type'}
-                </p>
-                <div className="flex justify-between mt-4">
-                  <button
-                    onClick={() => handleViewConnection(connection._id)}
-                    className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800"
-                  >
-                    View Details
-                  </button>
-                  <button
-                    onClick={() => handleDeleteConnection(connection._id)}
-                    className="px-3 py-1 text-sm font-medium text-red-600 hover:text-red-800"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       
       {/* Add Connection Form */}
       {showAddForm && (
