@@ -19,7 +19,7 @@ const TransactionMatcher = () => {
   const [processingMatch, setProcessingMatch] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   
-  const { isAuthenticated, checkAuthStatus } = useXero();
+  const { isAuthenticated, checkAuth } = useXero();
   
   // Load invoices on mount
   useEffect(() => {
@@ -33,9 +33,16 @@ const TransactionMatcher = () => {
       setError(null);
       
       // Check Xero authentication
-      const authenticated = await checkAuthStatus(true);
-      if (!authenticated) {
-        setError('Not connected to Xero. Please connect your Xero account first.');
+      try {
+        const authenticated = await checkAuth();
+        if (!authenticated) {
+          setError('Not connected to Xero. Please connect your Xero account first.');
+          setLoading(false);
+          return;
+        }
+      } catch (authError) {
+        console.error('Error checking authentication:', authError);
+        setError('Failed to verify Xero connection. Please try reconnecting.');
         setLoading(false);
         return;
       }
