@@ -9,6 +9,21 @@ const api = axios.create({
   timeout: 30000 // 30 second timeout
 });
 
+// Network error detection helper
+const isNetworkError = (error) => {
+  return (
+    !error.response && 
+    error.code !== 'ECONNABORTED' && 
+    (!error.request || (error.request.status === 0 && error.request.readyState === 4))
+  );
+};
+
+// Timeout error detection helper
+const isTimeoutError = (error) => {
+  return error.code === 'ECONNABORTED' || 
+    (error.message && error.message.includes('timeout'));
+};
+
 // Add request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
@@ -51,18 +66,57 @@ api.interceptors.response.use(
       // Handle server errors
       if (error.response.status >= 500) {
         console.error('Server error:', error.response.data);
+        error.isServerError = true;
+        error.friendlyMessage = 'The server encountered an error. Our team has been notified. Please try again later.';
       }
+    } else if (isNetworkError(error)) {
+      // Network connectivity issues
+      console.error('Network error detected:', error);
+      error.isNetworkError = true;
+      error.friendlyMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
+    } else if (isTimeoutError(error)) {
+      // Request timeout
+      console.error('Request timeout:', error);
+      error.isTimeoutError = true;
+      error.friendlyMessage = 'The request took too long to complete. The server might be experiencing high load. Please try again later.';
     } else if (error.request) {
       // The request was made but no response was received
-      console.error('Network error - no response received:', error.request);
+      console.error('Request error - no response received:', error.request);
+      error.isRequestError = true;
+      error.friendlyMessage = 'No response received from the server. Please check your connection and try again.';
     } else {
       // Something happened in setting up the request
       console.error('Error setting up request:', error.message);
+      error.isRequestSetupError = true;
+      error.friendlyMessage = 'There was a problem preparing your request. Please try again.';
     }
     
     return Promise.reject(error);
   }
 );
+
+// Retry helper for failed requests
+api.retryRequest = async (requestFn, maxRetries = 3, delay = 1000) => {
+  let retries = 0;
+  
+  while (retries < maxRetries) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      // Only retry network errors, timeouts, or 5xx server errors
+      if (!(error.isNetworkError || error.isTimeoutError || error.isServerError) || retries === maxRetries - 1) {
+        throw error; // Don't retry other errors or if we've hit max retries
+      }
+      
+      // Wait with exponential backoff before retrying
+      const waitTime = delay * Math.pow(2, retries);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      retries++;
+      
+      console.log(`Retrying request, attempt ${retries} of ${maxRetries}...`);
+    }
+  }
+};
 
 // Health check function to verify backend connectivity
 api.checkHealth = async () => {
@@ -92,6 +146,23 @@ api.checkHealth = async () => {
     console.error('Health check failed completely:', error);
     return false;
   }
+};
+
+// Function to get a user-friendly error message
+api.getErrorMessage = (error) => {
+  if (error.friendlyMessage) {
+    return error.friendlyMessage;
+  }
+  
+  if (error.response && error.response.data && error.response.data.message) {
+    return error.response.data.message;
+  }
+  
+  if (error.message && error.message.includes('Network Error')) {
+    return 'Unable to connect to the server. Please check your internet connection and try again.';
+  }
+  
+  return 'An unexpected error occurred. Please try again or contact support if the issue persists.';
 };
 
 // Add convenience methods for working with Xero API
