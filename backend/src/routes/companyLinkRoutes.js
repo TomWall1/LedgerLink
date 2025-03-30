@@ -1,42 +1,8 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import CompanyLink from '../models/CompanyLink.js';
 
 const router = express.Router();
-
-// Company link model schema
-const CompanyLinkSchema = new mongoose.Schema({
-  sourceCompanyId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
-  },
-  targetCompanyId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
-  },
-  linkType: {
-    type: String,
-    enum: ['customer', 'supplier', 'subsidiary', 'parent', 'affiliate'],
-    required: true
-  },
-  status: {
-    type: String,
-    enum: ['active', 'inactive'],
-    default: 'active'
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-// Create model if it doesn't exist
-const CompanyLink = mongoose.models.CompanyLink || mongoose.model('CompanyLink', CompanyLinkSchema);
 
 // Get all company links
 router.get('/', async (req, res) => {
@@ -71,9 +37,9 @@ router.post('/', async (req, res) => {
     
     // Check if link already exists
     const existingLink = await CompanyLink.findOne({
-      sourceCompanyId,
-      targetCompanyId,
-      linkType
+      requestingCompany: sourceCompanyId,
+      targetCompany: targetCompanyId,
+      relationshipType: linkType
     });
     
     if (existingLink) {
@@ -85,10 +51,10 @@ router.post('/', async (req, res) => {
     
     // Create new link
     const newLink = new CompanyLink({
-      sourceCompanyId,
-      targetCompanyId,
-      linkType,
-      status: status || 'active'
+      requestingCompany: sourceCompanyId,
+      targetCompany: targetCompanyId,
+      relationshipType: linkType,
+      status: status || 'pending'
     });
     
     await newLink.save();
