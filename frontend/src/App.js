@@ -8,7 +8,6 @@ import Register from './pages/Register';
 import ERPConnectionManager from './components/ERPConnectionManager';
 import XeroCallback from './components/XeroCallback';
 import ERPDataView from './components/ERPDataView';
-import TransactionMatcher from './components/TransactionMatcher';
 import CustomerTransactionMatcher from './components/CustomerTransactionMatcher';
 import CompanyLinker from './components/CompanyLinker';
 import { getCurrentRoute, initRouteListener, getRouteParam } from './utils/customRouter';
@@ -80,8 +79,6 @@ function App() {
       case 'erp-data':
         const connectionId = getRouteParam('connectionId');
         return <ERPDataView connectionId={connectionId} />;
-      case 'transaction-matching':
-        return <TransactionMatcher />;
       case 'customer-transaction-matching':
         return <CustomerTransactionMatcher />;
       case 'company-links':
