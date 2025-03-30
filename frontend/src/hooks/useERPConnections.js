@@ -3,186 +3,170 @@ import api from '../utils/api';
 
 /**
  * Custom hook for managing ERP connections
- * 
- * This hook provides a clean interface for working with ERP connections,
- * including loading, creation, deletion, and error handling. It also includes
- * a fallback "mock mode" for development when the backend is unavailable.
- * 
- * @returns {Object} Connection state and management functions
+ * Provides a simple interface for working with ERP connections
  */
 const useERPConnections = () => {
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [mockMode, setMockMode] = useState(false);
+  const [serverAvailable, setServerAvailable] = useState(true);
 
-  // Fetch connections from API
+  // Fetch all connections for the current user
   const fetchConnections = useCallback(async () => {
-    if (mockMode) return; // Skip API calls in mock mode
-    
     try {
       setLoading(true);
       setError(null);
       
-      // Try with the enhanced api utility if available
-      if (api.erpConnections) {
-        const response = await api.erpConnections.getConnections();
-        setConnections(response.data.data || []);
-        return;
-      }
-      
-      // Fallback to direct API calls if the extension isn't available
-      try {
-        // Try with /api prefix first
-        const response = await api.get('/api/erp-connections');
-        setConnections(response.data.data || []);
-      } catch (prefixErr) {
-        if (prefixErr.response && prefixErr.response.status === 404) {
-          // Try without the /api prefix
-          const altResponse = await api.get('/erp-connections');
-          setConnections(altResponse.data.data || []);
-        } else {
-          throw prefixErr;
-        }
-      }
+      const response = await api.erpConnections.getConnections();
+      setConnections(response.data.data || []);
+      setServerAvailable(true);
     } catch (err) {
       console.error('Error fetching ERP connections:', err);
+      setConnections([]);
       
-      // Switch to mock mode if endpoint not found
+      // Check if it's a server availability issue
       if (err.response && err.response.status === 404) {
-        console.warn('ERP connections endpoint not found, switching to mock mode');
-        setMockMode(true);
-        setConnections([]);
-        setError('The ERP connections feature is currently in development mode.');
+        setServerAvailable(false);
+        setError('The ERP connections API is not available. The server may be misconfigured.');
+      } else if (err.isNetworkError || err.isTimeoutError) {
+        setServerAvailable(false);
+        setError('Unable to connect to the server. Please check your internet connection.');
       } else {
-        setError(`Failed to load connections: ${err.message || 'Unknown error'}`);
+        setError(api.getErrorMessage(err));
       }
     } finally {
       setLoading(false);
     }
-  }, [mockMode]);
-  
-  // Load connections on mount
+  }, []);
+
+  // Load connections on initial mount
   useEffect(() => {
     fetchConnections();
   }, [fetchConnections]);
-  
+
   // Create a new connection
-  const createConnection = useCallback(async (connectionData) => {
+  const createConnection = async (connectionData) => {
     try {
       setError(null);
-      
-      // In mock mode, create a local connection
-      if (mockMode) {
-        const mockConnection = {
-          _id: 'mock-' + Date.now(),
-          ...connectionData,
-          status: 'pending',
-          createdAt: new Date().toISOString()
-        };
-        setConnections(prev => [...prev, mockConnection]);
-        return { success: true, data: mockConnection };
-      }
-      
-      // Use the enhanced API utility if available
-      if (api.erpConnections) {
-        const response = await api.erpConnections.createConnection(connectionData);
-        await fetchConnections(); // Refresh the list
-        return response.data;
-      }
-      
-      // Fallback to direct API calls
-      try {
-        const response = await api.post('/api/erp-connections', connectionData);
-        await fetchConnections();
-        return response.data;
-      } catch (prefixErr) {
-        if (prefixErr.response && prefixErr.response.status === 404) {
-          const altResponse = await api.post('/erp-connections', connectionData);
-          await fetchConnections();
-          return altResponse.data;
-        } else {
-          throw prefixErr;
-        }
-      }
+      const response = await api.erpConnections.createConnection(connectionData);
+      await fetchConnections(); // Refresh the list
+      return response.data.data;
     } catch (err) {
       console.error('Error creating ERP connection:', err);
-      
-      // Switch to mock mode if endpoint not found
-      if (err.response && err.response.status === 404) {
-        setMockMode(true);
-        const mockConnection = {
-          _id: 'mock-' + Date.now(),
-          ...connectionData,
-          status: 'pending',
-          createdAt: new Date().toISOString()
-        };
-        setConnections(prev => [...prev, mockConnection]);
-        setError('Created in demo mode. The ERP connections API is unavailable.');
-        return { success: true, data: mockConnection };
-      }
-      
-      setError(`Failed to create connection: ${err.message || 'Unknown error'}`);
+      setError(api.getErrorMessage(err));
       throw err;
     }
-  }, [mockMode, fetchConnections]);
-  
-  // Delete a connection
-  const deleteConnection = useCallback(async (connectionId) => {
+  };
+
+  // Get a specific connection
+  const getConnection = async (connectionId) => {
     try {
       setError(null);
-      
-      // In mock mode, just remove from local state
-      if (mockMode) {
-        setConnections(prev => prev.filter(conn => conn._id !== connectionId));
-        return { success: true };
-      }
-      
-      // Use the enhanced API utility if available
-      if (api.erpConnections) {
-        const response = await api.erpConnections.deleteConnection(connectionId);
-        await fetchConnections(); // Refresh the list
-        return response.data;
-      }
-      
-      // Fallback to direct API calls
-      try {
-        const response = await api.delete(`/api/erp-connections/${connectionId}`);
-        await fetchConnections();
-        return response.data;
-      } catch (prefixErr) {
-        if (prefixErr.response && prefixErr.response.status === 404) {
-          const altResponse = await api.delete(`/erp-connections/${connectionId}`);
-          await fetchConnections();
-          return altResponse.data;
-        } else {
-          throw prefixErr;
-        }
-      }
+      const response = await api.erpConnections.getConnection(connectionId);
+      return response.data.data;
     } catch (err) {
-      console.error('Error deleting ERP connection:', err);
-      setError(`Failed to delete connection: ${err.message || 'Unknown error'}`);
+      console.error(`Error fetching ERP connection ${connectionId}:`, err);
+      setError(api.getErrorMessage(err));
       throw err;
     }
-  }, [mockMode, fetchConnections]);
-  
-  // Enable mock mode manually
-  const enableMockMode = useCallback(() => {
-    setMockMode(true);
-    setLoading(false);
-    setError('Demo mode activated. Changes will not persist.');
-  }, []);
+  };
+
+  // Update a connection
+  const updateConnection = async (connectionId, connectionData) => {
+    try {
+      setError(null);
+      const response = await api.erpConnections.updateConnection(connectionId, connectionData);
+      await fetchConnections(); // Refresh the list
+      return response.data.data;
+    } catch (err) {
+      console.error(`Error updating ERP connection ${connectionId}:`, err);
+      setError(api.getErrorMessage(err));
+      throw err;
+    }
+  };
+
+  // Delete a connection
+  const deleteConnection = async (connectionId) => {
+    try {
+      setError(null);
+      await api.erpConnections.deleteConnection(connectionId);
+      await fetchConnections(); // Refresh the list
+      return true;
+    } catch (err) {
+      console.error(`Error deleting ERP connection ${connectionId}:`, err);
+      setError(api.getErrorMessage(err));
+      throw err;
+    }
+  };
+
+  // Link a Xero tenant to a connection
+  const linkXeroTenant = async (connectionId, tenantId, tenantName) => {
+    try {
+      setError(null);
+      const response = await api.erpConnections.linkXeroTenant(connectionId, tenantId, tenantName);
+      await fetchConnections(); // Refresh the list
+      return response.data.data;
+    } catch (err) {
+      console.error(`Error linking Xero tenant to connection ${connectionId}:`, err);
+      setError(api.getErrorMessage(err));
+      throw err;
+    }
+  };
+
+  // Get data from a Xero connection
+  const getXeroData = async (connectionId, dataType = 'invoices') => {
+    try {
+      setError(null);
+      const response = await api.erpConnections.getXeroData(connectionId, dataType);
+      return response.data.data;
+    } catch (err) {
+      console.error(`Error fetching Xero data from connection ${connectionId}:`, err);
+      setError(api.getErrorMessage(err));
+      throw err;
+    }
+  };
+
+  // Clear any errors
+  const clearError = () => {
+    setError(null);
+  };
+
+  // Check server availability
+  const checkServerAvailability = async () => {
+    try {
+      await api.checkHealth();
+      setServerAvailable(true);
+      return true;
+    } catch (err) {
+      console.error('Server availability check failed:', err);
+      setServerAvailable(false);
+      return false;
+    }
+  };
+
+  // Find a connection by provider type
+  const findConnectionByProvider = (provider) => {
+    return connections.find(conn => conn.provider === provider);
+  };
 
   return {
+    // State
     connections,
     loading,
     error,
-    mockMode,
+    serverAvailable,
+    
+    // Actions
     fetchConnections,
     createConnection,
+    getConnection,
+    updateConnection,
     deleteConnection,
-    enableMockMode,
-    clearError: () => setError(null)
+    linkXeroTenant,
+    getXeroData,
+    clearError,
+    checkServerAvailability,
+    findConnectionByProvider
   };
 };
 
