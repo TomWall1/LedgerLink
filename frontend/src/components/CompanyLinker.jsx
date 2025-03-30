@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { navigateTo } from '../utils/customRouter';
 
 const CompanyLinker = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [companies, setCompanies] = useState([]);
@@ -128,7 +129,7 @@ const CompanyLinker = () => {
             Create New Link
           </button>
           <button
-            onClick={() => navigateTo('dashboard')}
+            onClick={() => navigate('/')}
             className="ml-3 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
           >
             Back to Dashboard
