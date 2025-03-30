@@ -141,8 +141,10 @@ const CustomerTransactionMatcher = () => {
           }
         };
         
-        // Navigate to the results page with the match data
-        navigate('/match-results', { state: { results } });
+        // Use window.location instead of navigate to force a full page refresh
+        // This can help avoid React Router state issues
+        window.sessionStorage.setItem('matchResults', JSON.stringify(results));
+        window.location.href = '/match-results';
       } else {
         setError('No matches found for the selected customer\'s invoices.');
       }
