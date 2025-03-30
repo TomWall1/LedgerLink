@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { navigateTo } from '../utils/customRouter';
 
 const Login = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -37,8 +38,8 @@ const Login = () => {
         localStorage.setItem('authToken', response.data.token);
         localStorage.setItem('userData', JSON.stringify(response.data.user));
         
-        // Redirect to dashboard using custom routing
-        navigateTo('dashboard');
+        // Redirect to dashboard using React Router
+        navigate('/');
       } else {
         setError('Login failed. Please check your credentials.');
       }
@@ -51,20 +52,6 @@ const Login = () => {
       );
       setIsLoading(false);
     }
-  };
-
-  // Custom link for navigation
-  const CustomLink = ({ to, children, className }) => {
-    const handleClick = (e) => {
-      e.preventDefault();
-      navigateTo(to.substring(1)); // Remove the leading '/'
-    };
-    
-    return (
-      <a href={to} onClick={handleClick} className={className}>
-        {children}
-      </a>
-    );
   };
 
   return (
@@ -152,9 +139,9 @@ const Login = () => {
           <div className="text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
-              <CustomLink to="/register" className="text-indigo-600 hover:text-opacity-80">
+              <Link to="/register" className="text-indigo-600 hover:text-opacity-80">
                 Register here
-              </CustomLink>
+              </Link>
             </p>
           </div>
         </form>
