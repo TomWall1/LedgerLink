@@ -185,30 +185,31 @@ class TokenStore {
 
   // Get valid tokens or null if expired/not available
   async getValidTokens() {
+    // First attempt: only return existing valid tokens
+    if (this.tokens && !this.isExpired()) {
+      console.log('Returning valid tokens directly');
+      return this.tokens;
+    }
+
+    // No tokens, or tokens are expired
     if (!this.tokens) {
       console.log('No tokens available in store');
       return null;
     }
 
-    // Check if tokens are expired
-    if (this.isExpired()) {
-      console.log('Tokens have expired, attempting to refresh');
+    console.log('Tokens have expired, attempting to refresh');
       
-      // Try to refresh the token
-      if (this.tokens.refresh_token) {
-        const refreshed = await this.refreshTokens();
-        if (refreshed) {
-          console.log('Token refresh successful, returning new tokens');
-          return this.tokens;
-        }
+    // Try to refresh the token
+    if (this.tokens.refresh_token) {
+      const refreshed = await this.refreshTokens();
+      if (refreshed) {
+        console.log('Token refresh successful, returning new tokens');
+        return this.tokens;
       }
-      
-      console.log('Token refresh failed or no refresh token available');
-      return null;
     }
-
-    console.log('Returning valid tokens');
-    return this.tokens;
+      
+    console.log('Token refresh failed or no refresh token available');
+    return null;
   }
   
   // Attempt to refresh the tokens
@@ -271,6 +272,14 @@ class TokenStore {
   // Synchronous check for tokens existence (useful for status check)
   hasTokens() {
     try {
+      // Check if the token file exists
+      if (this.tokenFilePath && fs.existsSync(this.tokenFilePath)) {
+        // If we don't have tokens in memory, try to load them
+        if (!this.tokens) {
+          this.loadTokensFromFile();
+        }
+      }
+
       // More detailed checks for token validity
       if (!this.tokens) {
         console.log('hasTokens: No tokens object exists');
@@ -291,14 +300,10 @@ class TokenStore {
         console.log('hasTokens: No expiry time set');
         return false;
       }
-      
-      // Check if tokens are expired
-      if (this.isExpired()) {
-        console.log('hasTokens: Tokens are expired');
-        return false;
-      }
-      
-      console.log('hasTokens: Valid tokens found');
+
+      // For status check, we'll be lenient about expiry
+      // as we can always refresh expired tokens if we have a refresh token
+      console.log('hasTokens: Found valid token structure (may need refresh)');
       return true;
     } catch (error) {
       console.error('Error in hasTokens check:', error);
