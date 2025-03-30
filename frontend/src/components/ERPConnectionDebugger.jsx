@@ -2,183 +2,249 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 
 /**
- * ERPConnectionDebugger - A development tool for testing the ERP connection endpoints
- * 
- * This component helps developers test various ERP connection endpoints and view raw API
- * responses. It is intended for development/debugging only and should not be used in
- * production views.
+ * A debugging component for ERP connections that helps troubleshoot API issues
+ * Shows detailed connection status information and allows testing endpoints
  */
-const ERPConnectionDebugger = () => {
-  const [endpointTests, setEndpointTests] = useState([
-    { name: 'Server Root', endpoint: '/', status: 'pending', data: null, error: null },
-    { name: 'Health Check', endpoint: '/api/health', status: 'pending', data: null, error: null },
-    { name: 'ERP Connections (with API prefix)', endpoint: '/api/erp-connections', status: 'pending', data: null, error: null },
-    { name: 'ERP Connections (without prefix)', endpoint: '/erp-connections', status: 'pending', data: null, error: null },
-  ]);
-  const [testRunning, setTestRunning] = useState(false);
-  const [expanded, setExpanded] = useState(null);
+const ERPConnectionDebugger = ({ onClose }) => {
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [endpoint, setEndpoint] = useState('/api/erp-connections');
+  const [method, setMethod] = useState('GET');
+  const [requestBody, setRequestBody] = useState('{
+  "connectionName": "Test Connection",
+  "provider": "xero",
+  "connectionType": "ar"
+}');
 
-  const runTests = async () => {
-    setTestRunning(true);
+  useEffect(() => {
+    // Run initial health check when component mounts
+    runHealthCheck();
+  }, []);
+
+  const addResult = (label, success, message, data = null) => {
+    setResults(prev => [
+      {
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        label,
+        success,
+        message,
+        data
+      },
+      ...prev
+    ]);
+  };
+
+  const runHealthCheck = async () => {
+    setLoading(true);
+    addResult('Health Check', null, 'Running server health check...');
     
-    // Create a copy of the tests to update
-    const updatedTests = [...endpointTests];
+    try {
+      const isHealthy = await api.checkHealth();
+      addResult(
+        'Health Check',
+        isHealthy,
+        isHealthy ? 'Server is healthy and responding' : 'Server health check failed'
+      );
+    } catch (error) {
+      addResult('Health Check', false, `Error running health check: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const testEndpoint = async () => {
+    setLoading(true);
+    addResult('API Request', null, `Testing ${method} ${endpoint}...`);
     
-    // Run each test sequentially
-    for (let i = 0; i < updatedTests.length; i++) {
-      const test = updatedTests[i];
-      test.status = 'running';
-      setEndpointTests([...updatedTests]);
+    try {
+      let response;
+      const options = {};
       
-      try {
-        const response = await api.get(test.endpoint, {
-          validateStatus: () => true, // Don't throw errors for any status code
-          timeout: 5000 // 5 second timeout
-        });
-        
-        test.status = 'success';
-        test.data = response.data;
-        test.statusCode = response.status;
-        test.error = null;
-      } catch (err) {
-        test.status = 'error';
-        test.data = null;
-        test.error = err.message || 'Unknown error';
-        
-        // Add more debug info if available
-        if (err.response) {
-          test.statusCode = err.response.status;
-          test.responseData = err.response.data;
+      // Add request body for POST/PUT methods
+      if (method === 'POST' || method === 'PUT') {
+        try {
+          options.data = JSON.parse(requestBody);
+        } catch (e) {
+          addResult('API Request', false, `Invalid JSON in request body: ${e.message}`);
+          setLoading(false);
+          return;
         }
       }
       
-      // Update the state after each test
-      setEndpointTests([...updatedTests]);
+      // Make the request based on the selected method
+      switch (method) {
+        case 'GET':
+          response = await api.get(endpoint);
+          break;
+        case 'POST':
+          response = await api.post(endpoint, options.data);
+          break;
+        case 'PUT':
+          response = await api.put(endpoint, options.data);
+          break;
+        case 'DELETE':
+          response = await api.delete(endpoint);
+          break;
+        default:
+          throw new Error(`Method ${method} not supported`);
+      }
+      
+      addResult(
+        'API Request',
+        true,
+        `${method} ${endpoint} succeeded with status ${response.status}`,
+        response.data
+      );
+    } catch (error) {
+      let errorData = null;
+      if (error.response) {
+        errorData = {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        };
+      }
+      
+      addResult(
+        'API Request',
+        false,
+        `${method} ${endpoint} failed: ${error.message}`,
+        errorData
+      );
+    } finally {
+      setLoading(false);
     }
-    
-    setTestRunning(false);
   };
 
-  const toggleExpand = (index) => {
-    if (expanded === index) {
-      setExpanded(null);
-    } else {
-      setExpanded(index);
-    }
+  const getResultColor = (success) => {
+    if (success === null) return 'bg-gray-100';
+    return success ? 'bg-green-100' : 'bg-red-100';
   };
 
-  const formatData = (data) => {
-    try {
-      return JSON.stringify(data, null, 2);
-    } catch (err) {
-      return String(data);
-    }
+  const clearResults = () => {
+    setResults([]);
   };
 
   return (
-    <div className="bg-white shadow-lg rounded-lg p-6 mb-8">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">ERP Connection Endpoint Debugger</h2>
-        <button
-          onClick={runTests}
-          disabled={testRunning}
-          className={`px-4 py-2 rounded ${testRunning 
-            ? 'bg-gray-300 cursor-not-allowed' 
-            : 'bg-blue-500 text-white hover:bg-blue-600'}`}
-        >
-          {testRunning ? 'Testing...' : 'Run Tests'}
-        </button>
-      </div>
-      
-      <div className="text-sm text-gray-500 mb-4">
-        This tool tests the availability of the ERP connection endpoints and other critical API paths.
-        Use it to troubleshoot backend connectivity issues.
-      </div>
-      
-      <div className="border rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Endpoint</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Path</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {endpointTests.map((test, index) => (
-              <React.Fragment key={test.endpoint}>
-                <tr className={expanded === index ? 'bg-blue-50' : 'hover:bg-gray-50'}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{test.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{test.endpoint}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {test.status === 'pending' && <span className="text-gray-500">Not Run</span>}
-                    {test.status === 'running' && (
-                      <span className="text-yellow-500 flex items-center">
-                        <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-yellow-500 rounded-full"></span>
-                        Running
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+          <h2 className="text-xl font-semibold">ERP Connection Debugger</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            &times;
+          </button>
+        </div>
+        
+        <div className="p-4 border-b border-gray-200 bg-white">
+          <div className="flex space-x-4 mb-4">
+            <button
+              onClick={runHealthCheck}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+            >
+              Run Health Check
+            </button>
+            <button
+              onClick={clearResults}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-100"
+            >
+              Clear Results
+            </button>
+          </div>
+          
+          <div className="mb-4">
+            <h3 className="text-md font-medium mb-2">Test API Endpoint</h3>
+            <div className="flex space-x-2 mb-2">
+              <select
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+              </select>
+              <input
+                type="text"
+                value={endpoint}
+                onChange={(e) => setEndpoint(e.target.value)}
+                placeholder="/api/erp-connections"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                onClick={testEndpoint}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              >
+                Test
+              </button>
+            </div>
+            
+            {(method === 'POST' || method === 'PUT') && (
+              <div>
+                <textarea
+                  value={requestBody}
+                  onChange={(e) => setRequestBody(e.target.value)}
+                  placeholder="Enter request body as JSON"
+                  className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+          <h3 className="text-md font-medium mb-2">Results</h3>
+          
+          {results.length === 0 ? (
+            <div className="text-center text-gray-500 p-4">
+              No results yet. Run a test to see output here.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {results.map((result) => (
+                <div 
+                  key={result.id}
+                  className={`p-3 rounded-md border ${getResultColor(result.success)}`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-medium">{result.label}</span>
+                      <span className="ml-2 text-xs text-gray-500">
+                        {new Date(result.timestamp).toLocaleTimeString()}
                       </span>
-                    )}
-                    {test.status === 'success' && <span className="text-green-600">Success</span>}
-                    {test.status === 'error' && <span className="text-red-600">Error</span>}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {test.statusCode ? (
-                      <span className={`px-2 py-1 rounded-full font-mono text-xs ${test.statusCode >= 200 && test.statusCode < 300 
-                        ? 'bg-green-100 text-green-800' 
-                        : test.statusCode >= 400 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-yellow-100 text-yellow-800'}`}>
-                        {test.statusCode}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {(test.status === 'success' || test.status === 'error') && (
-                      <button
-                        onClick={() => toggleExpand(index)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        {expanded === index ? 'Hide Details' : 'Show Details'}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-                {expanded === index && (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-4 bg-gray-50">
-                      <div className="rounded-lg overflow-hidden border border-gray-200">
-                        {test.error ? (
-                          <div className="bg-red-50 p-4 border-b border-red-200">
-                            <h4 className="text-red-800 font-medium">Error</h4>
-                            <p className="text-red-700 font-mono text-sm">{test.error}</p>
-                          </div>
-                        ) : null}
-                        
-                        {test.data ? (
-                          <div className="p-4">
-                            <h4 className="text-gray-800 font-medium mb-2">Response Data</h4>
-                            <pre className="bg-gray-100 p-3 rounded text-sm overflow-auto max-h-96">
-                              {formatData(test.data)}
-                            </pre>
-                          </div>
-                        ) : (test.responseData ? (
-                          <div className="p-4">
-                            <h4 className="text-gray-800 font-medium mb-2">Error Response Data</h4>
-                            <pre className="bg-gray-100 p-3 rounded text-sm overflow-auto max-h-96">
-                              {formatData(test.responseData)}
-                            </pre>
-                          </div>
-                        ) : null)}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+                    </div>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      result.success === null ? 'bg-gray-200 text-gray-800' :
+                      result.success ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                    }`}>
+                      {result.success === null ? 'PENDING' : result.success ? 'SUCCESS' : 'FAILED'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm">{result.message}</p>
+                  
+                  {result.data && (
+                    <div className="mt-2">
+                      <details>
+                        <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-800">
+                          Show Details
+                        </summary>
+                        <pre className="mt-2 p-2 bg-gray-800 text-white rounded text-xs overflow-x-auto">
+                          {JSON.stringify(result.data, null, 2)}
+                        </pre>
+                      </details>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
