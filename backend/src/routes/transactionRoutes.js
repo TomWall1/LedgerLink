@@ -1,5 +1,17 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import { upload, parseCSV, deleteFile } from '../controllers/fileController.js';
+import { protect } from '../middleware/authMiddleware.js';
+import { 
+  getTransactions, 
+  uploadTransactions, 
+  matchTransactions, 
+  getTransaction, 
+  updateTransaction, 
+  deleteTransaction,
+  matchCustomerInvoices,
+  approveCustomerMatch 
+} from '../controllers/transactionController.js';
 
 const router = express.Router();
 
@@ -41,174 +53,137 @@ const TransactionSchema = new mongoose.Schema({
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', TransactionSchema);
 
 // Get all transactions
-router.get('/', async (req, res) => {
-  try {
-    const { status, source } = req.query;
-    const query = {};
-    
-    // Apply filters if provided
-    if (status) query.status = status;
-    if (source) query.source = source;
-    
-    // If user is authenticated, only show their transactions
-    if (req.user) {
-      query.userId = req.user._id;
-    }
-    
-    const transactions = await Transaction.find(query).sort({ date: -1 });
-    
-    res.json({
-      success: true,
-      transactions
-    });
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch transactions'
-    });
-  }
-});
+router.get('/', protect, getTransactions);
 
-// Find potential matches for an invoice
-router.post('/find-matches', async (req, res) => {
+// Upload transactions
+router.post('/upload', protect, uploadTransactions);
+
+// Get transaction by ID
+router.get('/:id', protect, getTransaction);
+
+// Update transaction
+router.put('/:id', protect, updateTransaction);
+
+// Delete transaction
+router.delete('/:id', protect, deleteTransaction);
+
+// Match transactions with counterparties
+router.get('/match', protect, matchTransactions);
+
+// Match customer invoices with transactions from CSV upload
+router.post('/match-customer-invoices', protect, upload.single('csvFile'), async (req, res) => {
   try {
-    const { invoice, criteria } = req.body;
-    
-    if (!invoice) {
+    // Extract data from the request
+    const { customerInvoices, dateFormat, customerId, useHistoricalData } = req.body;
+    const csvFile = req.file;
+
+    if (!customerInvoices || !csvFile) {
       return res.status(400).json({
         success: false,
-        error: 'Invoice data is required'
+        error: 'Missing required data: customer invoices or CSV file'
       });
     }
-    
-    // Default criteria if not provided
-    const matchingCriteria = criteria || {
-      matchByAmount: true,
-      matchByDate: true,
-      dateToleranceDays: 7,
-      matchByReference: true,
-      partialReferenceMatch: true,
-      matchByDescription: false
-    };
-    
-    // Get transactions that could potentially match
-    const query = {
-      status: 'pending' // Only look at unmatched transactions
-    };
-    
-    // Filter by amount if required
-    if (matchingCriteria.matchByAmount) {
-      // Allow for small rounding differences
-      const invoiceAmount = invoice.Total || invoice.amount;
-      query.amount = {
-        $gte: invoiceAmount * 0.99, // 1% tolerance
-        $lte: invoiceAmount * 1.01
-      };
+
+    // Parse the customer invoices JSON
+    let invoices;
+    try {
+      invoices = JSON.parse(customerInvoices);
+    } catch (error) {
+      console.error('Error parsing customer invoices JSON:', error);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid customer invoices format'
+      });
     }
-    
-    // Filter by date if required
-    if (matchingCriteria.matchByDate) {
-      const invoiceDate = new Date(invoice.Date || invoice.date);
-      const tolerance = matchingCriteria.dateToleranceDays || 7;
-      
-      // Create date range
-      const startDate = new Date(invoiceDate);
-      startDate.setDate(startDate.getDate() - tolerance);
-      
-      const endDate = new Date(invoiceDate);
-      endDate.setDate(endDate.getDate() + tolerance);
-      
-      query.date = {
-        $gte: startDate,
-        $lte: endDate
-      };
+
+    // Parse the CSV file
+    const csvTransactions = await parseCSV(csvFile.path, dateFormat || 'MM/DD/YYYY');
+
+    // Cleanup the temp file
+    deleteFile(csvFile.path);
+
+    if (csvTransactions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid transactions found in the CSV file'
+      });
     }
-    
-    // Fetch potential matches
-    const potentialMatches = await Transaction.find(query);
-    
-    // For each match, calculate a confidence score
-    const scoredMatches = potentialMatches.map(transaction => {
-      let score = 0;
-      
-      // Score based on amount (exact match is best)
-      if (matchingCriteria.matchByAmount) {
-        const invoiceAmount = invoice.Total || invoice.amount;
-        const amountDiff = Math.abs(transaction.amount - invoiceAmount) / invoiceAmount;
-        score += (1 - amountDiff) * 0.5; // Weight amount as 50% of score
-      }
-      
-      // Score based on date proximity
-      if (matchingCriteria.matchByDate) {
-        const invoiceDate = new Date(invoice.Date || invoice.date);
-        const transDate = new Date(transaction.date);
-        const daysDiff = Math.abs((transDate - invoiceDate) / (1000 * 60 * 60 * 24));
-        const tolerance = matchingCriteria.dateToleranceDays || 7;
-        
-        score += (1 - (daysDiff / tolerance)) * 0.3; // Weight date as 30% of score
-      }
-      
-      // Score based on reference match
-      if (matchingCriteria.matchByReference && transaction.reference && (invoice.InvoiceNumber || invoice.reference)) {
-        const invoiceRef = (invoice.InvoiceNumber || invoice.reference || '').toString().toLowerCase();
-        const transRef = transaction.reference.toString().toLowerCase();
-        
-        if (matchingCriteria.partialReferenceMatch) {
-          // Check if one contains the other
-          if (transRef.includes(invoiceRef) || invoiceRef.includes(transRef)) {
-            score += 0.15; // Weight reference as 15% of score
-          }
-        } else {
-          // Exact match only
-          if (transRef === invoiceRef) {
-            score += 0.15;
-          }
+
+    // Match each invoice with potential CSV transactions
+    const potentialMatches = [];
+
+    invoices.forEach(invoice => {
+      // Find potential matches for this invoice
+      const matches = csvTransactions.filter(transaction => {
+        // Match by amount
+        const amountMatch = Math.abs(invoice.Total - transaction.amount) < 0.01;
+
+        // Match by date proximity (within 7 days)
+        let dateMatch = false;
+        if (invoice.Date && transaction.date) {
+          const dateDiff = Math.abs(
+            new Date(invoice.Date) - new Date(transaction.date)
+          ) / (1000 * 60 * 60 * 24); // Convert to days
+          dateMatch = dateDiff <= 7;
         }
-      }
-      
-      // Score based on description match
-      if (matchingCriteria.matchByDescription && transaction.description && 
-          (invoice.Reference || invoice.Description || invoice.description)) {
-        const invoiceDesc = (invoice.Reference || invoice.Description || invoice.description || '').toString().toLowerCase();
-        const transDesc = transaction.description.toString().toLowerCase();
-        
-        // Simple check if one contains parts of the other
-        const words = invoiceDesc.split(/\s+/).filter(w => w.length > 3);
-        const foundWords = words.filter(word => transDesc.includes(word)).length;
-        
-        if (words.length > 0) {
-          score += (foundWords / words.length) * 0.05; // Weight description as 5% of score
+
+        // Match by reference/invoice number
+        let referenceMatch = false;
+        if (invoice.InvoiceNumber && transaction.reference) {
+          referenceMatch = transaction.reference.includes(invoice.InvoiceNumber) ||
+                           invoice.InvoiceNumber.includes(transaction.reference);
         }
+
+        // Determine match confidence
+        let confidence = 0;
+        if (amountMatch) confidence += 0.5;
+        if (dateMatch) confidence += 0.3;
+        if (referenceMatch) confidence += 0.2;
+
+        // Consider it a match if the confidence is at least 0.5 (amount + either date or reference)
+        if (confidence >= 0.5) {
+          transaction.confidence = confidence;
+          return true;
+        }
+
+        return false;
+      });
+
+      if (matches.length > 0) {
+        potentialMatches.push({
+          invoice,
+          matches: matches.map(match => ({
+            id: match.transactionNumber, // Use transaction number as ID for CSV
+            reference: match.reference,
+            amount: match.amount,
+            date: match.date,
+            description: match.description,
+            confidence: match.confidence,
+            source: 'CSV'
+          }))
+        });
       }
-      
-      return {
-        ...transaction.toObject(),
-        confidence: Math.min(Math.max(score, 0), 1) // Ensure score is between 0 and 1
-      };
     });
-    
-    // Sort by confidence score, highest first
-    const sortedMatches = scoredMatches.sort((a, b) => b.confidence - a.confidence);
-    
-    // Only return matches with at least minimal confidence
-    const minConfidence = 0.3; // 30% confidence minimum
-    const matches = sortedMatches.filter(match => match.confidence >= minConfidence);
-    
-    res.json({
+
+    res.status(200).json({
       success: true,
-      matches: matches.slice(0, 10) // Limit to top 10 matches
+      count: potentialMatches.length,
+      data: potentialMatches
     });
   } catch (error) {
-    console.error('Error finding matches:', error);
+    console.error('Error matching customer invoices with CSV:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to find potential matches'
+      error: 'Server error processing match request',
+      message: error.message
     });
   }
 });
 
-// Approve a match
+// Approve a customer invoice match
+router.post('/approve-customer-match', protect, approveCustomerMatch);
+
+// Approve a match (legacy endpoint)
 router.post('/approve-match', async (req, res) => {
   try {
     const { invoiceId, transactionId } = req.body;
@@ -251,7 +226,7 @@ router.post('/approve-match', async (req, res) => {
   }
 });
 
-// Reject a match
+// Reject a match (legacy endpoint)
 router.post('/reject-match', async (req, res) => {
   try {
     const { invoiceId, transactionId } = req.body;
