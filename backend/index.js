@@ -40,6 +40,24 @@ const PORT = process.env.PORT || 3002;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TOKEN_FILE_PATH = tokenStore.getTokenFilePath ? tokenStore.getTokenFilePath() : path.join(__dirname, 'data', 'xero-tokens.json');
+console.log('Using token file path:', TOKEN_FILE_PATH);
+// Log token file existence
+if (fs.existsSync(TOKEN_FILE_PATH)) {
+  console.log('Token file exists');
+} else {
+  console.log('No token file exists yet');
+}
+
+// Ensure uploads directory exists
+try {
+  const uploadDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('Created uploads directory:', uploadDir);
+  }
+} catch (error) {
+  console.error('Error creating uploads directory:', error);
+}
 
 // Create Xero client for direct endpoint
 const xero = new XeroClient({
@@ -50,7 +68,7 @@ const xero = new XeroClient({
   httpTimeout: 30000
 });
 
-// Configure CORS - Fixed configuration to ensure proper access
+// Configure CORS - Updated configuration to ensure proper access
 const allowedOrigins = [
   'https://lledgerlink.vercel.app',
   'https://ledgerlink.vercel.app',
@@ -59,19 +77,11 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
-// Configure CORS properly with specific allowed origins
+// Simplified CORS configuration
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.match(/.*\.vercel\.app$/)) {
-      callback(null, true);
-    } else {
-      console.log('CORS blocked for origin:', origin);
-      // Still allow for debugging purposes - remove in production
-      callback(null, true);
-    }
+    // Always allow all origins in development/testing
+    callback(null, true);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
@@ -83,16 +93,8 @@ app.use((req, res, next) => {
   // Log the request
   console.log(`${req.method} ${req.path} from ${req.headers.origin || 'Unknown origin'}`);
   
-  // Set CORS headers for all responses
-  const origin = req.headers.origin;
-  
-  // Only set specific origin if it's in our allowed list, otherwise set wildcard
-  if (origin && (allowedOrigins.includes(origin) || origin.match(/.*\.vercel\.app$/))) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
+  // Set CORS headers for all responses - allow any origin for now to debug
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -568,6 +570,20 @@ app.get('/api/xero/customers/:customerId/invoices', requireXeroAuth, async (req,
     res.status(500).json({
       error: 'Failed to fetch customer invoices',
       details: error.message
+    });
+  }
+});
+
+// Implement a count endpoint for company links
+app.get('/api/links/count', async (req, res) => {
+  try {
+    // For now, just return a mock count
+    res.json({ count: 5 });
+  } catch (error) {
+    console.error('Error getting link count:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to get link count' 
     });
   }
 });
