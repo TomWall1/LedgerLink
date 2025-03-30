@@ -50,7 +50,7 @@ const xero = new XeroClient({
   httpTimeout: 30000
 });
 
-// Configure CORS
+// Configure CORS - Fixed configuration to ensure proper access
 const allowedOrigins = [
   'https://lledgerlink.vercel.app',
   'https://ledgerlink.vercel.app',
@@ -59,9 +59,20 @@ const allowedOrigins = [
   'http://localhost:3002'
 ];
 
-// Configure CORS properly
+// Configure CORS properly with specific allowed origins
 app.use(cors({
-  origin: '*', // Allow all origins for now to debug the issue
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.match(/.*\.vercel\.app$/)) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked for origin:', origin);
+      // Still allow for debugging purposes - remove in production
+      callback(null, true);
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
   credentials: true
@@ -72,19 +83,27 @@ app.use((req, res, next) => {
   // Log the request
   console.log(`${req.method} ${req.path} from ${req.headers.origin || 'Unknown origin'}`);
   
-  // Set CORS headers
-  res.header('Access-Control-Allow-Origin', '*'); // Allow all origins for now
+  // Set CORS headers for all responses
+  const origin = req.headers.origin;
+  
+  // Only set specific origin if it's in our allowed list, otherwise set wildcard
+  if (origin && (allowedOrigins.includes(origin) || origin.match(/.*\.vercel\.app$/))) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
   
+  // Handle CORS preflight OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
   // Continue to the next middleware
   next();
-});
-
-// Handle OPTIONS preflight requests
-app.options('*', (req, res) => {
-  res.status(204).end();
 });
 
 // Middleware for parsing request bodies
@@ -152,6 +171,11 @@ app.get('/', (req, res) => {
   res.send('LedgerLink API is running');
 });
 
+// Add a health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Mount our new API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -160,13 +184,15 @@ app.use('/api/links', companyLinkRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/erp-connections', erpConnectionRoutes);
 
+// Also mount routes without /api prefix for compatibility
+app.use('/erp-connections', erpConnectionRoutes);
+
 // Xero Integration Routes
 
 // Add a direct route for Xero connection details
 app.get('/direct-connection-details', requireXeroAuth, async (req, res) => {
   try {
     console.log('Direct connection details endpoint accessed');
-    res.header('Access-Control-Allow-Origin', '*');
     
     // Get the tokens from middleware
     const tokens = req.xeroTokens;
@@ -229,7 +255,6 @@ app.get('/direct-connection-details', requireXeroAuth, async (req, res) => {
 app.get('/direct-xero-auth', async (req, res) => {
   try {
     console.log('Direct Xero auth endpoint accessed');
-    res.header('Access-Control-Allow-Origin', '*');
     
     // Update the redirect URI from environment
     const redirectUri = process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/auth/xero/callback';
@@ -255,7 +280,6 @@ app.get('/direct-xero-auth', async (req, res) => {
 app.post('/auth/xero/callback-notify', async (req, res) => {
   try {
     console.log('Callback notification received:', req.body);
-    res.header('Access-Control-Allow-Origin', '*');
     
     const { code, state } = req.body;
     if (!code) {
@@ -323,7 +347,6 @@ app.post('/auth/xero/callback-notify', async (req, res) => {
 app.get('/direct-auth-status', (req, res) => {
   try {
     console.log('Direct auth status endpoint accessed');
-    res.header('Access-Control-Allow-Origin', '*');
     
     // Check token status
     const isAuthenticated = tokenStore.hasTokens();
@@ -342,7 +365,6 @@ app.get('/direct-auth-status', (req, res) => {
 app.get('/api/xero/customers', requireXeroAuth, async (req, res) => {
   try {
     console.log('Direct Xero customers endpoint accessed');
-    res.header('Access-Control-Allow-Origin', '*');
     
     // Get the tokens from middleware
     const tokens = req.xeroTokens;
@@ -390,7 +412,6 @@ app.get('/api/xero/customers', requireXeroAuth, async (req, res) => {
 app.get('/api/xero/invoices', requireXeroAuth, async (req, res) => {
   try {
     console.log('Direct Xero invoices endpoint accessed');
-    res.header('Access-Control-Allow-Origin', '*');
     
     // Get the tokens from middleware
     const tokens = req.xeroTokens;
@@ -436,7 +457,6 @@ app.get('/api/xero/invoices', requireXeroAuth, async (req, res) => {
 app.get('/api/xero/invoices-to-match', requireXeroAuth, async (req, res) => {
   try {
     console.log('Direct Xero invoices-to-match endpoint accessed');
-    res.header('Access-Control-Allow-Origin', '*');
     
     // Get the tokens from middleware
     const tokens = req.xeroTokens;
@@ -494,7 +514,6 @@ app.get('/api/xero/customers/:customerId/invoices', requireXeroAuth, async (req,
     const { includeHistory } = req.query;
     
     console.log(`Direct Xero customer invoices endpoint accessed for customer ${customerId}`);
-    res.header('Access-Control-Allow-Origin', '*');
     
     // Get the tokens from middleware
     const tokens = req.xeroTokens;
