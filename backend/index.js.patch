@@ -1,0 +1,9 @@
+# Add these lines to the backend/index.js file directly after the other route imports
+
+// Import the ERP connection routes
+import erpConnectionRoutes from './src/routes/erpConnectionRoutes.js';
+
+# Then add this line where the other routes are mounted (around line 150)
+
+// Mount the ERP connections endpoint
+app.use('/api/erp-connections', erpConnectionRoutes);

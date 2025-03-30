@@ -1,0 +1,94 @@
+### Modifications required for the ERPConnectionManager component:
+
+1. **Add mock mode state:**
+```javascript
+const [mockMode, setMockMode] = useState(false);
+```
+
+2. **Update fetchConnections to handle 404s:**
+```javascript
+catch (err) {
+  console.error('Error fetching ERP connections:', err);
+  // If 404, the endpoint might not be mounted in the backend
+  if (err.response && err.response.status === 404) {
+    // Switch to mock mode
+    setMockMode(true);
+    setConnections([]);
+    setError('The ERP connections API endpoint is not available. Using demo mode for now.');
+  } else {
+    setError('Failed to load your ERP connections. Please try again.');
+    setConnections([]);
+  }
+}
+```
+
+3. **Modify handleSubmitConnection to support mock mode:**
+```javascript
+if (mockMode) {
+  // In mock mode, just add connection to local state
+  const mockConnection = {
+    _id: 'mock-' + Date.now(),
+    ...newConnection,
+    userId: currentUser?._id,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  };
+  setConnections(prev => [...prev, mockConnection]);
+  setShowAddForm(false);
+  setNewConnection({
+    connectionName: '',
+    provider: 'xero',
+    type: 'AR'
+  });
+  setError(null);
+  return;
+}
+```
+
+4. **Add a mock mode banner at the top of the returned JSX:**
+```jsx
+{mockMode && (
+  <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+    <div className="flex items-center mb-2">
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+      </svg>
+      <h2 className="text-lg font-semibold text-blue-700">Demo Mode Active</h2>
+    </div>
+    <p className="text-blue-600 mb-2">You're currently using the ERP Connections module in demonstration mode. The backend endpoint is under development.</p>
+    <p className="text-blue-600 text-sm">Any connections you create will be stored locally in your browser and will be lost when you refresh the page.</p>
+  </div>
+)}
+```
+
+5. **Add developer notes to the server offline message:**
+```jsx
+<div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md text-blue-800 max-w-md mx-auto text-sm">
+  <strong>Developer Note:</strong> The ERP Connections module is not properly mounted in the backend. In the backend/index.js file, add:
+  <pre className="mt-2 p-2 bg-gray-100 rounded overflow-x-auto text-xs">
+    {`// Import the ERP connections routes
+import erpConnectionRoutes from './src/routes/erpConnectionRoutes.js';
+
+// Mount the ERP connections routes
+app.use('/api/erp-connections', erpConnectionRoutes);`}
+  </pre>
+</div>
+```
+
+6. **Add a "Use Demo Mode" button to the offline message:**
+```jsx
+<div className="flex justify-center space-x-4">
+  <button 
+    onClick={handleServerRetry}
+    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors"
+  >
+    Try Again
+  </button>
+  <button
+    onClick={() => setMockMode(true)}
+    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+  >
+    Use Demo Mode
+  </button>
+</div>
+```
