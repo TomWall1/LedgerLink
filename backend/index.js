@@ -74,7 +74,7 @@ app.use((req, res, next) => {
   
   // Set CORS headers
   res.header('Access-Control-Allow-Origin', '*'); // Allow all origins for now
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, 'PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
   
@@ -427,6 +427,61 @@ app.get('/api/xero/invoices', requireXeroAuth, async (req, res) => {
     console.error('Error fetching Xero invoices:', error);
     res.status(500).json({
       error: 'Failed to fetch invoices',
+      details: error.message
+    });
+  }
+});
+
+// Add direct route for invoices that need matching
+app.get('/api/xero/invoices-to-match', requireXeroAuth, async (req, res) => {
+  try {
+    console.log('Direct Xero invoices-to-match endpoint accessed');
+    res.header('Access-Control-Allow-Origin', '*');
+    
+    // Get the tokens from middleware
+    const tokens = req.xeroTokens;
+    
+    // Get organization first
+    const tenants = await callXeroApi('https://api.xero.com/connections', {
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`
+      }
+    });
+
+    if (!tenants || tenants.length === 0) {
+      throw new Error('No organizations found');
+    }
+
+    const tenantId = tenants[0].tenantId;
+
+    // Fetch invoices that need matching - specifically AUTHORISED invoices
+    // which aren't fully paid yet (using the Status filter)
+    const invoicesData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Invoices?where=Status="AUTHORISED"', {
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Xero-tenant-id': tenantId
+        }
+      }
+    );
+
+    // Filter out invoices that don't need matching
+    const invoicesToMatch = (invoicesData.Invoices || []).filter(invoice => {
+      // Only include invoices that are due and haven't been matched yet
+      return invoice.Status === 'AUTHORISED' && 
+             invoice.AmountDue > 0 && 
+             !invoice.FullyPaidOnDate;
+    });
+
+    console.log(`Found ${invoicesToMatch.length} invoices to match out of ${invoicesData.Invoices?.length || 0} total`);    
+    res.json({
+      success: true,
+      invoices: invoicesToMatch || []
+    });
+  } catch (error) {
+    console.error('Error fetching invoices to match:', error);
+    res.status(500).json({
+      error: 'Failed to fetch invoices to match',
       details: error.message
     });
   }
