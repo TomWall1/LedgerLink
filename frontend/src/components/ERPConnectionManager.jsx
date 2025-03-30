@@ -13,7 +13,7 @@ const ERPConnectionManager = () => {
   const [newConnection, setNewConnection] = useState({
     connectionName: '',
     provider: 'xero',
-    type: 'AR' // Default to Accounts Receivable
+    connectionType: 'ar' // Default to Accounts Receivable (lowercase to match backend enum)
   });
   const [serverStatus, setServerStatus] = useState('checking'); // 'checking', 'online', 'offline'
   const [retryCount, setRetryCount] = useState(0);
@@ -93,24 +93,12 @@ const ERPConnectionManager = () => {
   const fetchConnections = async () => {
     try {
       setLoading(true);
-      // Try the API endpoint with the /api prefix as seen in SystemStatus.jsx
-      const response = await api.get('/api/erp-connections');
+      // Use the erpConnections utility method which handles endpoint variations
+      const response = await api.erpConnections.getConnections();
       setConnections(response.data.data || []);
       setError(null);
     } catch (err) {
       console.error('Error fetching ERP connections:', err);
-      // If 404, try other potential endpoints
-      if (err.response && err.response.status === 404) {
-        try {
-          // Try without the /api prefix
-          const altResponse = await api.get('/erp-connections');
-          setConnections(altResponse.data.data || []);
-          setError(null);
-          return;
-        } catch (altErr) {
-          console.error('Alternative endpoint also failed:', altErr);
-        }
-      }
       
       // Check if it's a network/server error
       if (err.message && err.message.includes('Network Error')) {
@@ -135,7 +123,7 @@ const ERPConnectionManager = () => {
     setNewConnection({
       connectionName: '',
       provider: 'xero',
-      type: 'AR'
+      connectionType: 'ar'
     });
   };
   
@@ -156,38 +144,39 @@ const ERPConnectionManager = () => {
     }
     
     try {
-      // First save the basic connection info - try with /api prefix
-      let response;
-      try {
-        response = await api.post('/api/erp-connections', {
-          ...newConnection,
-          userId: currentUser?._id
-        });
-      } catch (err) {
-        if (err.response && err.response.status === 404) {
-          // Try without /api prefix if first attempt returns 404
-          response = await api.post('/erp-connections', {
-            ...newConnection,
-            userId: currentUser?._id
-          });
-        } else {
-          throw err; // Re-throw if it's not a 404
-        }
+      // Add necessary data for the connection
+      const connectionData = {
+        ...newConnection,
+        userId: currentUser?._id,
+        companyId: currentUser?.companies?.[0]?._id // Use first company by default
+      };
+      
+      if (!connectionData.companyId) {
+        setError('You need to create a company first before adding an ERP connection.');
+        return;
       }
+      
+      // Use the erpConnections utility to create the connection
+      const response = await api.erpConnections.createConnection(connectionData);
       
       // Process Xero authentication if that's the selected provider
       if (newConnection.provider === 'xero') {
         // If Xero is already authenticated, we can link it to this connection
         if (isXeroAuthenticated) {
           try {
-            await api.post(`/api/erp-connections/${response.data.data._id}/link-xero`);
+            // Get Xero organization details
+            const xeroDetails = await api.xero.getConnectionDetails();
+            const tenant = xeroDetails.data.organization;
+            
+            // Link the Xero tenant to the connection
+            await api.erpConnections.linkXeroTenant(
+              response.data.data._id,
+              tenant.id,
+              tenant.name
+            );
           } catch (linkErr) {
-            if (linkErr.response && linkErr.response.status === 404) {
-              // Try without /api prefix
-              await api.post(`/erp-connections/${response.data.data._id}/link-xero`);
-            } else {
-              throw linkErr;
-            }
+            console.error('Error linking Xero tenant:', linkErr);
+            // Continue anyway - the user can complete this step later
           }
         } else {
           // Otherwise navigate to the connection detail to complete setup
@@ -202,7 +191,7 @@ const ERPConnectionManager = () => {
       setNewConnection({
         connectionName: '',
         provider: 'xero',
-        type: 'AR'
+        connectionType: 'ar'
       });
       setError(null);
     } catch (err) {
@@ -226,17 +215,8 @@ const ERPConnectionManager = () => {
     }
     
     try {
-      // Try with /api prefix
-      try {
-        await api.delete(`/api/erp-connections/${connectionId}`);
-      } catch (err) {
-        if (err.response && err.response.status === 404) {
-          // Try without /api prefix
-          await api.delete(`/erp-connections/${connectionId}`);
-        } else {
-          throw err;
-        }
-      }
+      // Use the erpConnections utility to delete the connection
+      await api.erpConnections.deleteConnection(connectionId);
       // Refresh the list
       fetchConnections();
     } catch (err) {
@@ -276,29 +256,23 @@ const ERPConnectionManager = () => {
       // If no existing Xero connections were found, create a new one
       setError('Creating a new Xero connection...');
       
-      // Create a new connection for Xero - try with /api prefix first
+      // Get the user's first company ID
+      const companyId = currentUser?.companies?.[0]?._id;
+      
+      if (!companyId) {
+        setError('You need to create a company first before adding an ERP connection.');
+        return;
+      }
+      
+      // Create a new connection for Xero using the utility
       try {
-        let response;
-        try {
-          response = await api.post('/api/erp-connections', {
-            connectionName: 'My Xero Connection',
-            provider: 'xero',
-            type: 'AR',
-            userId: currentUser?._id
-          });
-        } catch (err) {
-          if (err.response && err.response.status === 404) {
-            // Try without /api prefix
-            response = await api.post('/erp-connections', {
-              connectionName: 'My Xero Connection',
-              provider: 'xero',
-              type: 'AR',
-              userId: currentUser?._id
-            });
-          } else {
-            throw err;
-          }
-        }
+        const response = await api.erpConnections.createConnection({
+          connectionName: 'My Xero Connection',
+          provider: 'xero',
+          connectionType: 'ar',
+          userId: currentUser?._id,
+          companyId: companyId
+        });
         
         // Navigate to the new connection
         if (response && response.data && response.data.data && response.data.data._id) {
@@ -475,8 +449,9 @@ const ERPConnectionManager = () => {
                     {connection.provider === 'xero' ? 'Xero' : connection.provider.toUpperCase()}
                   </p>
                   <p className="text-gray-600 mb-3">
-                    {connection.type === 'AR' ? 'Accounts Receivable' : 
-                     connection.type === 'AP' ? 'Accounts Payable' : 
+                    {connection.connectionType === 'ar' ? 'Accounts Receivable' : 
+                     connection.connectionType === 'ap' ? 'Accounts Payable' : 
+                     connection.connectionType === 'both' ? 'AR & AP' : 
                      'Unknown Type'}
                   </p>
                   <div className="flex justify-between mt-4">
@@ -541,18 +516,19 @@ const ERPConnectionManager = () => {
               </div>
               
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="type">
+                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="connectionType">
                   Connection Type
                 </label>
                 <select
-                  id="type"
-                  name="type"
-                  value={newConnection.type}
+                  id="connectionType"
+                  name="connectionType"
+                  value={newConnection.connectionType}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="AR">Accounts Receivable</option>
-                  <option value="AP">Accounts Payable</option>
+                  <option value="ar">Accounts Receivable</option>
+                  <option value="ap">Accounts Payable</option>
+                  <option value="both">Both AR & AP</option>
                 </select>
               </div>
               
