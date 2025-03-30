@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { useXero } from '../context/XeroContext';
 import { navigateTo } from '../utils/customRouter';
+import FileUpload from './FileUpload';
+import DateFormatSelect from './DateFormatSelect';
 
 const CustomerTransactionMatcher = () => {
   const [loading, setLoading] = useState(true);
@@ -10,10 +12,12 @@ const CustomerTransactionMatcher = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerInvoices, setCustomerInvoices] = useState([]);
   const [customerDataLoading, setCustomerDataLoading] = useState(false);
-  const [matchSource, setMatchSource] = useState('csv'); // 'csv' or 'erp'
   const [potentialMatches, setPotentialMatches] = useState({});
   const [findingMatches, setFindingMatches] = useState(false);
   const [processingMatch, setProcessingMatch] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [dateFormat, setDateFormat] = useState('MM/DD/YYYY');
+  const [useHistoricalData, setUseHistoricalData] = useState(false);
   
   const { isAuthenticated, checkAuth } = useXero();
   
@@ -85,20 +89,42 @@ const CustomerTransactionMatcher = () => {
   const handleCustomerSelect = (customer) => {
     setSelectedCustomer(customer);
     fetchCustomerInvoices(customer.ContactID);
+    // Clear the potential matches when changing customers
+    setPotentialMatches({});
+    setUploadedFile(null);
   };
   
-  // Find potential matches for selected customer's invoices
+  // Handle file upload
+  const handleFileUpload = (file) => {
+    setUploadedFile(file);
+    // Reset potential matches when a new file is uploaded
+    setPotentialMatches({});
+  };
+  
+  // Find potential matches between customer invoices and uploaded CSV file
   const findMatches = async () => {
-    if (!selectedCustomer || customerInvoices.length === 0) return;
+    if (!selectedCustomer || customerInvoices.length === 0 || !uploadedFile) {
+      setError('Please select a customer and upload a CSV file before matching.');
+      return;
+    }
     
     try {
       setFindingMatches(true);
       setPotentialMatches({});
+      setError(null);
       
-      const response = await api.post('/api/transactions/match-customer-invoices', {
-        customerId: selectedCustomer.ContactID,
-        invoices: customerInvoices,
-        matchSource: matchSource
+      // Create a FormData object to send the file
+      const formData = new FormData();
+      formData.append('customerInvoices', JSON.stringify(customerInvoices));
+      formData.append('csvFile', uploadedFile);
+      formData.append('dateFormat', dateFormat);
+      formData.append('customerId', selectedCustomer.ContactID);
+      formData.append('useHistoricalData', useHistoricalData);
+      
+      const response = await api.post('/api/transactions/match-customer-invoices', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
       
       // Transform the data for easier access
@@ -108,6 +134,11 @@ const CustomerTransactionMatcher = () => {
       });
       
       setPotentialMatches(matchesObj);
+      
+      // Show a message if no matches were found
+      if (Object.keys(matchesObj).length === 0) {
+        setError('No matches found for the selected customer\'s invoices.');
+      }
     } catch (err) {
       console.error('Error finding matches:', err);
       setError(err.response?.data?.error || 'Failed to find potential matches');
@@ -117,19 +148,24 @@ const CustomerTransactionMatcher = () => {
   };
   
   // Approve a match
-  const approveMatch = async (invoiceId, transactionId) => {
+  const approveMatch = async (invoiceId, matchId) => {
     try {
       setProcessingMatch(true);
       
       await api.post('/api/transactions/approve-customer-match', {
         invoiceId,
-        transactionId
+        transactionId: matchId
       });
       
-      // Remove from potential matches
+      // Remove the matched invoice from the list
       const updatedMatches = { ...potentialMatches };
       delete updatedMatches[invoiceId];
       setPotentialMatches(updatedMatches);
+      
+      // Update customer invoices list to remove the matched invoice
+      setCustomerInvoices(prevInvoices => 
+        prevInvoices.filter(invoice => invoice.InvoiceID !== invoiceId)
+      );
     } catch (err) {
       console.error('Error approving match:', err);
       setError('Failed to approve match. Please try again.');
@@ -139,11 +175,11 @@ const CustomerTransactionMatcher = () => {
   };
   
   // Reject a match
-  const rejectMatch = (invoiceId, transactionId) => {
+  const rejectMatch = (invoiceId, matchId) => {
     // Just filter it out from the UI - no server action needed
     const updatedMatches = { ...potentialMatches };
     if (updatedMatches[invoiceId]) {
-      updatedMatches[invoiceId] = updatedMatches[invoiceId].filter(match => match.id !== transactionId);
+      updatedMatches[invoiceId] = updatedMatches[invoiceId].filter(match => match.id !== matchId);
       if (updatedMatches[invoiceId].length === 0) {
         delete updatedMatches[invoiceId];
       }
@@ -185,7 +221,7 @@ const CustomerTransactionMatcher = () => {
     );
   }
   
-  if (error) {
+  if (error && !selectedCustomer) {
     return (
       <div className="container mx-auto p-4">
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
@@ -228,31 +264,6 @@ const CustomerTransactionMatcher = () => {
       </div>
     );
   }
-  
-  if (customers.length === 0) {
-    return (
-      <div className="container mx-auto p-4">
-        <div className="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold mb-2">No Customers Found</h2>
-          <p>No customers were found in your Xero account.</p>
-          <div className="mt-4">
-            <button
-              onClick={fetchCustomers}
-              className="mr-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-            >
-              Refresh
-            </button>
-            <button
-              onClick={handleBackToDashboard}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-            >
-              Back to Dashboard
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="container mx-auto p-4">
@@ -266,11 +277,18 @@ const CustomerTransactionMatcher = () => {
         </button>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {error && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
+          <p className="font-bold">Error</p>
+          <p>{error}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Left panel - Customers list */}
-        <div className="bg-white rounded-lg shadow p-4 lg:col-span-1">
-          <h2 className="text-lg font-semibold mb-4">Select a Customer</h2>
-          <div className="overflow-y-auto max-h-[70vh]">
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-4">1. Select a Customer</h2>
+          <div className="overflow-y-auto max-h-[60vh]">
             {customers.map(customer => (
               <div 
                 key={customer.ContactID} 
@@ -284,135 +302,172 @@ const CustomerTransactionMatcher = () => {
           </div>
         </div>
         
-        {/* Right panel - Customer details, invoices and matching options */}
-        <div className="bg-white rounded-lg shadow p-4 lg:col-span-2">
+        {/* Middle panel - CSV upload and options */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-4">2. Upload CSV Data</h2>
+          
           {selectedCustomer ? (
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Customer Details</h2>
-              <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <p><span className="font-medium">Name:</span> {selectedCustomer.Name}</p>
-                <p><span className="font-medium">Email:</span> {selectedCustomer.EmailAddress || 'N/A'}</p>
-                <p>
-                  <span className="font-medium">Phone:</span> 
-                  {selectedCustomer.Phones && selectedCustomer.Phones.length > 0 
-                    ? selectedCustomer.Phones[0].PhoneNumber 
-                    : 'N/A'}
+            <div className="space-y-4">
+              <FileUpload
+                onFileSelected={handleFileUpload}
+                accept=".csv"
+                label="Upload CSV File"
+              />
+              
+              {uploadedFile && (
+                <p className="text-sm text-green-600">
+                  ✓ {uploadedFile.name} uploaded
                 </p>
-              </div>
-              
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-semibold">Outstanding Invoices</h3>
-                <div className="flex space-x-2">
-                  <div className="inline-flex items-center">
-                    <label className="mr-2 text-sm">Match with:</label>
-                    <select 
-                      className="border border-gray-300 rounded px-2 py-1 text-sm"
-                      value={matchSource}
-                      onChange={(e) => setMatchSource(e.target.value)}
-                    >
-                      <option value="csv">CSV Data</option>
-                      <option value="erp">ERP Data</option>
-                    </select>
-                  </div>
-                  <button
-                    onClick={findMatches}
-                    disabled={customerInvoices.length === 0 || findingMatches}
-                    className={`px-3 py-1 rounded text-white text-sm ${customerInvoices.length === 0 || findingMatches ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}
-                  >
-                    {findingMatches ? 'Finding Matches...' : 'Find Matches'}
-                  </button>
-                </div>
-              </div>
-              
-              {customerDataLoading ? (
-                <div className="flex justify-center items-center p-8">
-                  <svg className="animate-spin h-6 w-6 text-blue-500 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>Loading customer invoices...</span>
-                </div>
-              ) : customerInvoices.length === 0 ? (
-                <div className="text-center p-8 bg-gray-50 rounded-lg">
-                  <p className="text-gray-500">No outstanding invoices found for this customer.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {customerInvoices.map(invoice => {
-                    const matchesForInvoice = potentialMatches[invoice.InvoiceID] || [];
-                    return (
-                      <div key={invoice.InvoiceID} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <p><span className="font-medium">Invoice Number:</span> {invoice.InvoiceNumber || 'N/A'}</p>
-                            <p><span className="font-medium">Reference:</span> {invoice.Reference || 'N/A'}</p>
-                            <p><span className="font-medium">Amount:</span> {formatCurrency(invoice.Total)}</p>
-                          </div>
-                          <div>
-                            <p><span className="font-medium">Date:</span> {formatDate(invoice.Date)}</p>
-                            <p><span className="font-medium">Due Date:</span> {formatDate(invoice.DueDate)}</p>
-                            <p><span className="font-medium">Status:</span> {invoice.Status}</p>
-                          </div>
-                        </div>
-                        
-                        {/* Matching results section */}
-                        {matchesForInvoice.length > 0 ? (
-                          <div>
-                            <h4 className="font-medium text-sm text-gray-700 mb-2">Potential Matches:</h4>
-                            <div className="divide-y divide-gray-200">
-                              {matchesForInvoice.map(match => (
-                                <div key={match.id} className="py-2">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-                                    <div>
-                                      <p className="text-sm"><span className="font-medium">Reference:</span> {match.reference || 'N/A'}</p>
-                                      <p className="text-sm"><span className="font-medium">Amount:</span> {formatCurrency(match.amount)}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-sm"><span className="font-medium">Date:</span> {formatDate(match.date)}</p>
-                                      <p className="text-sm"><span className="font-medium">Source:</span> {match.source}</p>
-                                    </div>
-                                  </div>
-                                  <div className="flex justify-end space-x-2">
-                                    <span className={`self-center px-2 py-0.5 text-xs rounded-full ${
-                                      match.confidence >= 0.8 ? 'bg-green-100 text-green-800' :
-                                      match.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-800' :
-                                      'bg-red-100 text-red-800'
-                                    }`}>
-                                      {Math.round(match.confidence * 100)}% match
-                                    </span>
-                                    <button
-                                      onClick={() => rejectMatch(invoice.InvoiceID, match.id)}
-                                      className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
-                                      disabled={processingMatch}
-                                    >
-                                      Reject
-                                    </button>
-                                    <button
-                                      onClick={() => approveMatch(invoice.InvoiceID, match.id)}
-                                      className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm"
-                                      disabled={processingMatch}
-                                    >
-                                      {processingMatch ? 'Processing...' : 'Approve'}
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : Object.keys(potentialMatches).length > 0 ? (
-                          <div className="text-center p-2 text-sm text-gray-500">
-                            No matches found for this invoice
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
               )}
+              
+              <DateFormatSelect
+                selectedFormat={dateFormat}
+                onChange={setDateFormat}
+                label="CSV Date Format"
+              />
+              
+              <div className="mt-3">
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="useHistoricalData"
+                    checked={useHistoricalData}
+                    onChange={(e) => setUseHistoricalData(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="useHistoricalData" className="text-gray-700 text-sm">
+                    Include historical data
+                  </label>
+                </div>
+              </div>
+              
+              <button
+                onClick={findMatches}
+                disabled={!uploadedFile || customerInvoices.length === 0 || findingMatches}
+                className={`mt-4 w-full px-4 py-2 text-white rounded-md ${!uploadedFile || customerInvoices.length === 0 || findingMatches ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+              >
+                {findingMatches ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Finding Matches...
+                  </>
+                ) : (
+                  'Find Matches'
+                )}
+              </button>
+              
+              <div className="mt-4 bg-gray-50 p-3 rounded text-sm">
+                <h3 className="font-semibold mb-1">CSV Requirements:</h3>
+                <ul className="list-disc list-inside text-gray-600 space-y-1">
+                  <li>Must include headers</li>
+                  <li>Required columns: transaction_number, amount, date</li>
+                  <li>Optional: reference, description, status</li>
+                </ul>
+              </div>
             </div>
           ) : (
-            <div className="text-center p-8">
-              <p className="text-gray-500">Select a customer from the list to view their invoices.</p>
+            <div className="text-center p-8 text-gray-500">
+              <p>Select a customer first</p>
+            </div>
+          )}
+        </div>
+        
+        {/* Right panel - Customer invoices & matches */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-2">3. Review Matches</h2>
+          
+          {customerDataLoading ? (
+            <div className="flex justify-center items-center p-8">
+              <svg className="animate-spin h-6 w-6 text-blue-500 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Loading invoices...</span>
+            </div>
+          ) : selectedCustomer ? (
+            customerInvoices.length === 0 ? (
+              <div className="text-center p-8 bg-gray-50 rounded-lg">
+                <p className="text-gray-500">No outstanding invoices found for this customer.</p>
+              </div>
+            ) : (
+              <div className="overflow-y-auto max-h-[60vh]">
+                {customerInvoices.map(invoice => {
+                  const matches = potentialMatches[invoice.InvoiceID] || [];
+                  return (
+                    <div key={invoice.InvoiceID} className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <span className="font-medium">#{invoice.InvoiceNumber}</span>
+                          <span className="ml-2 text-sm text-gray-500">{formatCurrency(invoice.Total)}</span>
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
+                          {invoice.Status}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        <span>Date: {formatDate(invoice.Date)}</span>
+                        <span className="ml-4">Due: {formatDate(invoice.DueDate)}</span>
+                      </div>
+                      
+                      {/* Potential matches section */}
+                      {matches.length > 0 ? (
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <p className="text-xs font-medium text-gray-700 mb-1">Potential Matches:</p>
+                          {matches.map(match => (
+                            <div key={match.id} className="bg-white p-2 rounded border border-gray-200 mb-2 text-sm">
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <div className="font-medium">{match.reference || 'No reference'}</div>
+                                  <div className="text-xs text-gray-600">
+                                    {formatCurrency(match.amount)} | {formatDate(match.date)}
+                                  </div>
+                                </div>
+                                <div className="flex space-x-2">
+                                  <span 
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                      ${match.confidence >= 0.8 ? 'bg-green-100 text-green-800' : 
+                                        match.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-800' : 
+                                        'bg-red-100 text-red-800'}`}
+                                  >
+                                    {Math.round(match.confidence * 100)}%
+                                  </span>
+                                  <button
+                                    onClick={() => rejectMatch(invoice.InvoiceID, match.id)}
+                                    className="text-red-500 hover:text-red-700 text-xs"
+                                    disabled={processingMatch}
+                                  >
+                                    Reject
+                                  </button>
+                                  <button
+                                    onClick={() => approveMatch(invoice.InvoiceID, match.id)}
+                                    className="text-green-500 hover:text-green-700 text-xs"
+                                    disabled={processingMatch}
+                                  >
+                                    Approve
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        Object.keys(potentialMatches).length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-200 text-sm text-gray-500">
+                            No matches found for this invoice
+                          </div>
+                        )
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            <div className="text-center p-8 text-gray-500">
+              <p>Select a customer to view invoices</p>
             </div>
           )}
         </div>
