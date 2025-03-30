@@ -1,22 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useXero } from '../context/XeroContext';
-import { navigateTo } from '../utils/customRouter';
 import FileUpload from './FileUpload';
 import DateFormatSelect from './DateFormatSelect';
 
 const CustomerTransactionMatcher = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerInvoices, setCustomerInvoices] = useState([]);
   const [customerDataLoading, setCustomerDataLoading] = useState(false);
-  const [potentialMatches, setPotentialMatches] = useState({});
   const [findingMatches, setFindingMatches] = useState(false);
-  const [processingMatch, setProcessingMatch] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [dateFormat, setDateFormat] = useState('MM/DD/YYYY');
+  const [dateFormat, setDateFormat] = useState('DD/MM/YYYY'); // Change default format to DD/MM/YYYY
   const [useHistoricalData, setUseHistoricalData] = useState(false);
   
   const { isAuthenticated, checkAuth } = useXero();
@@ -66,7 +65,7 @@ const CustomerTransactionMatcher = () => {
     try {
       setCustomerDataLoading(true);
       setCustomerInvoices([]);
-      setPotentialMatches({});
+      setError(null);
       
       const response = await api.get(`/api/xero/customers/${customerId}/invoices?includeHistory=false`);
       
@@ -89,16 +88,16 @@ const CustomerTransactionMatcher = () => {
   const handleCustomerSelect = (customer) => {
     setSelectedCustomer(customer);
     fetchCustomerInvoices(customer.ContactID);
-    // Clear the potential matches when changing customers
-    setPotentialMatches({});
+    // Clear any previous error when selecting a new customer
+    setError(null);
     setUploadedFile(null);
   };
   
   // Handle file upload
   const handleFileUpload = (file) => {
     setUploadedFile(file);
-    // Reset potential matches when a new file is uploaded
-    setPotentialMatches({});
+    // Clear any previous error when uploading a new file
+    setError(null);
   };
   
   // Find potential matches between customer invoices and uploaded CSV file
@@ -110,7 +109,6 @@ const CustomerTransactionMatcher = () => {
     
     try {
       setFindingMatches(true);
-      setPotentialMatches({});
       setError(null);
       
       // Create a FormData object to send the file
@@ -127,16 +125,25 @@ const CustomerTransactionMatcher = () => {
         },
       });
       
-      // Transform the data for easier access
-      const matchesObj = {};
-      response.data.data.forEach(item => {
-        matchesObj[item.invoice.InvoiceID] = item.matches;
-      });
-      
-      setPotentialMatches(matchesObj);
-      
-      // Show a message if no matches were found
-      if (Object.keys(matchesObj).length === 0) {
+      // Navigate to the match results page with the response data
+      if (response.data.success) {
+        // Prepare the results object with necessary data for the results page
+        const results = {
+          data: response.data.data,
+          unmatchedInvoices: customerInvoices.filter(invoice => 
+            !response.data.data.some(match => match.invoice.InvoiceID === invoice.InvoiceID)
+          ),
+          customer: selectedCustomer,
+          totals: {
+            company1Total: customerInvoices.reduce((sum, invoice) => sum + parseFloat(invoice.Total || 0), 0), 
+            company2Total: 0, // Will be calculated on the results page
+            variance: 0 // Will be calculated on the results page
+          }
+        };
+        
+        // Navigate to the results page with the match data
+        navigate('/match-results', { state: { results } });
+      } else {
         setError('No matches found for the selected customer\'s invoices.');
       }
     } catch (err) {
@@ -144,46 +151,6 @@ const CustomerTransactionMatcher = () => {
       setError(err.response?.data?.error || 'Failed to find potential matches');
     } finally {
       setFindingMatches(false);
-    }
-  };
-  
-  // Approve a match
-  const approveMatch = async (invoiceId, matchId) => {
-    try {
-      setProcessingMatch(true);
-      
-      await api.post('/api/transactions/approve-customer-match', {
-        invoiceId,
-        transactionId: matchId
-      });
-      
-      // Remove the matched invoice from the list
-      const updatedMatches = { ...potentialMatches };
-      delete updatedMatches[invoiceId];
-      setPotentialMatches(updatedMatches);
-      
-      // Update customer invoices list to remove the matched invoice
-      setCustomerInvoices(prevInvoices => 
-        prevInvoices.filter(invoice => invoice.InvoiceID !== invoiceId)
-      );
-    } catch (err) {
-      console.error('Error approving match:', err);
-      setError('Failed to approve match. Please try again.');
-    } finally {
-      setProcessingMatch(false);
-    }
-  };
-  
-  // Reject a match
-  const rejectMatch = (invoiceId, matchId) => {
-    // Just filter it out from the UI - no server action needed
-    const updatedMatches = { ...potentialMatches };
-    if (updatedMatches[invoiceId]) {
-      updatedMatches[invoiceId] = updatedMatches[invoiceId].filter(match => match.id !== matchId);
-      if (updatedMatches[invoiceId].length === 0) {
-        delete updatedMatches[invoiceId];
-      }
-      setPotentialMatches(updatedMatches);
     }
   };
   
@@ -204,7 +171,7 @@ const CustomerTransactionMatcher = () => {
   
   // Handle back to dashboard 
   const handleBackToDashboard = () => {
-    navigateTo('dashboard');
+    navigate('/dashboard');
   };
   
   if (loading) {
@@ -254,7 +221,7 @@ const CustomerTransactionMatcher = () => {
           <p>You need to connect to Xero before you can match customer invoices.</p>
           <div className="mt-3">
             <button
-              onClick={() => navigateTo('erp-connections')}
+              onClick={() => navigate('/erp-connections')}
               className="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors text-sm"
             >
               Connect to Xero
@@ -339,6 +306,7 @@ const CustomerTransactionMatcher = () => {
                     Include historical data
                   </label>
                 </div>
+                <p className="text-xs text-gray-500 mt-1">Check this to see if matching invoices have been paid in the past</p>
               </div>
               
               <button
@@ -363,7 +331,7 @@ const CustomerTransactionMatcher = () => {
                 <h3 className="font-semibold mb-1">CSV Requirements:</h3>
                 <ul className="list-disc list-inside text-gray-600 space-y-1">
                   <li>Must include headers</li>
-                  <li>Required columns: transaction_number, amount, date</li>
+                  <li>Required columns: transaction_number, amount, issue_date</li>
                   <li>Optional: reference, description, status</li>
                 </ul>
               </div>
@@ -375,9 +343,9 @@ const CustomerTransactionMatcher = () => {
           )}
         </div>
         
-        {/* Right panel - Customer invoices & matches */}
+        {/* Right panel - Customer invoices */}
         <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-lg font-semibold mb-2">3. Review Matches</h2>
+          <h2 className="text-lg font-semibold mb-2">3. Customer Invoices</h2>
           
           {customerDataLoading ? (
             <div className="flex justify-center items-center p-8">
@@ -394,75 +362,32 @@ const CustomerTransactionMatcher = () => {
               </div>
             ) : (
               <div className="overflow-y-auto max-h-[60vh]">
-                {customerInvoices.map(invoice => {
-                  const matches = potentialMatches[invoice.InvoiceID] || [];
-                  return (
-                    <div key={invoice.InvoiceID} className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <span className="font-medium">#{invoice.InvoiceNumber}</span>
-                          <span className="ml-2 text-sm text-gray-500">{formatCurrency(invoice.Total)}</span>
-                        </div>
-                        <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
-                          {invoice.Status}
-                        </span>
+                {customerInvoices.map(invoice => (
+                  <div key={invoice.InvoiceID} className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <span className="font-medium">#{invoice.InvoiceNumber}</span>
+                        <span className="ml-2 text-sm text-gray-500">{formatCurrency(invoice.Total)}</span>
                       </div>
-                      <div className="text-xs text-gray-600 mb-2">
-                        <span>Date: {formatDate(invoice.Date)}</span>
-                        <span className="ml-4">Due: {formatDate(invoice.DueDate)}</span>
-                      </div>
-                      
-                      {/* Potential matches section */}
-                      {matches.length > 0 ? (
-                        <div className="mt-2 pt-2 border-t border-gray-200">
-                          <p className="text-xs font-medium text-gray-700 mb-1">Potential Matches:</p>
-                          {matches.map(match => (
-                            <div key={match.id} className="bg-white p-2 rounded border border-gray-200 mb-2 text-sm">
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <div className="font-medium">{match.reference || 'No reference'}</div>
-                                  <div className="text-xs text-gray-600">
-                                    {formatCurrency(match.amount)} | {formatDate(match.date)}
-                                  </div>
-                                </div>
-                                <div className="flex space-x-2">
-                                  <span 
-                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                                      ${match.confidence >= 0.8 ? 'bg-green-100 text-green-800' : 
-                                        match.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-800' : 
-                                        'bg-red-100 text-red-800'}`}
-                                  >
-                                    {Math.round(match.confidence * 100)}%
-                                  </span>
-                                  <button
-                                    onClick={() => rejectMatch(invoice.InvoiceID, match.id)}
-                                    className="text-red-500 hover:text-red-700 text-xs"
-                                    disabled={processingMatch}
-                                  >
-                                    Reject
-                                  </button>
-                                  <button
-                                    onClick={() => approveMatch(invoice.InvoiceID, match.id)}
-                                    className="text-green-500 hover:text-green-700 text-xs"
-                                    disabled={processingMatch}
-                                  >
-                                    Approve
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        Object.keys(potentialMatches).length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-gray-200 text-sm text-gray-500">
-                            No matches found for this invoice
-                          </div>
-                        )
-                      )}
+                      <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800">
+                        {invoice.Status}
+                      </span>
                     </div>
-                  );
-                })}
+                    <div className="text-xs text-gray-600 mb-2">
+                      <span>Date: {formatDate(invoice.Date)}</span>
+                      <span className="ml-4">Due: {formatDate(invoice.DueDate)}</span>
+                    </div>
+                  </div>
+                ))}
+                
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm font-medium text-blue-800">
+                    {customerInvoices.length} invoice{customerInvoices.length !== 1 ? 's' : ''} ready for matching
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Total value: {formatCurrency(customerInvoices.reduce((sum, inv) => sum + parseFloat(inv.Total || 0), 0))}
+                  </p>
+                </div>
               </div>
             )
           ) : (
