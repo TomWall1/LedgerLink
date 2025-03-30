@@ -217,11 +217,16 @@ export const matchTransactions = async (req, res) => {
 // @access  Private
 export const matchCustomerInvoices = async (req, res) => {
   try {
+    console.log('Starting customer invoice matching process');
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('File info:', req.file ? { filename: req.file.filename, path: req.file.path, size: req.file.size } : 'No file found');
+    
     // Extract data from the request
     const { customerInvoices, dateFormat, customerId, useHistoricalData } = req.body;
     const csvFile = req.file;
 
     if (!customerInvoices || !csvFile) {
+      console.log('Missing required data. CustomerInvoices:', !!customerInvoices, 'CSV File:', !!csvFile);
       return res.status(400).json({
         success: false,
         error: 'Missing required data: customer invoices or CSV file'
@@ -232,6 +237,7 @@ export const matchCustomerInvoices = async (req, res) => {
     let invoices;
     try {
       invoices = JSON.parse(customerInvoices);
+      console.log(`Successfully parsed ${invoices.length} customer invoices`);
     } catch (error) {
       console.error('Error parsing customer invoices JSON:', error);
       return res.status(400).json({
@@ -241,38 +247,56 @@ export const matchCustomerInvoices = async (req, res) => {
     }
 
     // Parse the CSV file
+    console.log('Parsing CSV file with date format:', dateFormat || 'MM/DD/YYYY');
     const csvTransactions = await parseCSV(csvFile.path, dateFormat || 'MM/DD/YYYY');
+    console.log(`CSV parsing complete: ${csvTransactions.length} valid transactions found`);
 
     if (csvTransactions.length === 0) {
+      console.log('No valid transactions found in CSV file');
       return res.status(400).json({
         success: false,
-        error: 'No valid transactions found in the CSV file'
+        error: 'No valid transactions found in the CSV file. Please check your file format and make sure it contains the required columns.'
       });
     }
 
     // Match each invoice with potential CSV transactions
     const potentialMatches = [];
 
+    console.log('Starting invoice matching process');
     invoices.forEach(invoice => {
+      // Log invoice details
+      console.log('Processing invoice:', { 
+        InvoiceID: invoice.InvoiceID, 
+        InvoiceNumber: invoice.InvoiceNumber, 
+        Total: invoice.Total,
+        Date: invoice.Date
+      });
+      
       // Find potential matches for this invoice
       const matches = csvTransactions.filter(transaction => {
-        // Match by amount
+        // Match by amount with a small tolerance for rounding errors
         const amountMatch = Math.abs(invoice.Total - transaction.amount) < 0.01;
 
         // Match by date proximity (within 7 days)
         let dateMatch = false;
         if (invoice.Date && transaction.date) {
-          const dateDiff = Math.abs(
-            new Date(invoice.Date) - new Date(transaction.date)
-          ) / (1000 * 60 * 60 * 24); // Convert to days
-          dateMatch = dateDiff <= 7;
+          const invoiceDate = new Date(invoice.Date);
+          const transactionDate = new Date(transaction.date);
+          
+          // Ensure both dates are valid
+          if (!isNaN(invoiceDate.getTime()) && !isNaN(transactionDate.getTime())) {
+            const dateDiff = Math.abs(invoiceDate - transactionDate) / (1000 * 60 * 60 * 24); // Convert to days
+            dateMatch = dateDiff <= 7;
+          }
         }
 
         // Match by reference/invoice number
         let referenceMatch = false;
         if (invoice.InvoiceNumber && transaction.reference) {
-          referenceMatch = transaction.reference.includes(invoice.InvoiceNumber) ||
-                           invoice.InvoiceNumber.includes(transaction.reference);
+          const invoiceNum = String(invoice.InvoiceNumber).toLowerCase();
+          const reference = String(transaction.reference).toLowerCase();
+          
+          referenceMatch = reference.includes(invoiceNum) || invoiceNum.includes(reference);
         }
 
         // Determine match confidence
@@ -281,11 +305,30 @@ export const matchCustomerInvoices = async (req, res) => {
         if (dateMatch) confidence += 0.3;
         if (referenceMatch) confidence += 0.2;
 
+        // Debug match details
+        if (confidence > 0) {
+          console.log('Potential match found:', {
+            invoiceNumber: invoice.InvoiceNumber,
+            transactionReference: transaction.reference,
+            invoiceAmount: invoice.Total,
+            transactionAmount: transaction.amount,
+            amountMatch,
+            dateMatch,
+            referenceMatch,
+            confidence
+          });
+        }
+
         // Consider it a match if the confidence is at least 0.5 (amount + either date or reference)
-        return confidence >= 0.5 ? (transaction.confidence = confidence, true) : false;
+        if (confidence >= 0.5) {
+          transaction.confidence = confidence;
+          return true;
+        }
+        return false;
       });
 
       if (matches.length > 0) {
+        console.log(`Found ${matches.length} potential matches for invoice ${invoice.InvoiceNumber}`);
         potentialMatches.push({
           invoice,
           matches: matches.map(match => ({
@@ -301,6 +344,7 @@ export const matchCustomerInvoices = async (req, res) => {
       }
     });
 
+    console.log(`Matching complete: Found potential matches for ${potentialMatches.length} invoices`);
     res.status(200).json({
       success: true,
       count: potentialMatches.length,
