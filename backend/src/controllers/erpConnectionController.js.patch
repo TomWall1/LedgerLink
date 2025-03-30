@@ -1,0 +1,200 @@
+# Create or update this file to handle the ERP connection logic
+
+const ERPConnection = require('../models/ERPConnection');
+const User = require('../models/User');
+const xeroUtils = require('../utils/xeroUtils');
+
+// Get all connections for the current user
+exports.getUserConnections = async (req, res) => {
+  try {
+    const connections = await ERPConnection.find({ userId: req.user.id });
+    res.status(200).json({
+      success: true,
+      data: connections
+    });
+  } catch (err) {
+    console.error('Error fetching ERP connections:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+};
+
+// Create a new ERP connection
+exports.createConnection = async (req, res) => {
+  try {
+    const { connectionName, provider, type } = req.body;
+    
+    if (!connectionName || !provider || !type) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide all required fields'
+      });
+    }
+    
+    // Create the connection
+    const connection = await ERPConnection.create({
+      connectionName,
+      provider,
+      type,
+      userId: req.user.id,
+      status: 'pending'
+    });
+    
+    res.status(201).json({
+      success: true,
+      data: connection
+    });
+  } catch (err) {
+    console.error('Error creating ERP connection:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+};
+
+// Get a single connection
+exports.getConnection = async (req, res) => {
+  try {
+    const connection = await ERPConnection.findById(req.params.id);
+    
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        error: 'Connection not found'
+      });
+    }
+    
+    // Check ownership
+    if (connection.userId.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to access this connection'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: connection
+    });
+  } catch (err) {
+    console.error('Error fetching ERP connection:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+};
+
+// Update a connection
+exports.updateConnection = async (req, res) => {
+  try {
+    let connection = await ERPConnection.findById(req.params.id);
+    
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        error: 'Connection not found'
+      });
+    }
+    
+    // Check ownership
+    if (connection.userId.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to update this connection'
+      });
+    }
+    
+    // Update the connection
+    connection = await ERPConnection.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: connection
+    });
+  } catch (err) {
+    console.error('Error updating ERP connection:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+};
+
+// Delete a connection
+exports.deleteConnection = async (req, res) => {
+  try {
+    const connection = await ERPConnection.findById(req.params.id);
+    
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        error: 'Connection not found'
+      });
+    }
+    
+    // Check ownership
+    if (connection.userId.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to delete this connection'
+      });
+    }
+    
+    await connection.remove();
+    
+    res.status(200).json({
+      success: true,
+      data: {}
+    });
+  } catch (err) {
+    console.error('Error deleting ERP connection:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+};
+
+// Link Xero tenant to connection
+exports.linkXeroTenant = async (req, res) => {
+  try {
+    // This is a mock implementation for now
+    res.status(200).json({
+      success: true,
+      message: 'Xero tenant linked successfully'
+    });
+  } catch (err) {
+    console.error('Error linking Xero tenant:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+};
+
+// Get data from Xero connection
+exports.getXeroData = async (req, res) => {
+  try {
+    // This is a mock implementation for now
+    res.status(200).json({
+      success: true,
+      data: {
+        message: 'Xero data retrieved successfully'
+      }
+    });
+  } catch (err) {
+    console.error('Error getting Xero data:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+};

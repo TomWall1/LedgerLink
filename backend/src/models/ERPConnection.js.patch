@@ -1,0 +1,53 @@
+# Create or update this file to define the ERPConnection model
+
+const mongoose = require('mongoose');
+
+const ERPConnectionSchema = new mongoose.Schema({
+  connectionName: {
+    type: String,
+    required: [true, 'Please provide a name for this connection'],
+    trim: true,
+    maxlength: [50, 'Name cannot be more than 50 characters']
+  },
+  provider: {
+    type: String,
+    required: [true, 'Please specify the ERP provider'],
+    enum: ['xero', 'quickbooks', 'csv'],
+    default: 'xero'
+  },
+  type: {
+    type: String,
+    required: [true, 'Please specify the connection type'],
+    enum: ['AR', 'AP'],
+    default: 'AR'
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User ID is required']
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'active', 'error', 'inactive'],
+    default: 'pending'
+  },
+  providerData: {
+    type: Object,
+    default: {}
+  },
+  lastSync: {
+    type: Date
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+module.exports = mongoose.model('ERPConnection', ERPConnectionSchema);
