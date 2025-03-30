@@ -59,8 +59,8 @@ const NavHeader = () => {
                 </li>
                 <li>
                   <Link 
-                    to="/customer-invoice-matching" 
-                    className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/customer-invoice-matching' ? 'text-indigo-600 font-medium' : ''}`}
+                    to="/customer-transaction-matching" 
+                    className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/customer-transaction-matching' ? 'text-indigo-600 font-medium' : ''}`}
                   >
                     Invoice Matching
                   </Link>
@@ -115,7 +115,7 @@ const NavHeader = () => {
                       ERP Connections
                     </Link>
                     <Link 
-                      to="/customer-invoice-matching" 
+                      to="/customer-transaction-matching" 
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setShowUserMenu(false)}
                     >
@@ -183,8 +183,8 @@ const NavHeader = () => {
               </li>
               <li>
                 <Link 
-                  to="/customer-invoice-matching" 
-                  className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/customer-invoice-matching' ? 'text-indigo-600 font-medium' : ''}`}
+                  to="/customer-transaction-matching" 
+                  className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/customer-transaction-matching' ? 'text-indigo-600 font-medium' : ''}`}
                 >
                   Invoices
                 </Link>
