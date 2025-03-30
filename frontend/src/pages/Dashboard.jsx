@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useXero } from '../context/XeroContext';
-import { navigateTo } from '../utils/customRouter';
 import api from '../utils/api';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { isAuthenticated: isXeroConnected } = useXero();
   const [loading, setLoading] = useState(true);
@@ -66,7 +67,7 @@ const Dashboard = () => {
       ),
       stat: stats.connections,
       statLabel: 'Active Connections',
-      action: () => navigateTo('erp-connections'),
+      action: () => navigate('/erp-connections'),
       cta: 'Manage Connections'
     },
     {
@@ -79,7 +80,7 @@ const Dashboard = () => {
       ),
       stat: stats.pendingMatches,
       statLabel: 'Pending Matches',
-      action: () => navigateTo('transaction-matching'),
+      action: () => navigate('/customer-transaction-matching'),
       cta: 'Match Transactions'
     },
     {
@@ -92,7 +93,7 @@ const Dashboard = () => {
       ),
       stat: isXeroConnected ? 'Available' : 'Connect Xero',
       statLabel: 'Status',
-      action: () => navigateTo('customer-transaction-matching'),
+      action: () => navigate('/customer-transaction-matching'),
       cta: 'Match Customer Invoices'
     },
     {
@@ -105,7 +106,7 @@ const Dashboard = () => {
       ),
       stat: stats.companyLinks,
       statLabel: 'Active Links',
-      action: () => navigateTo('company-links'),
+      action: () => navigate('/company-links'),
       cta: 'Manage Links'
     }
   ];
@@ -145,7 +146,7 @@ const Dashboard = () => {
             </div>
             <div className="ml-auto">
               <button
-                onClick={() => navigateTo('erp-connections')}
+                onClick={() => navigate('/erp-connections')}
                 className={`px-4 py-2 rounded-md text-sm font-medium ${isXeroConnected ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'}`}
               >
                 {isXeroConnected ? 'Manage Connection' : 'Connect Now'}
@@ -186,7 +187,7 @@ const Dashboard = () => {
           <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <button
-              onClick={() => navigateTo('erp-connections')}
+              onClick={() => navigate('/erp-connections')}
               className="p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors text-center"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto mb-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -196,7 +197,7 @@ const Dashboard = () => {
             </button>
             
             <button
-              onClick={() => navigateTo('transaction-matching')}
+              onClick={() => navigate('/customer-transaction-matching')}
               className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-center"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto mb-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -206,7 +207,7 @@ const Dashboard = () => {
             </button>
             
             <button
-              onClick={() => navigateTo('customer-transaction-matching')}
+              onClick={() => navigate('/customer-transaction-matching')}
               className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors text-center"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto mb-2 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -216,7 +217,7 @@ const Dashboard = () => {
             </button>
             
             <button
-              onClick={() => navigateTo('company-links')}
+              onClick={() => navigate('/company-links')}
               className="p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-center"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto mb-2 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
