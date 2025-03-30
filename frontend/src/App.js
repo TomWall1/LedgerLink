@@ -52,7 +52,7 @@ function App() {
                 <Route path="/" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
                 <Route path="/erp-connections" element={isAuthenticated ? <ERPConnectionManager /> : <Navigate to="/login" />} />
                 <Route path="/erp-data/:connectionId" element={isAuthenticated ? <ERPDataView /> : <Navigate to="/login" />} />
-                <Route path="/customer-invoice-matching" element={isAuthenticated ? <CustomerTransactionMatcher /> : <Navigate to="/login" />} />
+                <Route path="/customer-transaction-matching" element={isAuthenticated ? <CustomerTransactionMatcher /> : <Navigate to="/login" />} />
                 <Route path="/company-links" element={isAuthenticated ? <CompanyLinker /> : <Navigate to="/login" />} />
                 <Route path="/match-results" element={isAuthenticated ? <MatchResults /> : <Navigate to="/login" />} />
                 
