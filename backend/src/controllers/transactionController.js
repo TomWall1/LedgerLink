@@ -1,6 +1,8 @@
 import Transaction from '../models/Transaction.js';
 import Company from '../models/Company.js';
 import CompanyLink from '../models/CompanyLink.js';
+import ERPConnection from '../models/ERPConnection.js';
+import { tokenStore } from '../utils/tokenStore.js';
 
 // @desc    Upload transactions (bulk create)
 // @route   POST /api/transactions/upload
@@ -202,120 +204,6 @@ export const matchTransactions = async (req, res) => {
     });
   } catch (error) {
     console.error('Error matching transactions:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get a single transaction
-// @route   GET /api/transactions/:id
-// @access  Private
-export const getTransaction = async (req, res) => {
-  try {
-    const transaction = await Transaction.findById(req.params.id);
-
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        error: 'Transaction not found'
-      });
-    }
-
-    // Check if user has access to this transaction
-    if (transaction.company.toString() !== req.user.company.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Not authorized to access this transaction'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: transaction
-    });
-  } catch (error) {
-    console.error('Error getting transaction:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// @desc    Update a transaction
-// @route   PUT /api/transactions/:id
-// @access  Private
-export const updateTransaction = async (req, res) => {
-  try {
-    let transaction = await Transaction.findById(req.params.id);
-
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        error: 'Transaction not found'
-      });
-    }
-
-    // Check if user has access to this transaction
-    if (transaction.company.toString() !== req.user.company.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Not authorized to update this transaction'
-      });
-    }
-
-    // Update transaction
-    transaction = await Transaction.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, lastUpdatedBy: req.user._id },
-      { new: true, runValidators: true }
-    );
-
-    res.json({
-      success: true,
-      data: transaction
-    });
-  } catch (error) {
-    console.error('Error updating transaction:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// @desc    Delete a transaction
-// @route   DELETE /api/transactions/:id
-// @access  Private
-export const deleteTransaction = async (req, res) => {
-  try {
-    const transaction = await Transaction.findById(req.params.id);
-
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        error: 'Transaction not found'
-      });
-    }
-
-    // Check if user has access to this transaction
-    if (transaction.company.toString() !== req.user.company.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Not authorized to delete this transaction'
-      });
-    }
-
-    await transaction.remove();
-
-    res.json({
-      success: true,
-      data: {}
-    });
-  } catch (error) {
-    console.error('Error deleting transaction:', error);
     res.status(500).json({
       success: false,
       error: error.message
