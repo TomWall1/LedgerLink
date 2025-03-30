@@ -24,6 +24,7 @@ import userRoutes from './src/routes/userRoutes.js';
 import companyRoutes from './src/routes/companyRoutes.js';
 import companyLinkRoutes from './src/routes/companyLinkRoutes.js';
 import transactionRoutes from './src/routes/transactionRoutes.js';
+import erpConnectionRoutes from './src/routes/erpConnectionRoutes.js';
 
 // Import utilities
 import { tokenStore } from './src/utils/tokenStore.js';
@@ -157,6 +158,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/links', companyLinkRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/erp-connections', erpConnectionRoutes);
 
 // Xero Integration Routes
 
