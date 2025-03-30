@@ -171,7 +171,7 @@ const CustomerTransactionMatcher = () => {
   
   // Handle back to dashboard 
   const handleBackToDashboard = () => {
-    navigate('/dashboard');
+    navigate('/');
   };
   
   if (loading) {
