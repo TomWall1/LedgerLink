@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { XeroProvider } from './context/XeroContext';
 import NavHeader from './components/NavHeader.jsx';
@@ -10,22 +11,12 @@ import XeroCallback from './components/XeroCallback';
 import ERPDataView from './components/ERPDataView';
 import CustomerTransactionMatcher from './components/CustomerTransactionMatcher';
 import CompanyLinker from './components/CompanyLinker';
-import { getCurrentRoute, initRouteListener, getRouteParam } from './utils/customRouter';
+import MatchResults from './pages/MatchResults';
 
-// Custom route-based App
+// Main App component with React Router
 function App() {
-  const [currentRoute, setCurrentRoute] = useState(getCurrentRoute());
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Initialize route listener
-  useEffect(() => {
-    const cleanup = initRouteListener((route) => {
-      setCurrentRoute(route);
-    });
-    
-    return cleanup;
-  }, []);
   
   // Check authentication status
   useEffect(() => {
@@ -35,74 +26,48 @@ function App() {
     setIsLoading(false);
   }, []);
   
-  // Render the appropriate component based on route
-  const renderContent = () => {
-    // Show loading state
-    if (isLoading) {
-      return (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
-      );
-    }
-    
-    // Special route for Xero callback (bypass auth check)
-    if (currentRoute === 'auth/xero/callback') {
-      return <XeroCallback />;
-    }
-    
-    // Authentication routes (accessible when not logged in)
-    if (!isAuthenticated) {
-      switch(currentRoute) {
-        case 'login':
-          return <Login />;
-        case 'register':
-          return <Register />;
-        default:
-          // Redirect to login if trying to access protected route
-          window.location.href = '/login';
-          return null;
-      }
-    }
-    
-    // Protected routes (require authentication)
-    switch(currentRoute) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'login':
-      case 'register':
-        // Redirect to dashboard if already authenticated
-        window.location.href = '/';
-        return null;
-      case 'erp-connections':
-        return <ERPConnectionManager />;
-      case 'erp-data':
-        const connectionId = getRouteParam('connectionId');
-        return <ERPDataView connectionId={connectionId} />;
-      case 'customer-transaction-matching':
-        return <CustomerTransactionMatcher />;
-      case 'company-links':
-        return <CompanyLinker />;
-      default:
-        return (
-          <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4">Page Not Found</h1>
-            <p className="text-gray-600 mb-4">The page you're looking for doesn't exist.</p>
-            <a href="/" className="text-blue-500 hover:underline">Go back to dashboard</a>
-          </div>
-        );
-    }
-  };
+  // Loading indicator
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
   
   return (
     <AuthProvider>
       <XeroProvider>
-        <div className="min-h-screen bg-gray-100">
-          <NavHeader />
-          <div className="pt-16">
-            {renderContent()}
+        <Router>
+          <div className="min-h-screen bg-gray-100">
+            <NavHeader />
+            <div className="pt-16">
+              <Routes>
+                {/* Public routes */}
+                <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
+                <Route path="/register" element={isAuthenticated ? <Navigate to="/" /> : <Register />} />
+                <Route path="/auth/xero/callback" element={<XeroCallback />} />
+                
+                {/* Protected routes */}
+                <Route path="/" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
+                <Route path="/erp-connections" element={isAuthenticated ? <ERPConnectionManager /> : <Navigate to="/login" />} />
+                <Route path="/erp-data/:connectionId" element={isAuthenticated ? <ERPDataView /> : <Navigate to="/login" />} />
+                <Route path="/customer-invoice-matching" element={isAuthenticated ? <CustomerTransactionMatcher /> : <Navigate to="/login" />} />
+                <Route path="/company-links" element={isAuthenticated ? <CompanyLinker /> : <Navigate to="/login" />} />
+                <Route path="/match-results" element={isAuthenticated ? <MatchResults /> : <Navigate to="/login" />} />
+                
+                {/* Catch all for invalid routes */}
+                <Route path="*" element={
+                  <div className="container mx-auto p-4">
+                    <h1 className="text-2xl font-bold mb-4">Page Not Found</h1>
+                    <p className="text-gray-600 mb-4">The page you're looking for doesn't exist.</p>
+                    <a href="/" className="text-blue-500 hover:underline">Go back to dashboard</a>
+                  </div>
+                } />
+              </Routes>
+            </div>
           </div>
-        </div>
+        </Router>
       </XeroProvider>
     </AuthProvider>
   );
