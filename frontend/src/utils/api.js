@@ -238,4 +238,113 @@ api.xero = {
   disconnect: () => api.post('/auth/xero/disconnect')
 };
 
+// Add ERP Connections API methods
+api.erpConnections = {
+  // Get all connections for the current user
+  getConnections: async () => {
+    try {
+      // First try with /api prefix
+      return await api.get('/api/erp-connections');
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        // Fall back to no prefix if 404
+        return await api.get('/erp-connections');
+      }
+      throw err;
+    }
+  },
+  
+  // Create a new connection
+  createConnection: async (connectionData) => {
+    try {
+      // First try with /api prefix
+      return await api.post('/api/erp-connections', connectionData);
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        // Fall back to no prefix if 404
+        return await api.post('/erp-connections', connectionData);
+      }
+      throw err;
+    }
+  },
+  
+  // Get a specific connection
+  getConnection: async (connectionId) => {
+    try {
+      // First try with /api prefix
+      return await api.get(`/api/erp-connections/${connectionId}`);
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        // Fall back to no prefix if 404
+        return await api.get(`/erp-connections/${connectionId}`);
+      }
+      throw err;
+    }
+  },
+  
+  // Update a connection
+  updateConnection: async (connectionId, connectionData) => {
+    try {
+      // First try with /api prefix
+      return await api.put(`/api/erp-connections/${connectionId}`, connectionData);
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        // Fall back to no prefix if 404
+        return await api.put(`/erp-connections/${connectionId}`, connectionData);
+      }
+      throw err;
+    }
+  },
+  
+  // Delete a connection
+  deleteConnection: async (connectionId) => {
+    try {
+      // First try with /api prefix
+      return await api.delete(`/api/erp-connections/${connectionId}`);
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        // Fall back to no prefix if 404
+        return await api.delete(`/erp-connections/${connectionId}`);
+      }
+      throw err;
+    }
+  },
+  
+  // Link a Xero tenant to a connection
+  linkXeroTenant: async (connectionId, tenantId, tenantName) => {
+    try {
+      // First try with /api prefix
+      return await api.post(`/api/erp-connections/link-xero-tenant`, {
+        connectionId,
+        tenantId,
+        tenantName
+      });
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        // Fall back to no prefix if 404
+        return await api.post(`/erp-connections/link-xero-tenant`, {
+          connectionId,
+          tenantId,
+          tenantName
+        });
+      }
+      throw err;
+    }
+  },
+  
+  // Get data from a Xero connection
+  getXeroData: async (connectionId, dataType = 'invoices') => {
+    try {
+      // First try with /api prefix
+      return await api.get(`/api/erp-connections/${connectionId}/xero-data?dataType=${dataType}`);
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        // Fall back to no prefix if 404
+        return await api.get(`/erp-connections/${connectionId}/xero-data?dataType=${dataType}`);
+      }
+      throw err;
+    }
+  }
+};
+
 export default api;
