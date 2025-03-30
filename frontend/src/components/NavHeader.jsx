@@ -84,13 +84,31 @@ const NavHeader = () => {
                     ERP Connections
                   </CustomLink>
                 </li>
-                <li>
+                <li className="relative group">
                   <CustomLink 
                     to="/transaction-matching" 
-                    className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/transaction-matching' ? 'text-indigo-600 font-medium' : ''}`}
+                    className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/transaction-matching' || currentPath === '/customer-transaction-matching' ? 'text-indigo-600 font-medium' : ''}`}
                   >
                     Match Transactions
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline-block ml-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
                   </CustomLink>
+                  {/* Dropdown menu */}
+                  <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-200 hidden group-hover:block">
+                    <CustomLink 
+                      to="/transaction-matching" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      General Matching
+                    </CustomLink>
+                    <CustomLink 
+                      to="/customer-transaction-matching" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      Customer Invoice Matching
+                    </CustomLink>
+                  </div>
                 </li>
                 <li>
                   <CustomLink 
@@ -141,13 +159,23 @@ const NavHeader = () => {
                     >
                       ERP Connections
                     </CustomLink>
+                    <div className="border-t border-gray-100 mt-1"></div>
+                    <div className="px-4 py-1 text-xs font-medium text-gray-500">Transaction Matching</div>
                     <CustomLink 
                       to="/transaction-matching" 
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setShowUserMenu(false)}
                     >
-                      Match Transactions
+                      General Matching
                     </CustomLink>
+                    <CustomLink 
+                      to="/customer-transaction-matching" 
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      Customer Invoice Matching
+                    </CustomLink>
+                    <div className="border-t border-gray-100 mt-1"></div>
                     <CustomLink 
                       to="/company-links" 
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -205,7 +233,7 @@ const NavHeader = () => {
                   to="/erp-connections" 
                   className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/erp-connections' || currentPath.startsWith('/erp-data') ? 'text-indigo-600 font-medium' : ''}`}
                 >
-                  ERP Connections
+                  ERP
                 </CustomLink>
               </li>
               <li>
@@ -213,7 +241,15 @@ const NavHeader = () => {
                   to="/transaction-matching" 
                   className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/transaction-matching' ? 'text-indigo-600 font-medium' : ''}`}
                 >
-                  Matching
+                  Match
+                </CustomLink>
+              </li>
+              <li>
+                <CustomLink 
+                  to="/customer-transaction-matching" 
+                  className={`hover:text-indigo-600 transition-colors text-gray-700 ${currentPath === '/customer-transaction-matching' ? 'text-indigo-600 font-medium' : ''}`}
+                >
+                  C-Match
                 </CustomLink>
               </li>
               <li>
