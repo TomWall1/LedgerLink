@@ -1,7 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { upload, parseCSV, deleteFile } from '../controllers/fileController.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect } from '../middleware/auth.js';
 import { 
   getTransactions, 
   uploadTransactions, 
@@ -58,15 +58,6 @@ router.get('/', protect, getTransactions);
 // Upload transactions
 router.post('/upload', protect, uploadTransactions);
 
-// Get transaction by ID
-router.get('/:id', protect, getTransaction);
-
-// Update transaction
-router.put('/:id', protect, updateTransaction);
-
-// Delete transaction
-router.delete('/:id', protect, deleteTransaction);
-
 // Match transactions with counterparties
 router.get('/match', protect, matchTransactions);
 
@@ -75,6 +66,15 @@ router.post('/match-customer-invoices', protect, upload.single('csvFile'), match
 
 // Approve a customer invoice match
 router.post('/approve-customer-match', protect, approveCustomerMatch);
+
+// Get transaction by ID
+router.get('/:id', protect, getTransaction);
+
+// Update transaction
+router.put('/:id', protect, updateTransaction);
+
+// Delete transaction
+router.delete('/:id', protect, deleteTransaction);
 
 // Approve a match (legacy endpoint)
 router.post('/approve-match', async (req, res) => {
