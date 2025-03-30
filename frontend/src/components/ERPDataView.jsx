@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import api from '../utils/api';
-import { navigateTo, getRouteParam } from '../utils/customRouter';
 import { useXero } from '../context/XeroContext';
 
 const ERPDataView = ({ connectionId }) => {
+  const navigate = useNavigate();
+  const params = useParams();
   // If connectionId is not passed as prop, try getting it from URL params
-  const urlConnectionId = connectionId || getRouteParam('connectionId');
+  const urlConnectionId = connectionId || params.connectionId;
   
   const [connection, setConnection] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -145,7 +147,7 @@ const ERPDataView = ({ connectionId }) => {
 
   // Navigate back to connections
   const handleBackToConnections = () => {
-    navigateTo('erp-connections');
+    navigate('/erp-connections');
   };
   
   // Handle customer selection
