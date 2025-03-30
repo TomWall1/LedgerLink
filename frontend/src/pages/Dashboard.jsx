@@ -83,6 +83,19 @@ const Dashboard = () => {
       cta: 'Match Transactions'
     },
     {
+      title: 'Customer Invoice Matching',
+      description: 'Match Xero customer invoices with CSV data or other ERP systems',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+      stat: isXeroConnected ? 'Available' : 'Connect Xero',
+      statLabel: 'Status',
+      action: () => navigateTo('customer-transaction-matching'),
+      cta: 'Match Customer Invoices'
+    },
+    {
       title: 'Company Links',
       description: 'Create and manage relationships between your companies and counterparties',
       icon: (
@@ -142,7 +155,7 @@ const Dashboard = () => {
         </div>
         
         {/* Feature cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
           {featureCards.map((card, index) => (
             <div key={index} className="bg-white rounded-lg shadow-md p-6 transition-transform transform hover:scale-105">
               <div className="flex flex-col h-full">
@@ -193,6 +206,16 @@ const Dashboard = () => {
             </button>
             
             <button
+              onClick={() => navigateTo('customer-transaction-matching')}
+              className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors text-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto mb-2 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="text-sm font-medium text-gray-800">Match Customer Invoices</span>
+            </button>
+            
+            <button
               onClick={() => navigateTo('company-links')}
               className="p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-center"
             >
@@ -201,16 +224,6 @@ const Dashboard = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" />
               </svg>
               <span className="text-sm font-medium text-gray-800">Create Link</span>
-            </button>
-            
-            <button
-              onClick={() => navigateTo('reports')}
-              className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors text-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto mb-2 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              <span className="text-sm font-medium text-gray-800">View Reports</span>
             </button>
           </div>
         </div>
