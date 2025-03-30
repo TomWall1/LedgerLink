@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../middleware/auth.js';
+import { protect as requireAuth } from '../middleware/auth.js';
 import {
   getUserConnections,
   createConnection,
