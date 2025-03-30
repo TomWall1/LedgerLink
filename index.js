@@ -12,6 +12,7 @@ const app = express();
 // Define allowed origins with the exact frontend URL
 const allowedOrigins = [
   'https://lledgerlink.vercel.app',
+  'https://ledgerlink.vercel.app',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002'
@@ -19,7 +20,10 @@ const allowedOrigins = [
 
 // Very permissive CORS configuration to resolve issues
 app.use(cors({
-  origin: '*', // Allow all origins for testing
+  origin: function(origin, callback) {
+    // Always allow all origins for now
+    callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Pragma', 'Cache-Control'],
   credentials: true
@@ -36,10 +40,20 @@ app.use((req, res, next) => {
 
 // IMPORTANT: Add preflight handling before other middleware
 app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Pragma, Cache-Control');
   res.status(204).send();
+});
+
+// Add response headers for all requests
+app.use((req, res, next) => {
+  // Set CORS headers for all responses
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  next();
 });
 
 // Body parsing middleware
@@ -116,6 +130,38 @@ app.get('/api/xero/invoices/:tenantId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching invoices:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Add direct auth status endpoint
+app.get('/direct-auth-status', (req, res) => {
+  try {
+    console.log('Direct auth status endpoint accessed');
+    
+    // Check token status
+    const isAuthenticated = tokenStore.hasTokens();
+    console.log('Authentication status:', isAuthenticated);
+    res.json({ isAuthenticated });
+  } catch (error) {
+    console.error('Error checking authentication status:', error);
+    res.status(500).json({
+      error: 'Failed to check authentication status',
+      details: error.message
+    });
+  }
+});
+
+// Implement a count endpoint for company links
+app.get('/api/links/count', async (req, res) => {
+  try {
+    // For now, just return a mock count
+    res.json({ count: 5 });
+  } catch (error) {
+    console.error('Error getting link count:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to get link count' 
+    });
   }
 });
 
