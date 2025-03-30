@@ -1,18 +1,31 @@
-import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import MatchingResults from '../components/MatchingResults';
 import { formatCurrency } from '../utils/format';
 
 const MatchResults = () => {
-  const location = useLocation();
   const navigate = useNavigate();
-  const results = location.state?.results;
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!results) {
-    // If no results are available, redirect to the customer invoice matching page
-    navigate('/customer-transaction-matching');
-    return null;
-  }
+  // Load results from sessionStorage on component mount
+  useEffect(() => {
+    const storedResults = window.sessionStorage.getItem('matchResults');
+    if (storedResults) {
+      try {
+        // Parse the JSON data
+        const parsedResults = JSON.parse(storedResults);
+        setResults(parsedResults);
+      } catch (error) {
+        console.error('Error parsing results from session storage:', error);
+        navigate('/customer-transaction-matching');
+      }
+    } else {
+      // If no results are available, redirect to the customer invoice matching page
+      navigate('/customer-transaction-matching');
+    }
+    setLoading(false);
+  }, [navigate]);
 
   // Function to handle exporting all results to CSV
   const handleExportAll = () => {
@@ -25,6 +38,22 @@ const MatchResults = () => {
     
     // Logic for exporting would go here
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[50vh]">
+        <svg className="animate-spin h-8 w-8 text-blue-500 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span className="text-lg font-medium">Loading results...</span>
+      </div>
+    );
+  }
+
+  if (!results) {
+    return null; // Will redirect via useEffect
+  }
 
   return (
     <div className="container mx-auto p-6">
