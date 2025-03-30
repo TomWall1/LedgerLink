@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { upload, parseCSV, deleteFile } from '../controllers/fileController.js';
 import { protect } from '../middleware/auth.js';
+import Transaction from '../models/Transaction.js';
 import { 
   getTransactions, 
   uploadTransactions, 
@@ -14,43 +15,6 @@ import {
 } from '../controllers/transactionController.js';
 
 const router = express.Router();
-
-// Transaction model schema
-const TransactionSchema = new mongoose.Schema({
-  reference: String,
-  description: String,
-  amount: Number,
-  date: Date,
-  source: String,
-  status: {
-    type: String,
-    enum: ['pending', 'matched', 'approved', 'rejected'],
-    default: 'pending'
-  },
-  matchedInvoiceId: {
-    type: String,
-    default: null
-  },
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  companyId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company'
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  metadata: {
-    type: Map,
-    of: mongoose.Schema.Types.Mixed
-  }
-});
-
-// Create model if it doesn't exist
-const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', TransactionSchema);
 
 // Get all transactions
 router.get('/', protect, getTransactions);
@@ -92,8 +56,8 @@ router.post('/approve-match', async (req, res) => {
     const updatedTransaction = await Transaction.findByIdAndUpdate(
       transactionId,
       {
-        status: 'matched',
-        matchedInvoiceId: invoiceId,
+        matchStatus: 'MATCHED',
+        counterpartyTransactionId: invoiceId,
         updatedAt: new Date()
       },
       { new: true }
@@ -135,8 +99,8 @@ router.post('/reject-match', async (req, res) => {
     const updatedTransaction = await Transaction.findByIdAndUpdate(
       transactionId,
       {
-        status: 'rejected',
-        matchedInvoiceId: invoiceId,
+        matchStatus: 'UNMATCHED',
+        counterpartyTransactionId: null,
         updatedAt: new Date()
       },
       { new: true }
