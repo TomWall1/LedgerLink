@@ -347,4 +347,47 @@ api.erpConnections = {
   }
 };
 
+// Add transactions API methods
+api.transactions = {
+  // Get all transactions
+  getTransactions: (filters = {}) => {
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        queryParams.append(key, value);
+      }
+    });
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    return api.get(`/api/transactions${queryString}`);
+  },
+  
+  // Upload transactions (bulk create)
+  uploadTransactions: (transactions) => api.post('/api/transactions/upload', { transactions }),
+  
+  // Match transactions with counterparties
+  matchTransactions: () => api.get('/api/transactions/match'),
+  
+  // Match customer invoices with transactions
+  matchCustomerInvoices: (customerId, invoices, matchSource) => api.post('/api/transactions/match-customer-invoices', { 
+    customerId, 
+    invoices, 
+    matchSource // 'csv' or 'erp'
+  }),
+  
+  // Approve a customer invoice match
+  approveCustomerMatch: (invoiceId, transactionId) => api.post('/api/transactions/approve-customer-match', { 
+    invoiceId, 
+    transactionId 
+  }),
+  
+  // Get a single transaction
+  getTransaction: (id) => api.get(`/api/transactions/${id}`),
+  
+  // Update a transaction
+  updateTransaction: (id, data) => api.put(`/api/transactions/${id}`, data),
+  
+  // Delete a transaction
+  deleteTransaction: (id) => api.delete(`/api/transactions/${id}`)
+};
+
 export default api;
