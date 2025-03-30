@@ -238,6 +238,7 @@ export const matchCustomerInvoices = async (req, res) => {
     try {
       invoices = JSON.parse(customerInvoices);
       console.log(`Successfully parsed ${invoices.length} customer invoices`);
+      console.log('Invoice sample:', invoices.slice(0, 2));
     } catch (error) {
       console.error('Error parsing customer invoices JSON:', error);
       return res.status(400).json({
@@ -246,9 +247,13 @@ export const matchCustomerInvoices = async (req, res) => {
       });
     }
 
+    // Get the format of the date in the CSV (default to MM/DD/YYYY if not specified)
+    const csvDateFormat = dateFormat || 'MM/DD/YYYY';
+    console.log('Using date format for CSV parsing:', csvDateFormat);
+
     // Parse the CSV file
-    console.log('Parsing CSV file with date format:', dateFormat || 'MM/DD/YYYY');
-    const csvTransactions = await parseCSV(csvFile.path, dateFormat || 'MM/DD/YYYY');
+    console.log('Starting CSV parsing with file path:', csvFile.path);
+    const csvTransactions = await parseCSV(csvFile.path, csvDateFormat);
     console.log(`CSV parsing complete: ${csvTransactions.length} valid transactions found`);
 
     if (csvTransactions.length === 0) {
@@ -274,6 +279,13 @@ export const matchCustomerInvoices = async (req, res) => {
       
       // Find potential matches for this invoice
       const matches = csvTransactions.filter(transaction => {
+        // Debug transaction details for analysis
+        console.log(`Comparing invoice ${invoice.InvoiceNumber} (${invoice.Total}) with transaction:`, {
+          reference: transaction.reference,
+          amount: transaction.amount,
+          date: transaction.date
+        });
+        
         // Match by amount with a small tolerance for rounding errors
         const amountMatch = Math.abs(invoice.Total - transaction.amount) < 0.01;
 
@@ -287,6 +299,7 @@ export const matchCustomerInvoices = async (req, res) => {
           if (!isNaN(invoiceDate.getTime()) && !isNaN(transactionDate.getTime())) {
             const dateDiff = Math.abs(invoiceDate - transactionDate) / (1000 * 60 * 60 * 24); // Convert to days
             dateMatch = dateDiff <= 7;
+            console.log(`Date diff: ${dateDiff} days, match: ${dateMatch}`);
           }
         }
 
@@ -296,7 +309,23 @@ export const matchCustomerInvoices = async (req, res) => {
           const invoiceNum = String(invoice.InvoiceNumber).toLowerCase();
           const reference = String(transaction.reference).toLowerCase();
           
+          // Check if either contains the other (partial match)
           referenceMatch = reference.includes(invoiceNum) || invoiceNum.includes(reference);
+          console.log(`Reference match: ${referenceMatch} (${invoiceNum} vs ${reference})`);
+        }
+        
+        // Also try to match by transaction number if different from reference
+        if (!referenceMatch && invoice.InvoiceNumber && transaction.transactionNumber) {
+          const invoiceNum = String(invoice.InvoiceNumber).toLowerCase();
+          const transactionNum = String(transaction.transactionNumber).toLowerCase();
+          
+          // Check if either contains the other (partial match)
+          const transactionNumMatch = transactionNum.includes(invoiceNum) || invoiceNum.includes(transactionNum);
+          referenceMatch = referenceMatch || transactionNumMatch;
+          
+          if (transactionNumMatch) {
+            console.log(`Transaction number match: true (${invoiceNum} vs ${transactionNum})`);
+          }
         }
 
         // Determine match confidence
