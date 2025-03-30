@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useXero } from '../context/XeroContext';
 import XeroConnection from './XeroConnection';
-import { navigateTo } from '../utils/customRouter';
 
 const ERPConnectionManager = () => {
+  const navigate = useNavigate();
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -180,7 +181,7 @@ const ERPConnectionManager = () => {
           }
         } else {
           // Otherwise navigate to the connection detail to complete setup
-          navigateTo(`erp-data/${response.data.data._id}`);
+          navigate(`/erp-data/${response.data.data._id}`);
           return;
         }
       }
@@ -206,7 +207,7 @@ const ERPConnectionManager = () => {
   };
   
   const handleViewConnection = (connectionId) => {
-    navigateTo(`erp-data/${connectionId}`);
+    navigate(`/erp-data/${connectionId}`);
   };
   
   const handleDeleteConnection = async (connectionId) => {
@@ -242,7 +243,7 @@ const ERPConnectionManager = () => {
         // Find a Xero connection if available
         const xeroConnection = connections.find(conn => conn.provider === 'xero');
         if (xeroConnection && xeroConnection._id) {
-          navigateTo(`erp-data/${xeroConnection._id}`);
+          navigate(`/erp-data/${xeroConnection._id}`);
           return;
         }
       }
@@ -276,7 +277,7 @@ const ERPConnectionManager = () => {
         
         // Navigate to the new connection
         if (response && response.data && response.data.data && response.data.data._id) {
-          navigateTo(`erp-data/${response.data.data._id}`);
+          navigate(`/erp-data/${response.data.data._id}`);
           // Refresh connections list
           fetchConnections();
         } else {
