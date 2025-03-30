@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useXero } from '../context/XeroContext';
-import { navigateTo } from '../utils/customRouter';
 
 const XeroCallback = () => {
+  const navigate = useNavigate();
   const { setIsAuthenticated, checkBackendTokens, getApiUrl } = useXero();
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -108,8 +109,8 @@ const XeroCallback = () => {
         // Wait a moment to show success message
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Redirect to home page using custom router
-        navigateTo('dashboard');
+        // Redirect to home page using React Router
+        navigate('/');
       } catch (error) {
         console.error('Error handling Xero callback:', error);
         setError(error.message || 'Failed to connect to Xero');
@@ -119,7 +120,7 @@ const XeroCallback = () => {
     
     // Only run once when component mounts
     handleCallback();
-  }, [setIsAuthenticated, checkBackendTokens, getApiUrl, retryCount]);
+  }, [setIsAuthenticated, checkBackendTokens, getApiUrl, retryCount, navigate]);
 
   // Handle manual retry
   const handleRetry = () => {
@@ -133,10 +134,10 @@ const XeroCallback = () => {
       if (code) {
         handleRetryWithCode(code);
       } else {
-        navigateTo('erp-connections');
+        navigate('/erp-connections');
       }
     } else {
-      navigateTo('erp-connections');
+      navigate('/erp-connections');
     }
   };
 
@@ -164,7 +165,7 @@ const XeroCallback = () => {
       const authData = await authResponse.json();
       if (authData.isAuthenticated) {
         setIsAuthenticated(true);
-        navigateTo('dashboard');
+        navigate('/');
       } else {
         throw new Error('Still unable to authenticate with Xero');
       }
@@ -177,7 +178,7 @@ const XeroCallback = () => {
 
   // Handle return to connections
   const handleBackToConnections = () => {
-    navigateTo('erp-connections');
+    navigate('/erp-connections');
   };
 
   if (loading && !error) {
