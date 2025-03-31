@@ -15,7 +15,10 @@ const MatchResults = () => {
       try {
         // Parse the JSON data
         const parsedResults = JSON.parse(storedResults);
-        setResults(parsedResults);
+        
+        // Pre-process the data for the enhanced display
+        const enhancedResults = enhanceResultsData(parsedResults);
+        setResults(enhancedResults);
       } catch (error) {
         console.error('Error parsing results from session storage:', error);
         navigate('/customer-transaction-matching');
@@ -27,6 +30,204 @@ const MatchResults = () => {
     setLoading(false);
   }, [navigate]);
 
+  // Function to process and enhance the raw results data
+  const enhanceResultsData = (rawResults) => {
+    if (!rawResults || !rawResults.data) {
+      return rawResults;
+    }
+
+    console.log('Raw results:', rawResults); // Debugging
+    
+    // Create the data object structure for the enhanced format
+    const enhancedData = {
+      ...rawResults,
+      perfectMatches: [],
+      mismatches: [],
+      dateMismatches: [],
+      unmatchedItems: {
+        company1: rawResults.unmatchedInvoices || [],
+        company2: []
+      },
+      historicalInsights: []
+    };
+
+    // Process matches
+    if (rawResults.data && Array.isArray(rawResults.data)) {
+      rawResults.data.forEach(match => {
+        if (match.matches && match.matches.length > 0) {
+          const invoice = match.invoice;
+          const bestMatch = match.matches.sort((a, b) => b.confidence - a.confidence)[0];
+
+          // Check if invoice number and amount match
+          const invoiceNumberMatches = bestMatch.reference?.toLowerCase() === invoice.InvoiceNumber?.toLowerCase();
+          const amountMatches = Math.abs(parseFloat(bestMatch.amount || 0) - parseFloat(invoice.Total || 0)) < 0.01; // Small tolerance for rounding
+          
+          // Normalize dates for comparison (just the date part, no time)
+          const invoiceDate = normalizeDateForComparison(invoice.Date);
+          const matchDate = normalizeDateForComparison(bestMatch.date);
+          
+          // Check if both dates are valid for comparison
+          const datesValid = invoiceDate !== null && matchDate !== null;
+          
+          // Dates match if they refer to the same calendar day (regardless of time)
+          const dateMatches = datesValid ? (invoiceDate === matchDate) : false;
+          
+          // Calculate days difference for date mismatches
+          let daysDifference = null;
+          if (datesValid && !dateMatches) {
+            daysDifference = Math.round(Math.abs(invoiceDate - matchDate) / (1000 * 60 * 60 * 24));
+          }
+
+          // Create company1 (AR) and company2 (AP) objects for consistent structure
+          const company1 = {
+            transactionNumber: invoice.InvoiceNumber,
+            amount: invoice.Total,
+            date: invoice.Date,
+            dueDate: invoice.DueDate,
+            status: invoice.Status || 'Open',
+            type: invoice.Type || 'Invoice',
+            is_partially_paid: invoice.is_partially_paid || false,
+            amount_paid: invoice.amount_paid || 0,
+            original_amount: invoice.original_amount || invoice.Total
+          };
+
+          const company2 = {
+            transactionNumber: bestMatch.reference,
+            amount: bestMatch.amount,
+            date: bestMatch.date,
+            status: bestMatch.status || 'Open',
+            type: 'Payable',
+            description: bestMatch.description || ''
+          };
+
+          // Categorize match
+          if (invoiceNumberMatches && amountMatches) {
+            // Add to perfect matches
+            enhancedData.perfectMatches.push({
+              company1,
+              company2
+            });
+            
+            // Check for date mismatch
+            if (!dateMatches && datesValid) {
+              // Add to date mismatches section
+              enhancedData.dateMismatches.push({
+                company1,
+                company2,
+                mismatchType: 'transaction_date',
+                daysDifference,
+                company1Date: invoice.Date,
+                company2Date: bestMatch.date
+              });
+            }
+          } else {
+            // Amounts or invoice numbers don't match
+            enhancedData.mismatches.push({
+              company1,
+              company2
+            });
+            
+            // Add to historical insights if the amounts differ significantly
+            if (!amountMatches) {
+              // Check if there might be a partial payment
+              const amountDifference = Math.abs(parseFloat(company1.amount) - parseFloat(company2.amount));
+              const isPotentialPartialPayment = parseFloat(company1.amount) > parseFloat(company2.amount);
+              
+              // Create a historical insight entry
+              enhancedData.historicalInsights.push({
+                apItem: company2,
+                historicalMatch: company1,
+                insight: {
+                  severity: isPotentialPartialPayment ? 'warning' : 'error',
+                  message: isPotentialPartialPayment ?
+                    `Potential partial payment: AP shows ${formatCurrency(company2.amount)} vs. AR showing ${formatCurrency(company1.amount)} (difference of ${formatCurrency(amountDifference)})` :
+                    `Amount mismatch: AP shows ${formatCurrency(company2.amount)} vs. AR showing ${formatCurrency(company1.amount)}`
+                }
+              });
+            } else if (!invoiceNumberMatches) {
+              // Invoice number mismatch
+              enhancedData.historicalInsights.push({
+                apItem: company2,
+                historicalMatch: company1,
+                insight: {
+                  severity: 'info',
+                  message: `Reference mismatch: AP reference '${company2.transactionNumber}' doesn't match AR invoice '${company1.transactionNumber}'`
+                }
+              });
+            }
+          }
+        }
+      });
+    }
+
+    // Calculate proper totals
+    // Company1 (AR) total - already in the original data
+    // Company2 (AP) total - sum all matched AP items
+    let company2Total = 0;
+    
+    // Add up all AP amounts from perfect matches and mismatches
+    [...enhancedData.perfectMatches, ...enhancedData.mismatches].forEach(item => {
+      if (item.company2 && item.company2.amount) {
+        company2Total += parseFloat(item.company2.amount) || 0;
+      }
+    });
+    
+    // Add unmatched AP items
+    enhancedData.unmatchedItems.company2.forEach(item => {
+      company2Total += parseFloat(item.amount) || 0;
+    });
+    
+    // Update the totals
+    enhancedData.totals = {
+      company1Total: rawResults.totals?.company1Total || 0,
+      company2Total: company2Total,
+      variance: (rawResults.totals?.company1Total || 0) - company2Total
+    };
+
+    console.log('Enhanced results:', enhancedData); // Debugging
+    return enhancedData;
+  };
+
+  // Helper function to normalize dates to their date parts only (remove time)
+  const normalizeDateForComparison = (dateStr) => {
+    if (!dateStr) return null;
+    
+    try {
+      // Handle .NET JSON date format: "/Date(1728950400000+0000)/"
+      if (typeof dateStr === 'string' && dateStr.startsWith('/Date(') && dateStr.includes('+')) {
+        const timestamp = parseInt(dateStr.substring(6, dateStr.indexOf('+')));
+        if (!isNaN(timestamp)) {
+          const date = new Date(timestamp);
+          return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+        }
+      }
+      
+      // Handle the specific format "27T00:00:00.000Z/10/2024"
+      if (typeof dateStr === 'string' && dateStr.includes('T') && dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length >= 2) {
+          const day = parseInt(parts[0].split('T')[0]);
+          const month = parseInt(parts[1]) - 1; // JS months are 0-indexed
+          const year = parts.length > 2 ? parseInt(parts[2]) : new Date().getFullYear();
+          if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+            return new Date(year, month, day).getTime();
+          }
+        }
+      }
+      
+      // Standard date parsing for other formats
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error normalizing date:', error, 'Date value:', dateStr);
+      return null;
+    }
+  };
+
   // Function to handle exporting all results to CSV
   const handleExportAll = () => {
     // Get the current date for the filename
@@ -37,22 +238,31 @@ const MatchResults = () => {
     // Create CSV content
     let csvContent = 'Invoice #,Amount,AR Date,AR Due Date,AP Reference,AP Amount,AP Date,AP Description\n';
     
-    // Add data rows
-    if (results?.data && results.data.length > 0) {
-      results.data.forEach(match => {
-        if (match.matches && match.matches.length > 0) {
-          const invoice = match.invoice;
-          const bestMatch = match.matches.sort((a, b) => b.confidence - a.confidence)[0];
-          
-          csvContent += `"${invoice.InvoiceNumber || ''}",`;
-          csvContent += `"${invoice.Total || ''}",`;
-          csvContent += `"${invoice.Date || ''}",`;
-          csvContent += `"${invoice.DueDate || ''}",`;
-          csvContent += `"${bestMatch.reference || ''}",`;
-          csvContent += `"${bestMatch.amount || ''}",`;
-          csvContent += `"${bestMatch.date || ''}",`;
-          csvContent += `"${bestMatch.description || ''}"\n`;
-        }
+    // Add data rows for perfect matches
+    if (results?.perfectMatches && results.perfectMatches.length > 0) {
+      results.perfectMatches.forEach(match => {
+        csvContent += `"${match.company1?.transactionNumber || ''}",`;
+        csvContent += `"${match.company1?.amount || ''}",`;
+        csvContent += `"${match.company1?.date || ''}",`;
+        csvContent += `"${match.company1?.dueDate || ''}",`;
+        csvContent += `"${match.company2?.transactionNumber || ''}",`;
+        csvContent += `"${match.company2?.amount || ''}",`;
+        csvContent += `"${match.company2?.date || ''}",`;
+        csvContent += `"${match.company2?.description || ''}"\n`;
+      });
+    }
+    
+    // Add data rows for mismatches
+    if (results?.mismatches && results.mismatches.length > 0) {
+      results.mismatches.forEach(match => {
+        csvContent += `"${match.company1?.transactionNumber || ''}",`;
+        csvContent += `"${match.company1?.amount || ''}",`;
+        csvContent += `"${match.company1?.date || ''}",`;
+        csvContent += `"${match.company1?.dueDate || ''}",`;
+        csvContent += `"${match.company2?.transactionNumber || ''}",`;
+        csvContent += `"${match.company2?.amount || ''}",`;
+        csvContent += `"${match.company2?.date || ''}",`;
+        csvContent += `"${match.company2?.description || ''}"\n`;
       });
     }
     
