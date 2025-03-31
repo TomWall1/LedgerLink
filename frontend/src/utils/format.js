@@ -26,30 +26,11 @@ export const formatDate = (date) => {
       }
     }
     
-    // Handle ISO strings that might have additional content
-    if (typeof date === 'string' && date.includes('T')) {
-      // Try to extract just the date part if we have something like "27T00:00:00.000Z/10/2024"
-      const parts = date.split('T')[0].split('/');
-      if (parts.length >= 3) {
-        // Assuming format might be DD/MM/YYYY or similar
-        return parts.slice(0, 3).join('/');
-      }
-      
-      // For standard ISO dates
-      const dateObj = new Date(date);
-      if (!isNaN(dateObj.getTime())) {
-        const day = dateObj.getDate().toString().padStart(2, '0');
-        const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-        const year = dateObj.getFullYear();
-        return `${day}/${month}/${year}`;
-      }
-    }
-    
     // Simple format - handle YYYY-MM-DD format (most common from backend)
     if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}/)) {
       const [year, month, day] = date.split('-');
       // Format as DD/MM/YYYY for better readability
-      return `${day.substring(0,2)}/${month}/${year}`;
+      return `${day}/${month}/${year}`;
     }
     
     // For anything else, try the standard Date parsing
