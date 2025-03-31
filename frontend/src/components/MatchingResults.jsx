@@ -20,154 +20,40 @@ const MatchingResults = ({ matchResults }) => {
     ref.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Helper function to normalize dates to their date parts only (remove time)
-  const normalizeDateForComparison = (dateStr) => {
-    if (!dateStr) return null;
-    
-    try {
-      // Handle .NET JSON date format: "/Date(1728950400000+0000)/"
-      if (typeof dateStr === 'string' && dateStr.startsWith('/Date(') && dateStr.includes('+')) {
-        const timestamp = parseInt(dateStr.substring(6, dateStr.indexOf('+')));
-        if (!isNaN(timestamp)) {
-          const date = new Date(timestamp);
-          return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-        }
-      }
-      
-      // Handle the specific format "27T00:00:00.000Z/10/2024"
-      if (typeof dateStr === 'string' && dateStr.includes('T') && dateStr.includes('/')) {
-        const parts = dateStr.split('/');
-        if (parts.length >= 2) {
-          const day = parseInt(parts[0].split('T')[0]);
-          const month = parseInt(parts[1]) - 1; // JS months are 0-indexed
-          const year = parts.length > 2 ? parseInt(parts[2]) : new Date().getFullYear();
-          if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-            return new Date(year, month, day).getTime();
-          }
-        }
-      }
-      
-      // Standard date parsing for other formats
-      const date = new Date(dateStr);
-      if (!isNaN(date.getTime())) {
-        return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('Error normalizing date:', error, 'Date value:', dateStr);
-      return null;
-    }
+  // Ensure arrays and objects exist
+  const safeMatchResults = matchResults || {};
+  const safePerfectMatches = Array.isArray(safeMatchResults.perfectMatches) ? safeMatchResults.perfectMatches : [];
+  const safeMismatches = Array.isArray(safeMatchResults.mismatches) ? safeMatchResults.mismatches : [];
+  const safeUnmatchedItems = safeMatchResults.unmatchedItems || { company1: [], company2: [] };
+  const safeHistoricalInsights = Array.isArray(safeMatchResults.historicalInsights) ? safeMatchResults.historicalInsights : [];
+  const safeDateMismatches = Array.isArray(safeMatchResults.dateMismatches) ? safeMatchResults.dateMismatches : [];
+  const safeTotals = safeMatchResults.totals || { company1Total: 0, company2Total: 0, variance: 0 };
+
+  // Safe amount calculations
+  const calculateAmount = (item) => {
+    if (!item) return 0;
+    const amount = parseFloat(item.amount || item.Total || 0);
+    return isNaN(amount) ? 0 : amount;
   };
 
-  // Ensure data is available and properly structured
-  const matches = matchResults?.data || [];
-  
-  // Process and categorize matches
-  const perfectMatches = [];
-  const mismatches = [];
-  const dateMismatches = [];
-  const historicalInsights = [];
-  
-  // Get unmatched invoices
-  const unmatchedInvoices = matchResults?.unmatchedInvoices || [];
-  
-  // Calculate AP total
-  const calculateApTotal = () => {
-    let total = 0;
-    
-    // Sum amounts from all match.bestMatch entries
-    matches.forEach(match => {
-      if (match.matches && match.matches.length > 0) {
-        const bestMatch = match.matches.sort((a, b) => b.confidence - a.confidence)[0];
-        if (bestMatch && bestMatch.amount) {
-          total += parseFloat(bestMatch.amount) || 0;
-        }
-      }
-    });
-    
-    return total;
-  };
+  // Calculate total amounts for each category
+  const perfectMatchAmount = safePerfectMatches.reduce((sum, match) => {
+    const amount = match && match.company1 ? calculateAmount(match.company1) : 0;
+    return sum + amount;
+  }, 0);
 
-  // Process matches
-  matches.forEach(match => {
-    if (match.matches && match.matches.length > 0) {
-      const bestMatch = match.matches.sort((a, b) => b.confidence - a.confidence)[0];
-      const invoice = match.invoice;
-      
-      // Check if invoice number and amount match
-      const invoiceNumberMatches = bestMatch.reference?.toLowerCase() === invoice.InvoiceNumber?.toLowerCase();
-      const amountMatches = Math.abs(parseFloat(bestMatch.amount) - parseFloat(invoice.Total)) < 0.01; // Small tolerance for rounding
-      
-      // Normalize dates for comparison (just the date part, no time)
-      const invoiceDate = normalizeDateForComparison(invoice.Date);
-      const matchDate = normalizeDateForComparison(bestMatch.date);
-      
-      // Check if both dates are valid for comparison
-      const datesValid = invoiceDate !== null && matchDate !== null;
-      
-      // Dates match if they refer to the same calendar day (regardless of time)
-      const dateMatches = datesValid ? (invoiceDate === matchDate) : false;
-      
-      // Calculate days difference for date mismatches
-      let daysDifference = null;
-      if (datesValid && !dateMatches) {
-        daysDifference = Math.abs(invoiceDate - matchDate) / (1000 * 60 * 60 * 24);
-      }
+  const mismatchAmount = safeMismatches.reduce((sum, match) => {
+    const amount = match && match.company1 ? calculateAmount(match.company1) : 0;
+    return sum + amount;
+  }, 0);
 
-      // Categorize match
-      if (invoiceNumberMatches && amountMatches) {
-        // Check for date mismatch
-        if (!dateMatches && datesValid) {
-          // Add to date mismatches section
-          dateMismatches.push({
-            invoice,
-            bestMatch,
-            mismatchType: 'date',
-            daysDifference,
-            company1Date: invoice.Date,
-            company2Date: bestMatch.date
-          });
-        }
-        
-        // Add to perfect matches if all match
-        if (dateMatches) {
-          perfectMatches.push({ invoice, bestMatch });
-        } else {
-          // If amounts match but dates don't, still consider it a perfect match by transaction number
-          perfectMatches.push({ invoice, bestMatch });
-        }
-      } else {
-        // Amounts or invoice numbers don't match
-        mismatches.push({ invoice, bestMatch });
-        
-        // Add to historical insights if the amounts differ significantly
-        if (!amountMatches) {
-          // Create a historical insight entry
-          historicalInsights.push({
-            apItem: bestMatch,
-            historicalMatch: invoice,
-            insight: {
-              severity: 'warning',
-              message: `Amount mismatch: AP shows ${formatCurrency(bestMatch.amount)} vs. AR showing ${formatCurrency(invoice.Total)}`
-            }
-          });
-        }
-      }
-    }
-  });
-  
-  // Calculate totals
-  const totalInvoices = perfectMatches.length + mismatches.length + unmatchedInvoices.length;
-  const perfectMatchesAmount = perfectMatches.reduce((sum, m) => sum + parseFloat(m.invoice.Total || 0), 0);
-  const mismatchesAmount = mismatches.reduce((sum, m) => sum + parseFloat(m.invoice.Total || 0), 0);
-  const unmatchedAmount = unmatchedInvoices.reduce((sum, invoice) => sum + parseFloat(invoice.Total || 0), 0);
-  const totalAmount = perfectMatchesAmount + mismatchesAmount + unmatchedAmount;
+  const unmatchedAmount = [
+    ...(safeUnmatchedItems.company1 || []),
+    ...(safeUnmatchedItems.company2 || [])
+  ].reduce((sum, item) => sum + calculateAmount(item), 0);
 
-  // Calculate totals for display
-  const company1Total = perfectMatchesAmount + mismatchesAmount + unmatchedAmount; // AR Total
-  const company2Total = calculateApTotal(); // AP Total
-  const variance = company1Total - company2Total;
+  // Safe total receivables calculation
+  const totalReceivables = parseFloat(safeTotals.company1Total || 0);
 
   // Helper function to get badge style based on severity
   const getInsightBadgeClass = (severity) => {
@@ -180,6 +66,21 @@ const MatchingResults = ({ matchResults }) => {
       default:
         return 'bg-blue-100 text-blue-700 border-blue-200';
     }
+  };
+
+  // Helper to check if an item has partial payment and return a badge if it does
+  const getPartialPaymentBadge = (item) => {
+    if (!item || !item.is_partially_paid) return null;
+    
+    const originalAmount = parseFloat(item.original_amount || 0);
+    const amountPaid = parseFloat(item.amount_paid || 0);
+    const remainingAmount = parseFloat(item.amount || 0);
+    
+    return (
+      <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+        Partially Paid: {formatCurrency(amountPaid)} of {formatCurrency(originalAmount)}
+      </span>
+    );
   };
 
   // Table component for consistent styling
@@ -214,26 +115,6 @@ const MatchingResults = ({ matchResults }) => {
 
   return (
     <div className="space-y-8">
-      {/* Totals Cards with Export All Data Button */}
-      <div className="flex flex-col space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-            <h3 className="text-lg font-semibold mb-2 text-blue-700">Accounts Receivable Total</h3>
-            <p className="text-3xl font-bold text-blue-600">{formatCurrency(company1Total)}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-            <h3 className="text-lg font-semibold mb-2 text-blue-700">Accounts Payable Total</h3>
-            <p className="text-3xl font-bold text-blue-600">{formatCurrency(company2Total)}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-            <h3 className="text-lg font-semibold mb-2 text-blue-700">Variance</h3>
-            <p className={`text-3xl font-bold ${Math.abs(variance) < 0.01 ? 'text-green-500' : 'text-red-500'}`}>
-              {formatCurrency(variance)}
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Match Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div 
@@ -241,11 +122,11 @@ const MatchingResults = ({ matchResults }) => {
           onClick={() => scrollToSection(perfectMatchesRef)}
         >
           <h3 className="text-lg font-semibold text-blue-700">Perfect Matches</h3>
-          <p className="text-3xl font-bold text-green-500">{perfectMatches.length}</p>
+          <p className="text-3xl font-bold text-green-500">{safePerfectMatches.length}</p>
           <p className="text-sm text-gray-600 mt-2">
-            {formatCurrency(perfectMatchesAmount)}
+            {formatCurrency(perfectMatchAmount)}
             <br />
-            ({formatPercentage(perfectMatchesAmount, totalAmount)})
+            ({formatPercentage(perfectMatchAmount, totalReceivables)})
           </p>
         </div>
 
@@ -254,11 +135,11 @@ const MatchingResults = ({ matchResults }) => {
           onClick={() => scrollToSection(mismatchesRef)}
         >
           <h3 className="text-lg font-semibold text-blue-700">Mismatches</h3>
-          <p className="text-3xl font-bold text-yellow-500">{mismatches.length}</p>
+          <p className="text-3xl font-bold text-yellow-500">{safeMismatches.length}</p>
           <p className="text-sm text-gray-600 mt-2">
-            {formatCurrency(mismatchesAmount)}
+            {formatCurrency(mismatchAmount)}
             <br />
-            ({formatPercentage(mismatchesAmount, totalAmount)})
+            ({formatPercentage(mismatchAmount, totalReceivables)})
           </p>
         </div>
 
@@ -267,24 +148,26 @@ const MatchingResults = ({ matchResults }) => {
           onClick={() => scrollToSection(unmatchedRef)}
         >
           <h3 className="text-lg font-semibold text-blue-700">Unmatched Items</h3>
-          <p className="text-3xl font-bold text-red-500">{unmatchedInvoices.length}</p>
+          <p className="text-3xl font-bold text-red-500">
+            {(safeUnmatchedItems.company1?.length || 0) + (safeUnmatchedItems.company2?.length || 0)}
+          </p>
           <p className="text-sm text-gray-600 mt-2">
             {formatCurrency(unmatchedAmount)}
             <br />
-            ({formatPercentage(unmatchedAmount, totalAmount)})
+            ({formatPercentage(unmatchedAmount, totalReceivables)})
           </p>
         </div>
 
         <div 
-          className={`bg-white rounded-lg shadow-lg p-6 border-l-4 border ${dateMismatches.length > 0 ? 'border-purple-400 cursor-pointer hover:bg-gray-50' : 'border-gray-300'} transition-colors`}
-          onClick={() => dateMismatches.length > 0 && scrollToSection(dateMismatchesRef)}
+          className={`bg-white rounded-lg shadow-lg p-6 border-l-4 border ${safeDateMismatches.length > 0 ? 'border-purple-400 cursor-pointer hover:bg-gray-50' : 'border-gray-300'} transition-colors`}
+          onClick={() => safeDateMismatches.length > 0 && scrollToSection(dateMismatchesRef)}
         >
           <h3 className="text-lg font-semibold text-blue-700">Date Discrepancies</h3>
-          <p className={`text-3xl font-bold ${dateMismatches.length > 0 ? 'text-purple-500' : 'text-gray-400'}`}>
-            {dateMismatches.length}
+          <p className={`text-3xl font-bold ${safeDateMismatches.length > 0 ? 'text-purple-500' : 'text-gray-400'}`}>
+            {safeDateMismatches.length}
           </p>
           <p className="text-sm text-gray-600 mt-2">
-            {dateMismatches.length > 0 ? 'Date differences in matched transactions' : 'No date discrepancies found'}
+            {safeDateMismatches.length > 0 ? 'Date differences in matched transactions' : 'No date discrepancies found'}
           </p>
         </div>
       </div>
@@ -292,50 +175,88 @@ const MatchingResults = ({ matchResults }) => {
       {/* Perfect Matches Section */}
       <div ref={perfectMatchesRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-blue-700">Perfect Matches ({perfectMatches.length})</h2>
+          <h2 className="text-xl font-semibold text-blue-700">Perfect Matches ({safePerfectMatches.length})</h2>
           <button className="text-blue-700 hover:text-blue-900 transition-colors">
             Export CSV
           </button>
         </div>
         <ResultTable
-          data={perfectMatches.map(match => ({
-            'Transaction #': match.bestMatch?.reference || match.invoice?.InvoiceNumber || 'N/A',
-            'Type': match.invoice?.Type || 'Invoice',
-            'Amount': formatCurrency(match.invoice?.Total || 0),
-            'Date': formatDate(match.invoice?.Date),
-            'Due Date': formatDate(match.invoice?.DueDate),
-            'Status': match.invoice?.Status || 'N/A'
-          }))}
+          data={safePerfectMatches.map(match => {
+            // Check for partial payment badge
+            const partialPaymentBadge = match.company1?.is_partially_paid ? 
+              getPartialPaymentBadge(match.company1) : 
+              (match.company2?.is_partially_paid ? getPartialPaymentBadge(match.company2) : null);
+              
+            return {
+              'Transaction #': (
+                <div className="flex items-center">
+                  <span>{match?.company1?.transactionNumber || match?.company2?.transactionNumber || 'N/A'}</span>
+                  {partialPaymentBadge}
+                </div>
+              ),
+              'Type': match?.company1?.type || match?.company2?.type || 'N/A',
+              'Amount': formatCurrency(match?.company1?.amount || 0),
+              'Date': formatDate(match?.company1?.date || match?.company2?.date),
+              'Due Date': formatDate(match?.company1?.dueDate || match?.company2?.dueDate),
+              'Status': match?.company1?.status || match?.company2?.status || 'N/A'
+            };
+          })}
           columns={['Transaction #', 'Type', 'Amount', 'Date', 'Due Date', 'Status']}
         />
       </div>
 
       {/* Mismatches Section */}
-      {mismatches.length > 0 && (
+      {safeMismatches.length > 0 && (
         <div ref={mismatchesRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-blue-700">Mismatches ({mismatches.length})</h2>
+            <h2 className="text-xl font-semibold text-blue-700">Mismatches ({safeMismatches.length})</h2>
             <button className="text-blue-700 hover:text-blue-900 transition-colors">
               Export CSV
             </button>
           </div>
           <ResultTable
-            data={mismatches.map(mismatch => {
+            data={safeMismatches.map(mismatch => {
               // Extract the amounts with proper handling for null/undefined values
-              const receivableAmount = Math.abs(parseFloat(mismatch.invoice?.Total || 0));
-              const payableAmount = Math.abs(parseFloat(mismatch.bestMatch?.amount || 0));
+              const receivableAmount = Math.abs(parseFloat(mismatch?.company1?.amount || 0));
+              const payableAmount = Math.abs(parseFloat(mismatch?.company2?.amount || 0));
               
               // Calculate absolute difference between absolute values of amounts
               const difference = Math.abs(receivableAmount - payableAmount);
               
+              // Check for partial payment information
+              const partialPaymentBadge = mismatch.company1?.is_partially_paid ? 
+                getPartialPaymentBadge(mismatch.company1) : 
+                (mismatch.company2?.is_partially_paid ? getPartialPaymentBadge(mismatch.company2) : null);
+              
+              let paymentInfo = null;
+              if (mismatch.company1?.payment_date || mismatch.company2?.payment_date) {
+                const paymentDate = mismatch.company1?.payment_date || mismatch.company2?.payment_date;
+                paymentInfo = (
+                  <div>
+                    <span>{formatCurrency(mismatch?.company2?.amount || 0)}</span>
+                    <div className="text-xs text-green-600 mt-1">
+                      {mismatch.company1?.is_partially_paid || mismatch.company2?.is_partially_paid ? 'Partial payment' : 'Payment'} 
+                      on {formatDate(paymentDate)}
+                    </div>
+                  </div>
+                );
+              } else {
+                paymentInfo = formatCurrency(mismatch?.company2?.amount || 0);
+              }
+              
               return {
-                'Transaction #': mismatch.bestMatch?.reference || mismatch.invoice?.InvoiceNumber || 'N/A',
-                'Type': mismatch.invoice?.Type || 'Invoice',
-                'Receivable Amount': formatCurrency(mismatch.invoice?.Total || 0),
-                'Payable Amount': formatCurrency(mismatch.bestMatch?.amount || 0),
+                'Transaction #': (
+                  <div className="flex items-center">
+                    <span>{mismatch?.company1?.transactionNumber || mismatch?.company2?.transactionNumber || 'N/A'}</span>
+                    {partialPaymentBadge}
+                  </div>
+                ),
+                'Type': mismatch?.company1?.type || mismatch?.company2?.type || 'N/A',
+                'Receivable Amount': formatCurrency(mismatch?.company1?.amount || 0),
+                'Payable Amount': paymentInfo,
                 'Difference': formatCurrency(difference),
-                'Date': formatDate(mismatch.invoice?.Date),
-                'Status': mismatch.invoice?.Status || 'N/A'
+                'Date': formatDate(mismatch?.company1?.date || mismatch?.company2?.date),
+                'Status': mismatch?.company1?.status || mismatch?.company2?.status || 'N/A'
               };
             })}
             columns={['Transaction #', 'Type', 'Receivable Amount', 'Payable Amount', 'Difference', 'Date', 'Status']}
@@ -344,11 +265,11 @@ const MatchingResults = ({ matchResults }) => {
       )}
 
       {/* Date Mismatches Section */}
-      {dateMismatches.length > 0 && (
+      {safeDateMismatches.length > 0 && (
         <div ref={dateMismatchesRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200 border-l-4 border-l-purple-400">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-blue-700">
-              Date Discrepancies in Matched Transactions ({dateMismatches.length})
+              Date Discrepancies in Matched Transactions ({safeDateMismatches.length})
             </h2>
             <button className="text-blue-700 hover:text-blue-900 transition-colors">
               Export CSV
@@ -358,15 +279,23 @@ const MatchingResults = ({ matchResults }) => {
             These transactions are matched based on transaction numbers and amounts, but have discrepancies in their dates.
           </p>
           <ResultTable
-            data={dateMismatches.map(match => ({
-              'Transaction #': match.bestMatch?.reference || match.invoice?.InvoiceNumber || 'N/A',
-              'Type': match.invoice?.Type || 'Invoice',
-              'Amount': formatCurrency(match.invoice?.Total || 0),
-              'AR Date': formatDate(match.company1Date),
-              'AP Date': formatDate(match.company2Date),
-              'Days Difference': match.daysDifference !== null ? Math.round(match.daysDifference) : 'N/A'
-            }))}
-            columns={['Transaction #', 'Type', 'Amount', 'AR Date', 'AP Date', 'Days Difference']}
+            data={safeDateMismatches.map(mismatch => {
+              // Determine the type of date mismatch
+              const mismatchType = mismatch.mismatchType === 'transaction_date' 
+                ? 'Transaction Date' 
+                : 'Due Date';
+              
+              return {
+                'Transaction #': mismatch?.company1?.transactionNumber || mismatch?.company2?.transactionNumber || 'N/A',
+                'Type': mismatch?.company1?.type || mismatch?.company2?.type || 'N/A',
+                'Amount': formatCurrency(mismatch?.company1?.amount || 0),
+                'Discrepancy Type': mismatchType,
+                'AR Date': formatDate(mismatch.company1Date),
+                'AP Date': formatDate(mismatch.company2Date),
+                'Days Difference': mismatch.daysDifference || 'N/A'
+              };
+            })}
+            columns={['Transaction #', 'Type', 'Amount', 'Discrepancy Type', 'AR Date', 'AP Date', 'Days Difference']}
           />
         </div>
       )}
@@ -374,65 +303,112 @@ const MatchingResults = ({ matchResults }) => {
       {/* Unmatched Items Section */}
       <div ref={unmatchedRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-blue-700">Unmatched Invoices ({unmatchedInvoices.length})</h2>
+          <h2 className="text-xl font-semibold text-blue-700">Unmatched Items</h2>
           <button className="text-blue-700 hover:text-blue-900 transition-colors">
             Export CSV
           </button>
         </div>
-        {unmatchedInvoices.length > 0 ? (
-          <ResultTable
-            data={unmatchedInvoices.map(invoice => ({
-              'Invoice #': invoice.InvoiceNumber || 'N/A',
-              'Customer': invoice.CustomerName || 'N/A',
-              'Amount': formatCurrency(invoice.Total),
-              'Date': formatDate(invoice.Date),
-              'Due Date': formatDate(invoice.DueDate),
-              'Status': (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                  {invoice.Status || 'No Match'}
-                </span>
-              )
-            }))}
-            columns={['Invoice #', 'Customer', 'Amount', 'Date', 'Due Date', 'Status']}
-          />
-        ) : (
-          <p className="text-gray-500 italic">No unmatched invoices found.</p>
-        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="text-lg font-semibold mb-4 text-blue-700">Unmatched Receivables ({safeUnmatchedItems.company1?.length || 0})</h3>
+            {safeUnmatchedItems.company1 && safeUnmatchedItems.company1.length > 0 ? (
+              <ResultTable
+                data={(safeUnmatchedItems.company1 || []).map(item => {
+                  const partialPaymentBadge = item.is_partially_paid ? getPartialPaymentBadge(item) : null;
+                  
+                  return {
+                    'Transaction #': (
+                      <div className="flex items-center">
+                        <span>{item?.transactionNumber || item?.InvoiceNumber || 'N/A'}</span>
+                        {partialPaymentBadge}
+                      </div>
+                    ),
+                    'Amount': formatCurrency(item?.amount || item?.Total || 0),
+                    'Date': formatDate(item?.date || item?.Date),
+                    'Due Date': formatDate(item?.dueDate || item?.DueDate),
+                    'Status': item?.status || item?.Status || 'N/A'
+                  };
+                })}
+                columns={['Transaction #', 'Amount', 'Date', 'Due Date', 'Status']}
+              />
+            ) : (
+              <p className="text-gray-500 italic">No unmatched receivables found.</p>
+            )}
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold mb-4 text-blue-700">Unmatched Payables ({safeUnmatchedItems.company2?.length || 0})</h3>
+            {safeUnmatchedItems.company2 && safeUnmatchedItems.company2.length > 0 ? (
+              <ResultTable
+                data={(safeUnmatchedItems.company2 || []).map(item => {
+                  const partialPaymentBadge = item.is_partially_paid ? getPartialPaymentBadge(item) : null;
+                  
+                  return {
+                    'Transaction #': (
+                      <div className="flex items-center">
+                        <span>{item?.transactionNumber || 'N/A'}</span>
+                        {partialPaymentBadge}
+                      </div>
+                    ),
+                    'Amount': formatCurrency(item?.amount || 0),
+                    'Date': formatDate(item?.date),
+                    'Due Date': formatDate(item?.dueDate),
+                    'Status': item?.status || 'N/A'
+                  };
+                })}
+                columns={['Transaction #', 'Amount', 'Date', 'Due Date', 'Status']}
+              />
+            ) : (
+              <p className="text-gray-500 italic">No unmatched payables found.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Historical Insights Section */}
-      {historicalInsights.length > 0 && (
+      {safeHistoricalInsights.length > 0 && (
         <div ref={historicalInsightsRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-blue-700">
-              Historical Insights for AP Items ({historicalInsights.length})
+              Historical Insights for AP Items ({safeHistoricalInsights.length})
             </h2>
             <button className="text-blue-700 hover:text-blue-900 transition-colors">
               Export CSV
             </button>
           </div>
           <div className="space-y-4">
-            {historicalInsights.map((insight, index) => {
-              const badgeClass = getInsightBadgeClass(insight.insight.severity);
+            {safeHistoricalInsights.map((insight, index) => {
+              const badgeClass = getInsightBadgeClass(insight.insight?.severity || 'info');
               return (
                 <div key={index} className="border rounded-lg overflow-hidden">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
                     <div className="space-y-2">
                       <h3 className="font-medium text-blue-700">AP Item</h3>
                       <div className="text-sm">
-                        <p><span className="font-medium">Transaction #:</span> {insight.apItem?.reference || 'N/A'}</p>
+                        <p><span className="font-medium">Transaction #:</span> {insight.apItem?.transactionNumber || 'N/A'}</p>
                         <p><span className="font-medium">Amount:</span> {formatCurrency(insight.apItem?.amount || 0)}</p>
                         <p><span className="font-medium">Date:</span> {formatDate(insight.apItem?.date)}</p>
-                        <p><span className="font-medium">Description:</span> {insight.apItem?.description || 'N/A'}</p>
+                        <p><span className="font-medium">Status:</span> {insight.apItem?.status || 'N/A'}</p>
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <h3 className="font-medium text-blue-700">AR Item</h3>
+                      <h3 className="font-medium text-blue-700">AR Historical Match</h3>
                       <div className="text-sm">
-                        <p><span className="font-medium">Invoice #:</span> {insight.historicalMatch?.InvoiceNumber || 'N/A'}</p>
-                        <p><span className="font-medium">Original Amount:</span> {formatCurrency(insight.historicalMatch?.Total || 0)}</p>
-                        <p><span className="font-medium">Date:</span> {formatDate(insight.historicalMatch?.Date)}</p>
-                        <p><span className="font-medium">Status:</span> {insight.historicalMatch?.Status || 'N/A'}</p>
+                        <p><span className="font-medium">Transaction #:</span> {insight.historicalMatch?.transactionNumber || 'N/A'}</p>
+                        <p><span className="font-medium">Original Amount:</span> {formatCurrency(insight.historicalMatch?.original_amount || insight.historicalMatch?.amount || 0)}</p>
+                        {insight.historicalMatch?.is_partially_paid && (
+                          <p>
+                            <span className="font-medium">Paid Amount:</span> {formatCurrency(insight.historicalMatch?.amount_paid || 0)}
+                            <span className="ml-2 text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800">
+                              {((insight.historicalMatch.amount_paid / insight.historicalMatch.original_amount) * 100).toFixed(0)}% paid
+                            </span>
+                          </p>
+                        )}
+                        <p><span className="font-medium">Current Amount:</span> {formatCurrency(insight.historicalMatch?.amount || 0)}</p>
+                        <p><span className="font-medium">Date:</span> {formatDate(insight.historicalMatch?.date)}</p>
+                        <p><span className="font-medium">Status:</span> {insight.historicalMatch?.status || 'N/A'}</p>
+                        {insight.historicalMatch?.payment_date && (
+                          <p><span className="font-medium">Payment Date:</span> {formatDate(insight.historicalMatch?.payment_date)}</p>
+                        )}
                       </div>
                     </div>
                     <div className="space-y-2">
