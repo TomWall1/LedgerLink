@@ -46,17 +46,35 @@ const MatchResults = () => {
       dateMismatches: [],
       unmatchedItems: {
         company1: rawResults.unmatchedInvoices || [],
-        company2: []
+        company2: [] // Will populate these with the AP items that don't match any AR items
       },
       historicalInsights: []
     };
 
+    // First, collect all AR invoices
+    const allARInvoices = new Set();
+    if (rawResults.data && Array.isArray(rawResults.data)) {
+      rawResults.data.forEach(match => {
+        if (match.invoice && match.invoice.InvoiceNumber) {
+          allARInvoices.add(match.invoice.InvoiceNumber.toLowerCase());
+        }
+      });
+    }
+
+    // Then collect all AP transactions that have a match in AR
+    const matchedAPReferences = new Set();
+    
     // Process matches
     if (rawResults.data && Array.isArray(rawResults.data)) {
       rawResults.data.forEach(match => {
         if (match.matches && match.matches.length > 0) {
           const invoice = match.invoice;
           const bestMatch = match.matches.sort((a, b) => b.confidence - a.confidence)[0];
+
+          // Record this AP reference as matched
+          if (bestMatch.reference) {
+            matchedAPReferences.add(bestMatch.reference.toLowerCase());
+          }
 
           // Check if invoice number and amount match
           const invoiceNumberMatches = bestMatch.reference?.toLowerCase() === invoice.InvoiceNumber?.toLowerCase();
@@ -71,6 +89,10 @@ const MatchResults = () => {
           
           // Dates match if they refer to the same calendar day (regardless of time)
           const dateMatches = datesValid ? (invoiceDate === matchDate) : false;
+          
+          // Check due date match
+          const invoiceDueDate = normalizeDateForComparison(invoice.DueDate);
+          const dueDateMatches = invoiceDueDate !== null && (invoiceDueDate === matchDate);
           
           // Calculate days difference for date mismatches
           let daysDifference = null;
@@ -108,7 +130,7 @@ const MatchResults = () => {
               company2
             });
             
-            // Check for date mismatch
+            // Check for date mismatch - transaction date
             if (!dateMatches && datesValid) {
               // Add to date mismatches section
               enhancedData.dateMismatches.push({
@@ -117,6 +139,19 @@ const MatchResults = () => {
                 mismatchType: 'transaction_date',
                 daysDifference,
                 company1Date: invoice.Date,
+                company2Date: bestMatch.date
+              });
+            }
+            
+            // Check for due date mismatch
+            if (invoice.DueDate && !dueDateMatches && invoiceDueDate !== null) {
+              const dueDateDifference = Math.round(Math.abs(invoiceDueDate - matchDate) / (1000 * 60 * 60 * 24));
+              enhancedData.dateMismatches.push({
+                company1,
+                company2,
+                mismatchType: 'due_date',
+                daysDifference: dueDateDifference,
+                company1Date: invoice.DueDate,
                 company2Date: bestMatch.date
               });
             }
@@ -156,6 +191,33 @@ const MatchResults = () => {
               });
             }
           }
+        }
+      });
+    }
+
+    // Find any AP transactions that don't have a match in AR
+    // We need to go through all matches and check for AP references that aren't in matchedAPReferences
+    if (rawResults.data && Array.isArray(rawResults.data)) {
+      const seenReferences = new Set(); // To avoid duplicates
+
+      rawResults.data.forEach(match => {
+        if (match.matches && match.matches.length > 0) {
+          match.matches.forEach(apItem => {
+            if (apItem.reference && !matchedAPReferences.has(apItem.reference.toLowerCase()) && !seenReferences.has(apItem.reference.toLowerCase())) {
+              // This AP item doesn't match any AR invoice
+              seenReferences.add(apItem.reference.toLowerCase());
+              
+              enhancedData.unmatchedItems.company2.push({
+                transactionNumber: apItem.reference,
+                amount: apItem.amount,
+                date: apItem.date,
+                dueDate: '', // AP might not have due dates
+                status: apItem.status || 'Open',
+                type: 'Payable',
+                description: apItem.description || ''
+              });
+            }
+          });
         }
       });
     }
