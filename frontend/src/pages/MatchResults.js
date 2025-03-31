@@ -31,12 +31,41 @@ const MatchResults = () => {
   const handleExportAll = () => {
     // Get the current date for the filename
     const date = new Date().toISOString().split('T')[0];
+    const customerName = results?.customer?.Name || 'customer';
+    const filename = `${customerName}_invoice_matches_${date}.csv`;
     
-    // Prepare data for export (this would be implemented in utils/exportUtils.js)
-    // For now, just log that export was requested
-    console.log('Export all requested');
+    // Create CSV content
+    let csvContent = 'AR Invoice #,AR Amount,AR Date,AR Due Date,AP Reference,AP Amount,AP Date,AP Description\n';
     
-    // Logic for exporting would go here
+    // Add data rows
+    if (results?.data && results.data.length > 0) {
+      results.data.forEach(match => {
+        if (match.matches && match.matches.length > 0) {
+          const invoice = match.invoice;
+          const bestMatch = match.matches.sort((a, b) => b.confidence - a.confidence)[0];
+          
+          csvContent += `"${invoice.InvoiceNumber || ''}",`;
+          csvContent += `"${invoice.Total || ''}",`;
+          csvContent += `"${invoice.Date || ''}",`;
+          csvContent += `"${invoice.DueDate || ''}",`;
+          csvContent += `"${bestMatch.reference || ''}",`;
+          csvContent += `"${bestMatch.amount || ''}",`;
+          csvContent += `"${bestMatch.date || ''}",`;
+          csvContent += `"${bestMatch.description || ''}"\n`;
+        }
+      });
+    }
+    
+    // Create downloadable link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (loading) {
@@ -58,7 +87,14 @@ const MatchResults = () => {
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-blue-600">Invoice Matching Results</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-blue-600">Invoice Matching Results</h1>
+          {results.customer && (
+            <p className="text-lg text-gray-600 mt-1">
+              Customer: {results.customer.Name}
+            </p>
+          )}
+        </div>
         <div className="flex space-x-4">
           <button
             onClick={handleExportAll}
@@ -78,6 +114,24 @@ const MatchResults = () => {
             </svg>
             Match More Invoices
           </Link>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-md p-4 mb-8">
+        <h2 className="text-xl font-semibold text-blue-700 mb-4">Matching Summary</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <h3 className="text-lg font-medium text-gray-700">Total AR (Receivables)</h3>
+            <p className="text-2xl font-bold">{formatCurrency(results.totals.company1Total)}</p>
+          </div>
+          <div>
+            <h3 className="text-lg font-medium text-gray-700">Total AP (Payables)</h3>
+            <p className="text-2xl font-bold">{formatCurrency(results.totals.company2Total || 0)}</p>
+          </div>
+          <div>
+            <h3 className="text-lg font-medium text-gray-700">Variance</h3>
+            <p className="text-2xl font-bold">{formatCurrency(results.totals.variance || 0)}</p>
+          </div>
         </div>
       </div>
 
