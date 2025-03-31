@@ -26,11 +26,26 @@ export const formatDate = (date) => {
       }
     }
     
+    // Handle the specific format "27T00:00:00.000Z/10/2024"
+    if (typeof date === 'string' && date.includes('T') && date.includes('/')) {
+      const parts = date.split('/');
+      if (parts.length >= 3) {
+        // Assuming it's in format "DD/MM/YYYY" or similar
+        return parts.slice(0, 3).join('/');
+      } else if (parts.length === 2) {
+        // Format "27T00:00:00.000Z/10/2024" (day/month/year)
+        const day = parts[0].split('T')[0].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        const year = parts.length > 2 ? parts[2] : new Date().getFullYear().toString();
+        return `${day}/${month}/${year}`;
+      }
+    }
+    
     // Simple format - handle YYYY-MM-DD format (most common from backend)
     if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}/)) {
       const [year, month, day] = date.split('-');
       // Format as DD/MM/YYYY for better readability
-      return `${day}/${month}/${year}`;
+      return `${day.substring(0,2)}/${month}/${year}`;
     }
     
     // For anything else, try the standard Date parsing
