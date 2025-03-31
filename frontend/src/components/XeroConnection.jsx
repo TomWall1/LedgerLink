@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useXero } from '../context/XeroContext';
-import { navigateTo } from '../utils/customRouter';
 import api from '../utils/api';
 
 const XeroConnection = ({ onUseXeroData }) => {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState(null);
@@ -164,7 +165,7 @@ const XeroConnection = ({ onUseXeroData }) => {
       onUseXeroData(); // Call the function from parent component
     } else {
       // Fallback to navigation - direct to the erp-data view
-      navigateTo('erp-data');
+      navigate('/erp-data');
     }
   };
 
