@@ -18,6 +18,46 @@ const MatchingResults = ({ matchResults }) => {
     ref.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Helper function to normalize dates to their date parts only (remove time)
+  const normalizeDateForComparison = (dateStr) => {
+    if (!dateStr) return null;
+    
+    try {
+      // Handle .NET JSON date format: "/Date(1728950400000+0000)/"
+      if (typeof dateStr === 'string' && dateStr.startsWith('/Date(') && dateStr.includes('+')) {
+        const timestamp = parseInt(dateStr.substring(6, dateStr.indexOf('+')));
+        if (!isNaN(timestamp)) {
+          const date = new Date(timestamp);
+          return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+        }
+      }
+      
+      // Handle the specific format "27T00:00:00.000Z/10/2024"
+      if (typeof dateStr === 'string' && dateStr.includes('T') && dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length >= 2) {
+          const day = parseInt(parts[0].split('T')[0]);
+          const month = parseInt(parts[1]) - 1; // JS months are 0-indexed
+          const year = parts.length > 2 ? parseInt(parts[2]) : new Date().getFullYear();
+          if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+            return new Date(year, month, day).getTime();
+          }
+        }
+      }
+      
+      // Standard date parsing for other formats
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error normalizing date:', error, 'Date value:', dateStr);
+      return null;
+    }
+  };
+
   // Ensure data is available and properly structured
   const matches = matchResults?.data || [];
   
@@ -34,22 +74,33 @@ const MatchingResults = ({ matchResults }) => {
       const invoiceNumberMatches = bestMatch.reference?.toLowerCase() === invoice.InvoiceNumber?.toLowerCase();
       const amountMatches = Math.abs(parseFloat(bestMatch.amount) - parseFloat(invoice.Total)) < 0.01; // Small tolerance for rounding
       
-      // Extract dates for comparison
-      const invoiceDate = new Date(invoice.Date);
-      const matchDate = new Date(bestMatch.date);
+      // Normalize dates for comparison (just the date part, no time)
+      const invoiceDate = normalizeDateForComparison(invoice.Date);
+      const matchDate = normalizeDateForComparison(bestMatch.date);
       
-      // Check if dates are valid before comparing
-      const datesValid = !isNaN(invoiceDate.getTime()) && !isNaN(matchDate.getTime());
-      const dateMatches = datesValid ? 
-        Math.abs(invoiceDate.getTime() - matchDate.getTime()) < 86400000 : // 1 day tolerance
-        false;
+      // Check if both dates are valid for comparison
+      const datesValid = invoiceDate !== null && matchDate !== null;
+      
+      // Dates match if they refer to the same calendar day (regardless of time)
+      const dateMatches = datesValid ? (invoiceDate === matchDate) : false;
       
       // If both invoice number and amount match, categorize based on date match
       if (invoiceNumberMatches && amountMatches) {
         if (dateMatches) {
           exactMatches.push({ ...match, bestMatch });
         } else {
-          dateMismatches.push({ ...match, bestMatch, mismatchType: 'date' });
+          // Calculate days difference if possible
+          let daysDifference = null;
+          if (datesValid) {
+            daysDifference = Math.abs(invoiceDate - matchDate) / (1000 * 60 * 60 * 24);
+          }
+          
+          dateMismatches.push({ 
+            ...match, 
+            bestMatch, 
+            mismatchType: 'date',
+            daysDifference
+          });
         }
       } else {
         // Currently only supporting exact matches on invoice number and amount
@@ -190,7 +241,7 @@ const MatchingResults = ({ matchResults }) => {
               'Amount': formatCurrency(match.invoice?.Total || 0),
               'AR Date': formatDate(match.invoice?.Date),
               'AP Date': formatDate(match.bestMatch?.date),
-              'Days Difference': Math.floor(Math.abs(new Date(match.invoice?.Date) - new Date(match.bestMatch?.date)) / (1000 * 60 * 60 * 24))
+              'Days Difference': match.daysDifference !== null ? Math.round(match.daysDifference) : 'N/A'
             }))}
             columns={['Transaction #', 'Type', 'Amount', 'AR Date', 'AP Date', 'Days Difference']}
           />
