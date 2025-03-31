@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import MatchingResults from '../components/MatchingResults';
 import { formatCurrency } from '../utils/format';
+import dayjs from 'dayjs';
 
 const MatchResults = () => {
   const navigate = useNavigate();
@@ -15,9 +16,11 @@ const MatchResults = () => {
       try {
         // Parse the JSON data
         const parsedResults = JSON.parse(storedResults);
+        console.log('Original results from session:', parsedResults);
         
         // Pre-process the data for the enhanced display
         const enhancedResults = enhanceResultsData(parsedResults);
+        console.log('Enhanced results:', enhancedResults);
         setResults(enhancedResults);
       } catch (error) {
         console.error('Error parsing results from session storage:', error);
@@ -36,8 +39,6 @@ const MatchResults = () => {
       return rawResults;
     }
 
-    console.log('Raw results:', rawResults); // Debugging
-    
     // Create the data object structure for the enhanced format
     const enhancedData = {
       ...rawResults,
@@ -45,23 +46,25 @@ const MatchResults = () => {
       mismatches: [],
       dateMismatches: [],
       unmatchedItems: {
-        company1: rawResults.unmatchedInvoices || [],
-        company2: [] // Will populate these with the AP items that don't match any AR items
+        company1: [],
+        company2: []
       },
       historicalInsights: []
     };
 
-    // First, collect all AR invoices
-    const allARInvoices = new Set();
-    if (rawResults.data && Array.isArray(rawResults.data)) {
-      rawResults.data.forEach(match => {
-        if (match.invoice && match.invoice.InvoiceNumber) {
-          allARInvoices.add(match.invoice.InvoiceNumber.toLowerCase());
-        }
-      });
+    // Set unmatched AR items directly from the source
+    if (rawResults.unmatchedInvoices && Array.isArray(rawResults.unmatchedInvoices)) {
+      enhancedData.unmatchedItems.company1 = rawResults.unmatchedInvoices.map(invoice => ({
+        transactionNumber: invoice.InvoiceNumber,
+        amount: invoice.Total,
+        date: invoice.Date,
+        dueDate: invoice.DueDate,
+        status: invoice.Status || 'Open',
+        type: invoice.Type || 'Invoice'
+      }));
     }
 
-    // Then collect all AP transactions that have a match in AR
+    // Collect all matched AP references to identify unmatched AP items later
     const matchedAPReferences = new Set();
     
     // Process matches
@@ -74,30 +77,6 @@ const MatchResults = () => {
           // Record this AP reference as matched
           if (bestMatch.reference) {
             matchedAPReferences.add(bestMatch.reference.toLowerCase());
-          }
-
-          // Check if invoice number and amount match
-          const invoiceNumberMatches = bestMatch.reference?.toLowerCase() === invoice.InvoiceNumber?.toLowerCase();
-          const amountMatches = Math.abs(parseFloat(bestMatch.amount || 0) - parseFloat(invoice.Total || 0)) < 0.01; // Small tolerance for rounding
-          
-          // Normalize dates for comparison (just the date part, no time)
-          const invoiceDate = normalizeDateForComparison(invoice.Date);
-          const matchDate = normalizeDateForComparison(bestMatch.date);
-          
-          // Check if both dates are valid for comparison
-          const datesValid = invoiceDate !== null && matchDate !== null;
-          
-          // Dates match if they refer to the same calendar day (regardless of time)
-          const dateMatches = datesValid ? (invoiceDate === matchDate) : false;
-          
-          // Check due date match
-          const invoiceDueDate = normalizeDateForComparison(invoice.DueDate);
-          const dueDateMatches = invoiceDueDate !== null && (invoiceDueDate === matchDate);
-          
-          // Calculate days difference for date mismatches
-          let daysDifference = null;
-          if (datesValid && !dateMatches) {
-            daysDifference = Math.round(Math.abs(invoiceDate - matchDate) / (1000 * 60 * 60 * 24));
           }
 
           // Create company1 (AR) and company2 (AP) objects for consistent structure
@@ -122,6 +101,10 @@ const MatchResults = () => {
             description: bestMatch.description || ''
           };
 
+          // Check if invoice number and amount match
+          const invoiceNumberMatches = bestMatch.reference?.toLowerCase() === invoice.InvoiceNumber?.toLowerCase();
+          const amountMatches = Math.abs(parseFloat(bestMatch.amount || 0) - parseFloat(invoice.Total || 0)) < 0.01;
+
           // Categorize match
           if (invoiceNumberMatches && amountMatches) {
             // Add to perfect matches
@@ -130,29 +113,16 @@ const MatchResults = () => {
               company2
             });
             
-            // Check for date mismatch - transaction date
-            if (!dateMatches && datesValid) {
-              // Add to date mismatches section
+            // Check for date mismatch
+            const dateMismatch = findDateMismatch(company1, company2);
+            if (dateMismatch) {
               enhancedData.dateMismatches.push({
                 company1,
                 company2,
-                mismatchType: 'transaction_date',
-                daysDifference,
-                company1Date: invoice.Date,
-                company2Date: bestMatch.date
-              });
-            }
-            
-            // Check for due date mismatch
-            if (invoice.DueDate && !dueDateMatches && invoiceDueDate !== null) {
-              const dueDateDifference = Math.round(Math.abs(invoiceDueDate - matchDate) / (1000 * 60 * 60 * 24));
-              enhancedData.dateMismatches.push({
-                company1,
-                company2,
-                mismatchType: 'due_date',
-                daysDifference: dueDateDifference,
-                company1Date: invoice.DueDate,
-                company2Date: bestMatch.date
+                mismatchType: dateMismatch.type,
+                company1Date: dateMismatch.date1,
+                company2Date: dateMismatch.date2,
+                daysDifference: dateMismatch.daysDifference
               });
             }
           } else {
@@ -195,27 +165,33 @@ const MatchResults = () => {
       });
     }
 
-    // Find any AP transactions that don't have a match in AR
-    // We need to go through all matches and check for AP references that aren't in matchedAPReferences
+    // Find and add unmatched AP items
     if (rawResults.data && Array.isArray(rawResults.data)) {
-      const seenReferences = new Set(); // To avoid duplicates
+      // Create a Set to track processed references
+      const processedAPReferences = new Set();
 
-      rawResults.data.forEach(match => {
-        if (match.matches && match.matches.length > 0) {
-          match.matches.forEach(apItem => {
-            if (apItem.reference && !matchedAPReferences.has(apItem.reference.toLowerCase()) && !seenReferences.has(apItem.reference.toLowerCase())) {
-              // This AP item doesn't match any AR invoice
-              seenReferences.add(apItem.reference.toLowerCase());
+      // Process each entry in the data array
+      rawResults.data.forEach(item => {
+        // Process each match in the matches array
+        if (item.matches && Array.isArray(item.matches)) {
+          item.matches.forEach(apItem => {
+            // Only process if we haven't seen this reference before
+            if (apItem.reference && !processedAPReferences.has(apItem.reference.toLowerCase())) {
+              // Mark this reference as processed
+              processedAPReferences.add(apItem.reference.toLowerCase());
               
-              enhancedData.unmatchedItems.company2.push({
-                transactionNumber: apItem.reference,
-                amount: apItem.amount,
-                date: apItem.date,
-                dueDate: '', // AP might not have due dates
-                status: apItem.status || 'Open',
-                type: 'Payable',
-                description: apItem.description || ''
-              });
+              // Check if this AP reference was matched to an AR invoice
+              if (!matchedAPReferences.has(apItem.reference.toLowerCase())) {
+                // This AP item has no matching AR invoice - add to unmatched
+                enhancedData.unmatchedItems.company2.push({
+                  transactionNumber: apItem.reference,
+                  amount: apItem.amount,
+                  date: apItem.date,
+                  status: apItem.status || 'Open',
+                  type: 'Payable',
+                  description: apItem.description || ''
+                });
+              }
             }
           });
         }
@@ -236,7 +212,9 @@ const MatchResults = () => {
     
     // Add unmatched AP items
     enhancedData.unmatchedItems.company2.forEach(item => {
-      company2Total += parseFloat(item.amount) || 0;
+      if (item.amount) {
+        company2Total += parseFloat(item.amount) || 0;
+      }
     });
     
     // Update the totals
@@ -246,48 +224,53 @@ const MatchResults = () => {
       variance: (rawResults.totals?.company1Total || 0) - company2Total
     };
 
-    console.log('Enhanced results:', enhancedData); // Debugging
     return enhancedData;
   };
 
-  // Helper function to normalize dates to their date parts only (remove time)
-  const normalizeDateForComparison = (dateStr) => {
-    if (!dateStr) return null;
-    
-    try {
-      // Handle .NET JSON date format: "/Date(1728950400000+0000)/"
-      if (typeof dateStr === 'string' && dateStr.startsWith('/Date(') && dateStr.includes('+')) {
-        const timestamp = parseInt(dateStr.substring(6, dateStr.indexOf('+')));
-        if (!isNaN(timestamp)) {
-          const date = new Date(timestamp);
-          return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  // Function to find date mismatches between two otherwise matching items
+  const findDateMismatch = (item1, item2) => {
+    // Check transaction date mismatch
+    if (item1.date && item2.date) {
+      // Normalize date formats before comparison
+      const date1 = dayjs(item1.date);
+      const date2 = dayjs(item2.date);
+      
+      if (date1.isValid() && date2.isValid()) {
+        const daysDifference = Math.abs(date1.diff(date2, 'day'));
+        
+        // If dates differ by more than 1 day, it's a mismatch
+        if (daysDifference > 1) {
+          return {
+            type: 'transaction_date',
+            date1: item1.date,
+            date2: item2.date,
+            daysDifference
+          };
         }
       }
-      
-      // Handle the specific format "27T00:00:00.000Z/10/2024"
-      if (typeof dateStr === 'string' && dateStr.includes('T') && dateStr.includes('/')) {
-        const parts = dateStr.split('/');
-        if (parts.length >= 2) {
-          const day = parseInt(parts[0].split('T')[0]);
-          const month = parseInt(parts[1]) - 1; // JS months are 0-indexed
-          const year = parts.length > 2 ? parseInt(parts[2]) : new Date().getFullYear();
-          if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-            return new Date(year, month, day).getTime();
-          }
-        }
-      }
-      
-      // Standard date parsing for other formats
-      const date = new Date(dateStr);
-      if (!isNaN(date.getTime())) {
-        return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('Error normalizing date:', error, 'Date value:', dateStr);
-      return null;
     }
+    
+    // Check due date mismatch
+    if (item1.dueDate && item2.date) {
+      const dueDate1 = dayjs(item1.dueDate);
+      const date2 = dayjs(item2.date);
+      
+      if (dueDate1.isValid() && date2.isValid()) {
+        const daysDifference = Math.abs(dueDate1.diff(date2, 'day'));
+        
+        // If due date and transaction date differ by more than 1 day, it's a mismatch
+        if (daysDifference > 1) {
+          return {
+            type: 'due_date',
+            date1: item1.dueDate,
+            date2: item2.date,
+            daysDifference
+          };
+        }
+      }
+    }
+    
+    return null; // No date mismatches found
   };
 
   // Function to handle exporting all results to CSV
