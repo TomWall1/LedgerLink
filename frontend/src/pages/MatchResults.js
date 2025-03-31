@@ -35,7 +35,7 @@ const MatchResults = () => {
     const filename = `${customerName}_invoice_matches_${date}.csv`;
     
     // Create CSV content
-    let csvContent = 'AR Invoice #,AR Amount,AR Date,AR Due Date,AP Reference,AP Amount,AP Date,AP Description\n';
+    let csvContent = 'Invoice #,Amount,AR Date,AR Due Date,AP Reference,AP Amount,AP Date,AP Description\n';
     
     // Add data rows
     if (results?.data && results.data.length > 0) {
@@ -122,15 +122,15 @@ const MatchResults = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <h3 className="text-lg font-medium text-gray-700">Total AR (Receivables)</h3>
-            <p className="text-2xl font-bold">{formatCurrency(results.totals.company1Total)}</p>
+            <p className="text-2xl font-bold">{formatCurrency(results.totals?.company1Total || 0)}</p>
           </div>
           <div>
             <h3 className="text-lg font-medium text-gray-700">Total AP (Payables)</h3>
-            <p className="text-2xl font-bold">{formatCurrency(results.totals.company2Total || 0)}</p>
+            <p className="text-2xl font-bold">{formatCurrency(results.totals?.company2Total || 0)}</p>
           </div>
           <div>
             <h3 className="text-lg font-medium text-gray-700">Variance</h3>
-            <p className="text-2xl font-bold">{formatCurrency(results.totals.variance || 0)}</p>
+            <p className="text-2xl font-bold">{formatCurrency(results.totals?.variance || 0)}</p>
           </div>
         </div>
       </div>
