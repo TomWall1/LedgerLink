@@ -1,8 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { formatCurrency, formatDate } from '../utils/format';
 
 const MatchingResults = ({ matchResults }) => {
-  const exactMatchesRef = useRef(null);
+  const perfectMatchesRef = useRef(null);
   const dateMismatchesRef = useRef(null);
   const unmatchedRef = useRef(null);
 
@@ -21,11 +21,10 @@ const MatchingResults = ({ matchResults }) => {
   // Ensure data is available and properly structured
   const matches = matchResults?.data || [];
   
-  // Process and categorize matches
+  // Process and categorize matches based on invoice number and amount
   const exactMatches = [];
   const dateMismatches = [];
   
-  // Categorize matches based on invoice number, amount, and date
   matches.forEach(match => {
     if (match.matches && match.matches.length > 0) {
       const bestMatch = match.matches.sort((a, b) => b.confidence - a.confidence)[0];
@@ -69,39 +68,6 @@ const MatchingResults = ({ matchResults }) => {
   const unmatchedAmount = unmatchedInvoices.reduce((sum, invoice) => sum + parseFloat(invoice.Total || 0), 0);
   const totalAmount = exactMatchesAmount + dateMismatchesAmount + unmatchedAmount;
 
-  // Helper function to render a match
-  const renderInvoiceMatch = (match) => {
-    const invoice = match.invoice;
-    const bestMatch = match.bestMatch;
-    
-    return (
-      <div className="border rounded-lg overflow-hidden shadow-sm mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-          <div className="space-y-2">
-            <h3 className="font-medium text-blue-700">AR (ERP)</h3>
-            <div className="text-sm">
-              <p><span className="font-medium">Invoice #:</span> {invoice.InvoiceNumber || 'N/A'}</p>
-              <p><span className="font-medium">Amount:</span> {formatCurrency(invoice.Total)}</p>
-              <p><span className="font-medium">Date:</span> {formatDate(invoice.Date)}</p>
-              <p><span className="font-medium">Due Date:</span> {formatDate(invoice.DueDate)}</p>
-              <p><span className="font-medium">Customer:</span> {invoice.CustomerName || 'N/A'}</p>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <h3 className="font-medium text-blue-700">AP (CSV)</h3>
-            <div className="text-sm">
-              <p><span className="font-medium">Reference:</span> {bestMatch.reference || 'N/A'}</p>
-              <p><span className="font-medium">Amount:</span> {formatCurrency(bestMatch.amount)}</p>
-              <p><span className="font-medium">Date:</span> {formatDate(bestMatch.date)}</p>
-              <p><span className="font-medium">Description:</span> {bestMatch.description || 'N/A'}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Table component for consistent styling
   const ResultTable = ({ title, data, columns }) => (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200">
@@ -144,7 +110,7 @@ const MatchingResults = ({ matchResults }) => {
         
         <div 
           className="bg-white rounded-lg shadow-lg p-6 border-l-4 border border-green-400 cursor-pointer hover:bg-gray-50 transition-colors"
-          onClick={() => scrollToSection(exactMatchesRef)}
+          onClick={() => scrollToSection(perfectMatchesRef)}
         >
           <h3 className="text-lg font-semibold text-blue-700">Exact Matches</h3>
           <p className="text-3xl font-bold text-green-500">{exactMatches.length}</p>
@@ -183,51 +149,53 @@ const MatchingResults = ({ matchResults }) => {
       </div>
 
       {/* Exact Matches Section */}
-      <div ref={exactMatchesRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
+      <div ref={perfectMatchesRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-blue-700">Exact Matches ({exactMatches.length})</h2>
           <button className="text-blue-700 hover:text-blue-900 transition-colors">
             Export CSV
           </button>
         </div>
-        <div className="space-y-4">
-          {exactMatches.length > 0 ? (
-            exactMatches.map((match, index) => (
-              <div key={index}>
-                {renderInvoiceMatch(match)}
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-500 italic">No exact matches found.</p>
-          )}
-        </div>
+        <ResultTable
+          data={exactMatches.map(match => ({
+            'Transaction #': match.bestMatch?.reference || match.invoice?.InvoiceNumber || 'N/A',
+            'Type': match.invoice?.Type || 'Invoice',
+            'Amount': formatCurrency(match.invoice?.Total || 0),
+            'Date': formatDate(match.invoice?.Date),
+            'Due Date': formatDate(match.invoice?.DueDate),
+            'Status': match.invoice?.Status || 'N/A'
+          }))}
+          columns={['Transaction #', 'Type', 'Amount', 'Date', 'Due Date', 'Status']}
+        />
       </div>
 
       {/* Date Mismatches Section */}
-      <div ref={dateMismatchesRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-blue-700">Date Mismatches ({dateMismatches.length})</h2>
-          <button className="text-blue-700 hover:text-blue-900 transition-colors">
-            Export CSV
-          </button>
+      {dateMismatches.length > 0 && (
+        <div ref={dateMismatchesRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200 border-l-4 border-l-yellow-400">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-blue-700">
+              Date Discrepancies in Matched Transactions ({dateMismatches.length})
+            </h2>
+            <button className="text-blue-700 hover:text-blue-900 transition-colors">
+              Export CSV
+            </button>
+          </div>
+          <p className="mb-4 text-sm text-gray-700">
+            These transactions are matched based on transaction numbers and amounts, but have discrepancies in their dates.
+          </p>
+          <ResultTable
+            data={dateMismatches.map(match => ({
+              'Transaction #': match.bestMatch?.reference || match.invoice?.InvoiceNumber || 'N/A',
+              'Type': match.invoice?.Type || 'Invoice',
+              'Amount': formatCurrency(match.invoice?.Total || 0),
+              'AR Date': formatDate(match.invoice?.Date),
+              'AP Date': formatDate(match.bestMatch?.date),
+              'Days Difference': Math.floor(Math.abs(new Date(match.invoice?.Date) - new Date(match.bestMatch?.date)) / (1000 * 60 * 60 * 24))
+            }))}
+            columns={['Transaction #', 'Type', 'Amount', 'AR Date', 'AP Date', 'Days Difference']}
+          />
         </div>
-        <div className="space-y-4">
-          {dateMismatches.length > 0 ? (
-            dateMismatches.map((match, index) => (
-              <div key={index}>
-                {renderInvoiceMatch(match)}
-                <div className="-mt-2 mb-4 ml-4 text-sm text-yellow-600">
-                  <p>
-                    <span className="font-medium">Note:</span> The invoice number and amount match, but the dates don't match.
-                  </p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-500 italic">No date mismatches found.</p>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* No Matches Section */}
       <div ref={unmatchedRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
@@ -247,7 +215,7 @@ const MatchingResults = ({ matchResults }) => {
               'Due Date': formatDate(invoice.DueDate),
               'Status': (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                  No Match
+                  {invoice.Status || 'No Match'}
                 </span>
               )
             }))}
