@@ -266,9 +266,12 @@ export const matchCustomerInvoices = async (req, res) => {
 
     // Match each invoice with potential CSV transactions
     const potentialMatches = [];
+    const unmatchedInvoices = [];
 
-    console.log('Starting invoice matching process');
-    invoices.forEach(invoice => {
+    console.log('Starting improved invoice matching process');
+    
+    // Process each AR invoice
+    for (const invoice of invoices) {
       // Log invoice details
       console.log('Processing invoice:', { 
         InvoiceID: invoice.InvoiceID, 
@@ -278,84 +281,115 @@ export const matchCustomerInvoices = async (req, res) => {
       });
       
       // Find potential matches for this invoice
-      const matches = csvTransactions.filter(transaction => {
-        // Debug transaction details for analysis
-        console.log(`Comparing invoice ${invoice.InvoiceNumber} (${invoice.Total}) with transaction:`, {
-          reference: transaction.reference,
-          amount: transaction.amount,
-          date: transaction.date
-        });
-        
-        // Match by amount with a small tolerance for rounding errors
-        const amountMatch = Math.abs(invoice.Total - transaction.amount) < 0.01;
-
-        // Match by date proximity (within 7 days)
-        let dateMatch = false;
-        if (invoice.Date && transaction.date) {
-          const invoiceDate = new Date(invoice.Date);
-          const transactionDate = new Date(transaction.date);
+      const matches = csvTransactions
+        .map(transaction => {
+          // Calculate various match criteria
+          const amountMatch = Math.abs(parseFloat(invoice.Total) - parseFloat(transaction.amount)) < 0.01;
           
-          // Ensure both dates are valid
-          if (!isNaN(invoiceDate.getTime()) && !isNaN(transactionDate.getTime())) {
-            const dateDiff = Math.abs(invoiceDate - transactionDate) / (1000 * 60 * 60 * 24); // Convert to days
-            dateMatch = dateDiff <= 7;
-            console.log(`Date diff: ${dateDiff} days, match: ${dateMatch}`);
+          // Calculate date match score based on proximity
+          let dateScore = 0;
+          let dateDiff = 999; // Default to a large number if dates can't be compared
+          
+          if (invoice.Date && transaction.date) {
+            const invoiceDate = new Date(invoice.Date);
+            const transactionDate = new Date(transaction.date);
+            
+            // Ensure both dates are valid
+            if (!isNaN(invoiceDate.getTime()) && !isNaN(transactionDate.getTime())) {
+              dateDiff = Math.abs(invoiceDate - transactionDate) / (1000 * 60 * 60 * 24); // Convert to days
+              
+              // Score based on date proximity (full score if within 2 days, partial if within 7)
+              if (dateDiff <= 2) {
+                dateScore = 1.0;
+              } else if (dateDiff <= 7) {
+                dateScore = 0.5;
+              }
+            }
           }
-        }
-
-        // Match by reference/invoice number
-        let referenceMatch = false;
-        if (invoice.InvoiceNumber && transaction.reference) {
-          const invoiceNum = String(invoice.InvoiceNumber).toLowerCase();
-          const reference = String(transaction.reference).toLowerCase();
           
-          // Check if either contains the other (partial match)
-          referenceMatch = reference.includes(invoiceNum) || invoiceNum.includes(reference);
-          console.log(`Reference match: ${referenceMatch} (${invoiceNum} vs ${reference})`);
-        }
-        
-        // Also try to match by transaction number if different from reference
-        if (!referenceMatch && invoice.InvoiceNumber && transaction.transactionNumber) {
-          const invoiceNum = String(invoice.InvoiceNumber).toLowerCase();
-          const transactionNum = String(transaction.transactionNumber).toLowerCase();
+          // Calculate reference match score
+          let referenceScore = 0;
+          let referenceDetails = '';
           
-          // Check if either contains the other (partial match)
-          const transactionNumMatch = transactionNum.includes(invoiceNum) || invoiceNum.includes(transactionNum);
-          referenceMatch = referenceMatch || transactionNumMatch;
-          
-          if (transactionNumMatch) {
-            console.log(`Transaction number match: true (${invoiceNum} vs ${transactionNum})`);
+          if (invoice.InvoiceNumber && transaction.reference) {
+            const invoiceNum = String(invoice.InvoiceNumber).toLowerCase().trim();
+            const reference = String(transaction.reference).toLowerCase().trim();
+            
+            // Exact match
+            if (invoiceNum === reference) {
+              referenceScore = 1.0;
+              referenceDetails = 'exact';
+            }
+            // Partial match - invoice number contained in reference
+            else if (reference.includes(invoiceNum)) {
+              referenceScore = 0.8;
+              referenceDetails = 'invoice in reference';
+            }
+            // Partial match - reference contained in invoice number
+            else if (invoiceNum.includes(reference)) {
+              referenceScore = 0.6;
+              referenceDetails = 'reference in invoice';
+            }
+            // Try partial match with only numbers (remove letters)
+            else {
+              const invoiceNumeric = invoiceNum.replace(/\D/g, '');
+              const referenceNumeric = reference.replace(/\D/g, '');
+              
+              if (invoiceNumeric && referenceNumeric && 
+                  (invoiceNumeric === referenceNumeric || 
+                   referenceNumeric.includes(invoiceNumeric) || 
+                   invoiceNumeric.includes(referenceNumeric))) {
+                referenceScore = 0.4;
+                referenceDetails = 'numeric match';
+              }
+            }
           }
-        }
-
-        // Determine match confidence
-        let confidence = 0;
-        if (amountMatch) confidence += 0.5;
-        if (dateMatch) confidence += 0.3;
-        if (referenceMatch) confidence += 0.2;
-
-        // Debug match details
-        if (confidence > 0) {
-          console.log('Potential match found:', {
-            invoiceNumber: invoice.InvoiceNumber,
-            transactionReference: transaction.reference,
-            invoiceAmount: invoice.Total,
-            transactionAmount: transaction.amount,
-            amountMatch,
-            dateMatch,
-            referenceMatch,
-            confidence
-          });
-        }
-
-        // Consider it a match if the confidence is at least 0.5 (amount + either date or reference)
-        if (confidence >= 0.5) {
-          transaction.confidence = confidence;
-          return true;
-        }
-        return false;
-      });
-
+          
+          // Also try to match by transaction number if different from reference
+          if (referenceScore === 0 && invoice.InvoiceNumber && transaction.transactionNumber) {
+            const invoiceNum = String(invoice.InvoiceNumber).toLowerCase().trim();
+            const transactionNum = String(transaction.transactionNumber).toLowerCase().trim();
+            
+            // Follow the same pattern as reference matching
+            if (invoiceNum === transactionNum) {
+              referenceScore = 0.9; // Slightly lower than direct reference match
+              referenceDetails = 'exact txn';
+            } else if (transactionNum.includes(invoiceNum)) {
+              referenceScore = 0.7;
+              referenceDetails = 'invoice in txn';
+            } else if (invoiceNum.includes(transactionNum)) {
+              referenceScore = 0.5;
+              referenceDetails = 'txn in invoice';
+            }
+          }
+          
+          // Calculate overall match confidence using weighted criteria
+          // Amount is 50%, Date is 30%, Reference is 20%
+          const amountWeight = 0.5;
+          const dateWeight = 0.3;
+          const referenceWeight = 0.2;
+          
+          const confidence = 
+            (amountMatch ? amountWeight : 0) + 
+            (dateScore * dateWeight) + 
+            (referenceScore * referenceWeight);
+            
+          // Enhance the transaction object with matching metadata
+          return {
+            ...transaction,
+            confidence,
+            matchDetails: {
+              amountMatch,
+              dateScore,
+              dateDiff,
+              referenceScore,
+              referenceDetails
+            }
+          };
+        })
+        .filter(transaction => transaction.confidence >= 0.5) // Only keep matches with confidence >= 50%
+        .sort((a, b) => b.confidence - a.confidence); // Sort by confidence (highest first)
+      
       if (matches.length > 0) {
         console.log(`Found ${matches.length} potential matches for invoice ${invoice.InvoiceNumber}`);
         potentialMatches.push({
@@ -365,19 +399,35 @@ export const matchCustomerInvoices = async (req, res) => {
             reference: match.reference,
             amount: match.amount,
             date: match.date,
-            description: match.description,
+            description: match.description || '',
             confidence: match.confidence,
+            matchDetails: match.matchDetails,
             source: 'CSV'
           }))
         });
+      } else {
+        console.log(`No matches found for invoice ${invoice.InvoiceNumber}`);
+        unmatchedInvoices.push(invoice);
       }
-    });
+    }
 
-    console.log(`Matching complete: Found potential matches for ${potentialMatches.length} invoices`);
+    console.log(`Matching complete: Found potential matches for ${potentialMatches.length} invoices, with ${unmatchedInvoices.length} unmatched invoices`);
+    
+    // Find potential date discrepancies (matches where date is off but amount matches)
+    const dateDiscrepancies = potentialMatches
+      .filter(match => {
+        const bestMatch = match.matches[0];
+        return bestMatch.matchDetails.amountMatch && bestMatch.matchDetails.dateScore < 1.0;
+      });
+      
+    console.log(`Found ${dateDiscrepancies.length} matches with date discrepancies`);
+
     res.status(200).json({
       success: true,
       count: potentialMatches.length,
-      data: potentialMatches
+      data: potentialMatches,
+      unmatchedInvoices: unmatchedInvoices,
+      dateDiscrepancies: dateDiscrepancies.length
     });
   } catch (error) {
     console.error('Error matching customer invoices with CSV:', error);
