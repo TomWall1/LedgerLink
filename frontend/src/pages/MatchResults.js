@@ -19,9 +19,9 @@ const MatchResults = () => {
         // Log the raw data to understand its structure
         console.log('Raw data from session storage:', parsedResults);
         
-        // Create a hardcoded demo structure that matches the reference implementation
-        const demoResults = createDemoResults(parsedResults);
-        setResults(demoResults);
+        // Process the raw data to create proper matching results
+        const processedResults = processMatchResults(parsedResults);
+        setResults(processedResults);
       } catch (error) {
         console.error('Error parsing results from session storage:', error);
         navigate('/customer-transaction-matching');
@@ -33,133 +33,108 @@ const MatchResults = () => {
     setLoading(false);
   }, [navigate]);
 
-  // Function to create a demo results structure with guaranteed mismatches and unmatched items
-  const createDemoResults = (rawData) => {
-    // Start with basic structure from raw data
-    const demoData = {
+  // Process match results into the required categories
+  const processMatchResults = (rawData) => {
+    // Create the base structure for the results
+    const processedData = {
       ...rawData,
       perfectMatches: [],
       mismatches: [],
       dateMismatches: [],
       unmatchedItems: {
-        company1: [],
-        company2: []
+        company1: [], // AR Invoices (receivables)
+        company2: []  // AP Transactions (payables)
       },
       historicalInsights: []
     };
 
-    // Use the actual AR total from the raw data
+    // Extract the AR total from the raw data
     const arTotal = rawData.totals?.company1Total || 0;
+    let apTotal = 0; // We'll calculate this as we process the data
     
-    // Divide matches into different categories
+    // Process matches if data exists
     if (rawData.data && Array.isArray(rawData.data) && rawData.data.length > 0) {
-      // For testing, let's take the first match as perfect and make others mismatches
-      if (rawData.data.length > 0 && rawData.data[0].invoice && rawData.data[0].matches && rawData.data[0].matches.length > 0) {
-        const firstItem = rawData.data[0];
-        const invoice = firstItem.invoice;
-        const bestMatch = firstItem.matches[0];
+      // Process each AR invoice and its potential matches
+      rawData.data.forEach(item => {
+        if (!item.invoice || !item.matches || item.matches.length === 0) return;
         
-        // Add as perfect match
-        demoData.perfectMatches.push({
-          company1: {
-            transactionNumber: invoice.InvoiceNumber,
-            amount: parseFloat(invoice.Total),
-            date: invoice.Date,
-            dueDate: invoice.DueDate,
-            status: invoice.Status || 'Open',
-            type: invoice.Type || 'Invoice'
-          },
-          company2: {
-            transactionNumber: bestMatch.reference,
-            amount: parseFloat(bestMatch.amount),
-            date: bestMatch.date,
-            status: 'Open',
-            type: 'Payable',
-            description: bestMatch.description || ''
-          }
-        });
+        const invoice = item.invoice;
+        const bestMatch = item.matches[0]; // Use the first match, which should be the highest confidence match
         
-        // Add as date mismatch
-        demoData.dateMismatches.push({
-          company1: {
-            transactionNumber: invoice.InvoiceNumber,
-            amount: parseFloat(invoice.Total),
-            date: invoice.Date,
-            dueDate: invoice.DueDate,
-            status: invoice.Status || 'Open',
-            type: invoice.Type || 'Invoice'
-          },
-          company2: {
-            transactionNumber: bestMatch.reference,
-            amount: parseFloat(bestMatch.amount),
-            date: bestMatch.date,
-            status: 'Open',
-            type: 'Payable',
-            description: bestMatch.description || ''
-          },
-          mismatchType: 'transaction_date',
-          company1Date: invoice.Date,
-          company2Date: bestMatch.date,
-          daysDifference: 3
-        });
-      }
-      
-      // Create a mismatch - take second match if available
-      if (rawData.data.length > 1 && rawData.data[1].invoice && rawData.data[1].matches && rawData.data[1].matches.length > 0) {
-        const secondItem = rawData.data[1];
-        const invoice = secondItem.invoice;
-        const bestMatch = secondItem.matches[0];
+        // Create the standard AR transaction object format
+        const arTransaction = {
+          transactionNumber: invoice.InvoiceNumber,
+          amount: parseFloat(invoice.Total),
+          date: invoice.Date,
+          dueDate: invoice.DueDate,
+          status: invoice.Status || 'Open',
+          type: invoice.Type || 'Invoice'
+        };
         
-        // Add as mismatch
-        demoData.mismatches.push({
-          company1: {
-            transactionNumber: invoice.InvoiceNumber,
-            amount: parseFloat(invoice.Total),
-            date: invoice.Date,
-            dueDate: invoice.DueDate,
-            status: invoice.Status || 'Open',
-            type: invoice.Type || 'Invoice'
-          },
-          company2: {
-            transactionNumber: bestMatch.reference,
-            amount: parseFloat(bestMatch.amount),
-            date: bestMatch.date,
-            status: 'Open',
-            type: 'Payable',
-            description: bestMatch.description || ''
-          }
-        });
+        // Create the standard AP transaction object format
+        const apTransaction = {
+          transactionNumber: bestMatch.reference,
+          amount: parseFloat(bestMatch.amount),
+          date: bestMatch.date,
+          status: 'Open',
+          type: 'Payable',
+          description: bestMatch.description || ''
+        };
         
-        // Add as historical insight
-        demoData.historicalInsights.push({
-          apItem: {
-            transactionNumber: bestMatch.reference,
-            amount: parseFloat(bestMatch.amount),
-            date: bestMatch.date,
-            status: 'Open',
-            type: 'Payable',
-            description: bestMatch.description || ''
-          },
-          historicalMatch: {
-            transactionNumber: invoice.InvoiceNumber,
-            amount: parseFloat(invoice.Total),
-            date: invoice.Date,
-            dueDate: invoice.DueDate,
-            status: invoice.Status || 'Open',
-            type: invoice.Type || 'Invoice'
-          },
-          insight: {
-            severity: 'warning',
-            message: `Amount mismatch: AP shows ${formatCurrency(parseFloat(bestMatch.amount))} vs. AR showing ${formatCurrency(parseFloat(invoice.Total))}`
-          }
-        });
-      }
+        // Add to AP total
+        apTotal += parseFloat(bestMatch.amount);
+
+        // Determine if this is a perfect match, a date mismatch, or an amount mismatch
+        const hasAmountMismatch = Math.abs(arTransaction.amount - apTransaction.amount) > 0.01;
+        
+        // Calculate date difference in days
+        const arDate = new Date(arTransaction.date);
+        const apDate = new Date(apTransaction.date);
+        const dateDifferenceMs = Math.abs(arDate - apDate);
+        const dateDifferenceDays = Math.floor(dateDifferenceMs / (1000 * 60 * 60 * 24));
+        
+        const hasDateMismatch = dateDifferenceDays > 2; // Consider a 2-day difference a mismatch
+        
+        if (hasAmountMismatch) {
+          // Amount mismatch takes precedence
+          processedData.mismatches.push({
+            company1: arTransaction,
+            company2: apTransaction
+          });
+          
+          // Also add an insight about the mismatch
+          processedData.historicalInsights.push({
+            apItem: apTransaction,
+            historicalMatch: arTransaction,
+            insight: {
+              severity: 'warning',
+              message: `Amount mismatch: AP shows ${formatCurrency(apTransaction.amount)} vs. AR showing ${formatCurrency(arTransaction.amount)}`
+            }
+          });
+        } else if (hasDateMismatch) {
+          // Date mismatch
+          processedData.dateMismatches.push({
+            company1: arTransaction,
+            company2: apTransaction,
+            mismatchType: 'transaction_date', // or 'due_date' if comparing due dates
+            company1Date: arTransaction.date,
+            company2Date: apTransaction.date,
+            daysDifference: dateDifferenceDays
+          });
+        } else {
+          // Perfect match
+          processedData.perfectMatches.push({
+            company1: arTransaction,
+            company2: apTransaction
+          });
+        }
+      });
     }
     
-    // Add some unmatched items
-    if (rawData.unmatchedInvoices && Array.isArray(rawData.unmatchedInvoices) && rawData.unmatchedInvoices.length > 0) {
+    // Process unmatched AR invoices
+    if (rawData.unmatchedInvoices && Array.isArray(rawData.unmatchedInvoices)) {
       // Add all unmatched AR invoices
-      demoData.unmatchedItems.company1 = rawData.unmatchedInvoices.map(invoice => ({
+      processedData.unmatchedItems.company1 = rawData.unmatchedInvoices.map(invoice => ({
         transactionNumber: invoice.InvoiceNumber,
         amount: parseFloat(invoice.Total),
         date: invoice.Date,
@@ -169,52 +144,61 @@ const MatchResults = () => {
       }));
     }
     
-    // Create some fake unmatched AP items
-    demoData.unmatchedItems.company2 = [
-      {
-        transactionNumber: "AP-UNMATCHED-1",
-        amount: 500.00,
-        date: "2024-01-15",
-        status: "Open",
-        type: "Payable",
-        description: "Unmatched AP item for demonstration"
-      },
-      {
-        transactionNumber: "AP-UNMATCHED-2",
-        amount: 750.00,
-        date: "2024-01-20",
-        status: "Open",
-        type: "Payable",
-        description: "Second unmatched AP item"
-      }
+    // Get all matched AP transaction references to identify unmatched AP items
+    const matchedApRefs = [
+      ...processedData.perfectMatches.map(match => match.company2.transactionNumber),
+      ...processedData.mismatches.map(match => match.company2.transactionNumber),
+      ...processedData.dateMismatches.map(match => match.company2.transactionNumber)
     ];
     
-    // Calculate AP total for display
-    let apTotal = 0;
-    
-    // Add perfect matches to AP total
-    demoData.perfectMatches.forEach(item => {
-      apTotal += parseFloat(item.company2.amount || 0);
-    });
-    
-    // Add mismatches to AP total
-    demoData.mismatches.forEach(item => {
-      apTotal += parseFloat(item.company2.amount || 0);
-    });
-    
-    // Add unmatched AP items to AP total
-    demoData.unmatchedItems.company2.forEach(item => {
-      apTotal += parseFloat(item.amount || 0);
-    });
+    // Find unmatched AP transactions from the raw data
+    // In a real implementation, you would have all AP transactions available
+    // Here we're using the matches array to identify potential unmatched AP items
+    if (rawData.data && Array.isArray(rawData.data)) {
+      // Create a set of all unique AP transactions from all matches
+      const allApTransactions = new Set();
+      const apTransactionMap = new Map();
+      
+      rawData.data.forEach(item => {
+        if (!item.matches || !Array.isArray(item.matches)) return;
+        
+        item.matches.forEach(match => {
+          // Only process the match if we haven't seen this AP reference before
+          if (!allApTransactions.has(match.reference)) {
+            allApTransactions.add(match.reference);
+            
+            // Store the AP transaction in a map for easy lookup
+            apTransactionMap.set(match.reference, {
+              transactionNumber: match.reference,
+              amount: parseFloat(match.amount),
+              date: match.date,
+              status: 'Open', // Default status
+              type: 'Payable', // Default type
+              description: match.description || ''
+            });
+          }
+        });
+      });
+      
+      // Find AP transactions that aren't in any matched category
+      // For this, we check each AP transaction in the map against our matched list
+      apTransactionMap.forEach((transaction, reference) => {
+        if (!matchedApRefs.includes(reference)) {
+          // This AP transaction isn't matched to any AR invoice
+          processedData.unmatchedItems.company2.push(transaction);
+          apTotal += transaction.amount; // Add to AP total
+        }
+      });
+    }
     
     // Update totals
-    demoData.totals = {
+    processedData.totals = {
       company1Total: arTotal,
       company2Total: apTotal,
       variance: arTotal - apTotal
     };
     
-    return demoData;
+    return processedData;
   };
 
   // Function to handle exporting all results to CSV
@@ -244,6 +228,20 @@ const MatchResults = () => {
     // Add data rows for mismatches
     if (results?.mismatches && results.mismatches.length > 0) {
       results.mismatches.forEach(match => {
+        csvContent += `"${match.company1?.transactionNumber || ''}",`;
+        csvContent += `"${match.company1?.amount || ''}",`;
+        csvContent += `"${match.company1?.date || ''}",`;
+        csvContent += `"${match.company1?.dueDate || ''}",`;
+        csvContent += `"${match.company2?.transactionNumber || ''}",`;
+        csvContent += `"${match.company2?.amount || ''}",`;
+        csvContent += `"${match.company2?.date || ''}",`;
+        csvContent += `"${match.company2?.description || ''}"\n`;
+      });
+    }
+    
+    // Add data rows for date mismatches
+    if (results?.dateMismatches && results.dateMismatches.length > 0) {
+      results.dateMismatches.forEach(match => {
         csvContent += `"${match.company1?.transactionNumber || ''}",`;
         csvContent += `"${match.company1?.amount || ''}",`;
         csvContent += `"${match.company1?.date || ''}",`;
@@ -329,7 +327,9 @@ const MatchResults = () => {
           </div>
           <div>
             <h3 className="text-lg font-medium text-gray-700">Variance</h3>
-            <p className="text-2xl font-bold">{formatCurrency(results.totals?.variance || 0)}</p>
+            <p className={`text-2xl font-bold ${Math.abs(results.totals?.variance || 0) > 0.01 ? 'text-red-600' : 'text-green-600'}`}>
+              {formatCurrency(results.totals?.variance || 0)}
+            </p>
           </div>
         </div>
       </div>
