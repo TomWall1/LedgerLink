@@ -67,14 +67,16 @@ const CustomerTransactionMatcher = () => {
       setCustomerInvoices([]);
       setError(null);
       
-      const response = await api.get(`/api/xero/customers/${customerId}/invoices?includeHistory=false`);
+      const response = await api.get(`/api/xero/customers/${customerId}/invoices?includeHistory=${useHistoricalData}`);
       
-      // Only show outstanding/unpaid invoices
-      const outstandingInvoices = response.data.invoices?.filter(invoice => 
-        invoice.Status === 'AUTHORISED' || invoice.Status === 'SENT'
-      ) || [];
+      // Only show outstanding/unpaid invoices unless historical data is requested
+      const filteredInvoices = useHistoricalData ? 
+        response.data.invoices || [] :
+        (response.data.invoices?.filter(invoice => 
+          invoice.Status === 'AUTHORISED' || invoice.Status === 'SENT'
+        ) || []);
       
-      setCustomerInvoices(outstandingInvoices);
+      setCustomerInvoices(filteredInvoices);
     } catch (err) {
       console.error('Error fetching customer invoices:', err);
       // Don't set the main error state, just clear the invoices
@@ -83,6 +85,13 @@ const CustomerTransactionMatcher = () => {
       setCustomerDataLoading(false);
     }
   };
+  
+  // Update invoices when historical data option changes
+  useEffect(() => {
+    if (selectedCustomer) {
+      fetchCustomerInvoices(selectedCustomer.ContactID);
+    }
+  }, [useHistoricalData]);
   
   // Handle customer selection
   const handleCustomerSelect = (customer) => {
@@ -130,7 +139,7 @@ const CustomerTransactionMatcher = () => {
         // Prepare the results object with necessary data for the results page
         const results = {
           data: response.data.data,
-          unmatchedInvoices: customerInvoices.filter(invoice => 
+          unmatchedInvoices: response.data.unmatchedInvoices || customerInvoices.filter(invoice => 
             !response.data.data.some(match => match.invoice.InvoiceID === invoice.InvoiceID)
           ),
           customer: selectedCustomer,
