@@ -6,6 +6,8 @@ import NavHeader from './components/NavHeader.jsx';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import ERPConnectionManager from './components/ERPConnectionManager';
 import XeroCallback from './components/XeroCallback';
 import ERPDataView from './components/ERPDataView';
@@ -39,12 +41,15 @@ function App() {
     <AuthProvider>
       <XeroProvider>
         <div className="min-h-screen bg-gray-100">
-          <NavHeader />
-          <div className="pt-16">
+          {/* Only show NavHeader on routes that require authentication */}
+          {isAuthenticated && <NavHeader />}
+          <div className={isAuthenticated ? "pt-16" : ""}>
             <Routes>
               {/* Public routes */}
               <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
               <Route path="/register" element={isAuthenticated ? <Navigate to="/" /> : <Register />} />
+              <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/" /> : <ForgotPassword />} />
+              <Route path="/reset-password/:token" element={isAuthenticated ? <Navigate to="/" /> : <ResetPassword />} />
               <Route path="/auth/xero/callback" element={<XeroCallback />} />
               
               {/* Protected routes */}
