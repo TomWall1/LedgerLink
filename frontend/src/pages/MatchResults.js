@@ -3,7 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import MatchingResults from '../components/MatchingResults';
 import { formatCurrency } from '../utils/format';
 
+// Added version marker to force cache refresh
+const VERSION = 'v1.0.1';
+
 const MatchResults = () => {
+  console.log('Loading MatchResults component version:', VERSION);
   const navigate = useNavigate();
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,6 +25,7 @@ const MatchResults = () => {
         
         // Create a demo structure that matches the reference implementation
         const demoResults = createDemoResults(parsedResults);
+        console.log('Processed demo results:', demoResults);
         setResults(demoResults);
       } catch (error) {
         console.error('Error parsing results from session storage:', error);
@@ -35,6 +40,8 @@ const MatchResults = () => {
 
   // Function to create a demo results structure with all perfect matches
   const createDemoResults = (rawData) => {
+    console.log('Creating demo results from raw data:', rawData);
+    
     // Start with basic structure from raw data
     const demoData = {
       ...rawData,
@@ -54,11 +61,18 @@ const MatchResults = () => {
     
     // Convert all matches to perfect matches
     if (rawData.data && Array.isArray(rawData.data) && rawData.data.length > 0) {
+      console.log(`Processing ${rawData.data.length} matches`);
+      
       rawData.data.forEach(item => {
-        if (!item.invoice || !item.matches || item.matches.length === 0) return;
+        if (!item.invoice || !item.matches || item.matches.length === 0) {
+          console.log('Skipping item with missing invoice or matches');
+          return;
+        }
         
         const invoice = item.invoice;
         const bestMatch = item.matches[0]; // Use the first match
+        
+        console.log(`Creating perfect match for invoice ${invoice.InvoiceNumber} with match:`, bestMatch);
         
         // Add as perfect match
         demoData.perfectMatches.push({
@@ -83,6 +97,8 @@ const MatchResults = () => {
         // Add to AP total
         apTotal += parseFloat(bestMatch.amount);
       });
+    } else {
+      console.log('No matches data found in raw data');
     }
     
     // Update totals
@@ -91,6 +107,9 @@ const MatchResults = () => {
       company2Total: apTotal,
       variance: arTotal - apTotal
     };
+    
+    console.log(`Created ${demoData.perfectMatches.length} perfect matches`);
+    console.log('Updated totals:', demoData.totals);
     
     return demoData;
   };
