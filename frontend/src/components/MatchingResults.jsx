@@ -29,6 +29,8 @@ const MatchingResults = ({ matchResults }) => {
   const safeDateMismatches = Array.isArray(safeMatchResults.dateMismatches) ? safeMatchResults.dateMismatches : [];
   const safeTotals = safeMatchResults.totals || { company1Total: 0, company2Total: 0, variance: 0 };
 
+  console.log('Historical insights:', safeHistoricalInsights);
+
   // Safe amount calculations
   const calculateAmount = (item) => {
     if (!item) return 0;
@@ -79,6 +81,37 @@ const MatchingResults = ({ matchResults }) => {
     return (
       <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
         Partially Paid: {formatCurrency(amountPaid)} of {formatCurrency(originalAmount)}
+      </span>
+    );
+  };
+
+  // Status badge for Paid/Open status
+  const getStatusBadge = (status) => {
+    if (!status) return null;
+    
+    let bgClass = '';
+    switch(status.toUpperCase()) {
+      case 'PAID':
+        bgClass = 'bg-green-100 text-green-800';
+        break;
+      case 'AUTHORISED':
+      case 'SENT':
+      case 'OPEN':
+        bgClass = 'bg-blue-100 text-blue-800';
+        break;
+      case 'VOIDED':
+        bgClass = 'bg-red-100 text-red-800';
+        break;
+      case 'DRAFT':
+        bgClass = 'bg-gray-100 text-gray-800';
+        break;
+      default:
+        bgClass = 'bg-gray-100 text-gray-800';
+    }
+    
+    return (
+      <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgClass}`}>
+        {status}
       </span>
     );
   };
@@ -159,15 +192,15 @@ const MatchingResults = ({ matchResults }) => {
         </div>
 
         <div 
-          className={`bg-white rounded-lg shadow-lg p-6 border-l-4 border ${safeDateMismatches.length > 0 ? 'border-purple-400 cursor-pointer hover:bg-gray-50' : 'border-gray-300'} transition-colors`}
-          onClick={() => safeDateMismatches.length > 0 && scrollToSection(dateMismatchesRef)}
+          className={`bg-white rounded-lg shadow-lg p-6 border-l-4 border ${safeHistoricalInsights.length > 0 ? 'border-amber-400 cursor-pointer hover:bg-gray-50' : 'border-gray-300'} transition-colors`}
+          onClick={() => safeHistoricalInsights.length > 0 && scrollToSection(historicalInsightsRef)}
         >
-          <h3 className="text-lg font-semibold text-blue-700">Date Discrepancies</h3>
-          <p className={`text-3xl font-bold ${safeDateMismatches.length > 0 ? 'text-purple-500' : 'text-gray-400'}`}>
-            {safeDateMismatches.length}
+          <h3 className="text-lg font-semibold text-blue-700">Historical Insights</h3>
+          <p className={`text-3xl font-bold ${safeHistoricalInsights.length > 0 ? 'text-amber-500' : 'text-gray-400'}`}>
+            {safeHistoricalInsights.length}
           </p>
           <p className="text-sm text-gray-600 mt-2">
-            {safeDateMismatches.length > 0 ? 'Date differences in matched transactions' : 'No date discrepancies found'}
+            {safeHistoricalInsights.length > 0 ? 'Historical matches found' : 'No historical insights'}
           </p>
         </div>
       </div>
@@ -186,12 +219,16 @@ const MatchingResults = ({ matchResults }) => {
             const partialPaymentBadge = match.company1?.is_partially_paid ? 
               getPartialPaymentBadge(match.company1) : 
               (match.company2?.is_partially_paid ? getPartialPaymentBadge(match.company2) : null);
+
+            // Get status badge
+            const statusBadge = getStatusBadge(match.company1?.status || match.company2?.status);
               
             return {
               'Transaction #': (
                 <div className="flex items-center">
                   <span>{match?.company1?.transactionNumber || match?.company2?.transactionNumber || 'N/A'}</span>
                   {partialPaymentBadge}
+                  {statusBadge}
                 </div>
               ),
               'Type': match?.company1?.type || match?.company2?.type || 'N/A',
@@ -220,13 +257,29 @@ const MatchingResults = ({ matchResults }) => {
               const receivableAmount = Math.abs(parseFloat(mismatch?.company1?.amount || 0));
               const payableAmount = Math.abs(parseFloat(mismatch?.company2?.amount || 0));
               
-              // Calculate absolute difference between absolute values of amounts
-              const difference = Math.abs(receivableAmount - payableAmount);
+              // For paid items, we need to calculate the difference based on the original amount
+              const originalAmount = mismatch.company1?.original_amount || receivableAmount;
+              
+              // Calculate difference - if one is paid and one is open, the difference is the original amount
+              let difference;
+              if ((mismatch.company1?.is_paid || mismatch.company1?.status === 'PAID') && 
+                 (!mismatch.company2?.is_paid && mismatch.company2?.status !== 'PAID')) {
+                difference = originalAmount; // Company1 is paid, Company2 is open
+              } else if ((!mismatch.company1?.is_paid && mismatch.company1?.status !== 'PAID') && 
+                         (mismatch.company2?.is_paid || mismatch.company2?.status === 'PAID')) {
+                difference = originalAmount; // Company1 is open, Company2 is paid
+              } else {
+                difference = Math.abs(receivableAmount - payableAmount);
+              }
               
               // Check for partial payment information
               const partialPaymentBadge = mismatch.company1?.is_partially_paid ? 
                 getPartialPaymentBadge(mismatch.company1) : 
                 (mismatch.company2?.is_partially_paid ? getPartialPaymentBadge(mismatch.company2) : null);
+              
+              // Get status badges
+              const ar_statusBadge = getStatusBadge(mismatch.company1?.status);
+              const ap_statusBadge = getStatusBadge(mismatch.company2?.status);
               
               let paymentInfo = null;
               if (mismatch.company1?.payment_date || mismatch.company2?.payment_date) {
@@ -252,11 +305,21 @@ const MatchingResults = ({ matchResults }) => {
                   </div>
                 ),
                 'Type': mismatch?.company1?.type || mismatch?.company2?.type || 'N/A',
-                'Receivable Amount': formatCurrency(mismatch?.company1?.amount || 0),
-                'Payable Amount': paymentInfo,
+                'Receivable Amount': (
+                  <div className="flex items-center">
+                    <span>{formatCurrency(mismatch?.company1?.amount || 0)}</span>
+                    {ar_statusBadge}
+                  </div>
+                ),
+                'Payable Amount': (
+                  <div className="flex items-center">
+                    <span>{paymentInfo}</span>
+                    {ap_statusBadge}
+                  </div>
+                ),
                 'Difference': formatCurrency(difference),
                 'Date': formatDate(mismatch?.company1?.date || mismatch?.company2?.date),
-                'Status': mismatch?.company1?.status || mismatch?.company2?.status || 'N/A'
+                'Status': `${mismatch?.company1?.status || 'N/A'} / ${mismatch?.company2?.status || 'N/A'}`
               };
             })}
             columns={['Transaction #', 'Type', 'Receivable Amount', 'Payable Amount', 'Difference', 'Date', 'Status']}
@@ -315,12 +378,14 @@ const MatchingResults = ({ matchResults }) => {
               <ResultTable
                 data={(safeUnmatchedItems.company1 || []).map(item => {
                   const partialPaymentBadge = item.is_partially_paid ? getPartialPaymentBadge(item) : null;
+                  const statusBadge = getStatusBadge(item.status || item.Status);
                   
                   return {
                     'Transaction #': (
                       <div className="flex items-center">
                         <span>{item?.transactionNumber || item?.InvoiceNumber || 'N/A'}</span>
                         {partialPaymentBadge}
+                        {statusBadge}
                       </div>
                     ),
                     'Amount': formatCurrency(item?.amount || item?.Total || 0),
@@ -341,12 +406,14 @@ const MatchingResults = ({ matchResults }) => {
               <ResultTable
                 data={(safeUnmatchedItems.company2 || []).map(item => {
                   const partialPaymentBadge = item.is_partially_paid ? getPartialPaymentBadge(item) : null;
+                  const statusBadge = getStatusBadge(item.status);
                   
                   return {
                     'Transaction #': (
                       <div className="flex items-center">
                         <span>{item?.transactionNumber || 'N/A'}</span>
                         {partialPaymentBadge}
+                        {statusBadge}
                       </div>
                     ),
                     'Amount': formatCurrency(item?.amount || 0),
@@ -366,7 +433,7 @@ const MatchingResults = ({ matchResults }) => {
 
       {/* Historical Insights Section */}
       {safeHistoricalInsights.length > 0 && (
-        <div ref={historicalInsightsRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
+        <div ref={historicalInsightsRef} className="bg-white rounded-lg shadow-lg p-6 border border-gray-200 border-l-4 border-l-amber-400">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-blue-700">
               Historical Insights for AP Items ({safeHistoricalInsights.length})
