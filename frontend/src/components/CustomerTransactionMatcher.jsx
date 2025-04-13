@@ -136,19 +136,42 @@ const CustomerTransactionMatcher = () => {
       
       // Navigate to the match results page with the response data
       if (response.data.success) {
-        // Prepare the results object with necessary data for the results page
-        const results = {
-          data: response.data.data,
-          unmatchedInvoices: response.data.unmatchedInvoices || customerInvoices.filter(invoice => 
-            !response.data.data.some(match => match.invoice.InvoiceID === invoice.InvoiceID)
-          ),
-          customer: selectedCustomer,
-          totals: {
-            company1Total: customerInvoices.reduce((sum, invoice) => sum + parseFloat(invoice.Total || 0), 0), 
-            company2Total: 0, // Will be calculated on the results page
-            variance: 0 // Will be calculated on the results page
-          }
-        };
+        console.log('Match response data:', response.data);
+        
+        // Prepare the results object based on the format received
+        let results;
+        
+        // Check if we're receiving the new format from the improved backend
+        if (response.data.data && typeof response.data.data === 'object' && 'perfectMatches' in response.data.data) {
+          // New format - handle it accordingly
+          results = {
+            data: response.data.data,
+            unmatchedInvoices: response.data.data.unmatchedItems?.company1 || [],
+            customer: selectedCustomer,
+            totals: response.data.data.totals || {
+              company1Total: customerInvoices.reduce((sum, invoice) => sum + parseFloat(invoice.Total || 0), 0), 
+              company2Total: 0,
+              variance: 0
+            }
+          };
+        } else {
+          // Legacy format - handle it as before
+          results = {
+            data: response.data.data,
+            unmatchedInvoices: response.data.unmatchedInvoices || customerInvoices.filter(invoice => {
+              // Check if this invoice is part of any match
+              return !response.data.data.some(match => 
+                match.invoice && match.invoice.InvoiceID === invoice.InvoiceID
+              );
+            }),
+            customer: selectedCustomer,
+            totals: {
+              company1Total: customerInvoices.reduce((sum, invoice) => sum + parseFloat(invoice.Total || 0), 0), 
+              company2Total: 0, // Will be calculated on the results page
+              variance: 0 // Will be calculated on the results page
+            }
+          };
+        }
         
         // Use window.location instead of navigate to force a full page refresh
         // This can help avoid React Router state issues
