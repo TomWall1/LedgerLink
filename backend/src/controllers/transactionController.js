@@ -4,6 +4,7 @@ import CompanyLink from '../models/CompanyLink.js';
 import ERPConnection from '../models/ERPConnection.js';
 import { tokenStore } from '../utils/tokenStore.js';
 import { parseCSV, parseCSVBuffer } from './fileController.js';
+import matchRecords from '../utils/matching.js';
 
 // @desc    Upload transactions (bulk create)
 // @route   POST /api/transactions/upload
@@ -233,7 +234,7 @@ export const matchCustomerInvoices = async (req, res) => {
       });
     }
 
-    // Parse the customer invoices JSON
+    // Parse the customer invoices JSON (AR data from Xero)
     let invoices;
     try {
       invoices = JSON.parse(customerInvoices);
@@ -249,9 +250,10 @@ export const matchCustomerInvoices = async (req, res) => {
 
     // Get the format of the date in the CSV (default to MM/DD/YYYY if not specified)
     const csvDateFormat = dateFormat || 'MM/DD/YYYY';
-    console.log('Using date format for CSV parsing:', csvDateFormat);
+    const arDateFormat = 'YYYY-MM-DD'; // Assuming Xero data comes in ISO format
+    console.log('Using date formats - CSV:', csvDateFormat, 'AR:', arDateFormat);
 
-    // Parse the CSV file
+    // Parse the CSV file (AP data)
     console.log('Starting CSV parsing with file path:', csvFile.path);
     const csvTransactions = await parseCSV(csvFile.path, csvDateFormat);
     console.log(`CSV parsing complete: ${csvTransactions.length} valid transactions found`);
@@ -264,123 +266,51 @@ export const matchCustomerInvoices = async (req, res) => {
       });
     }
 
-    // Match each invoice with potential CSV transactions
-    const potentialMatches = [];
+    // Transform invoices into the format expected by the matching function
+    const transformedInvoices = invoices.map(invoice => ({
+      transactionNumber: invoice.InvoiceNumber,
+      amount: invoice.Total,
+      date: invoice.Date,
+      dueDate: invoice.DueDate,
+      status: invoice.Status,
+      reference: invoice.Reference || invoice.InvoiceNumber,
+      is_paid: invoice.Status === 'PAID',
+      is_voided: invoice.Status === 'VOIDED',
+      is_partially_paid: invoice.AmountPaid > 0 && invoice.AmountPaid < invoice.Total,
+      original_amount: invoice.Total,
+      amount_paid: invoice.AmountPaid || 0,
+      payment_date: invoice.PaymentDate
+    }));
 
-    console.log('Starting invoice matching process');
-    invoices.forEach(invoice => {
-      // Log invoice details
-      console.log('Processing invoice:', { 
-        InvoiceID: invoice.InvoiceID, 
-        InvoiceNumber: invoice.InvoiceNumber, 
-        Total: invoice.Total,
-        Date: invoice.Date
-      });
-      
-      // Find potential matches for this invoice
-      const matches = csvTransactions.filter(transaction => {
-        // Debug transaction details for analysis
-        console.log(`Comparing invoice ${invoice.InvoiceNumber} (${invoice.Total}) with transaction:`, {
-          reference: transaction.reference,
-          amount: transaction.amount,
-          date: transaction.date
-        });
-        
-        // Match by amount with a small tolerance for rounding errors
-        const amountMatch = Math.abs(invoice.Total - transaction.amount) < 0.01;
+    // Historical data (if available and useHistoricalData is true)
+    let historicalData = [];
+    if (useHistoricalData === 'true') {
+      // In a real implementation, we would fetch historical data from an API or database
+      console.log('Historical data usage is enabled, but no source is available');
+    }
 
-        // Match by date proximity (within 7 days)
-        let dateMatch = false;
-        if (invoice.Date && transaction.date) {
-          const invoiceDate = new Date(invoice.Date);
-          const transactionDate = new Date(transaction.date);
-          
-          // Ensure both dates are valid
-          if (!isNaN(invoiceDate.getTime()) && !isNaN(transactionDate.getTime())) {
-            const dateDiff = Math.abs(invoiceDate - transactionDate) / (1000 * 60 * 60 * 24); // Convert to days
-            dateMatch = dateDiff <= 7;
-            console.log(`Date diff: ${dateDiff} days, match: ${dateMatch}`);
-          }
-        }
+    // Use the improved matching function
+    console.log('Starting enhanced invoice matching process');
+    const matchResults = await matchRecords(
+      transformedInvoices, // AR data (company1)
+      csvTransactions,     // AP data (company2)
+      arDateFormat,
+      csvDateFormat,
+      historicalData
+    );
 
-        // Match by reference/invoice number
-        let referenceMatch = false;
-        if (invoice.InvoiceNumber && transaction.reference) {
-          const invoiceNum = String(invoice.InvoiceNumber).toLowerCase();
-          const reference = String(transaction.reference).toLowerCase();
-          
-          // Check if either contains the other (partial match)
-          referenceMatch = reference.includes(invoiceNum) || invoiceNum.includes(reference);
-          console.log(`Reference match: ${referenceMatch} (${invoiceNum} vs ${reference})`);
-        }
-        
-        // Also try to match by transaction number if different from reference
-        if (!referenceMatch && invoice.InvoiceNumber && transaction.transactionNumber) {
-          const invoiceNum = String(invoice.InvoiceNumber).toLowerCase();
-          const transactionNum = String(transaction.transactionNumber).toLowerCase();
-          
-          // Check if either contains the other (partial match)
-          const transactionNumMatch = transactionNum.includes(invoiceNum) || invoiceNum.includes(transactionNum);
-          referenceMatch = referenceMatch || transactionNumMatch;
-          
-          if (transactionNumMatch) {
-            console.log(`Transaction number match: true (${invoiceNum} vs ${transactionNum})`);
-          }
-        }
-
-        // Determine match confidence
-        let confidence = 0;
-        if (amountMatch) confidence += 0.5;
-        if (dateMatch) confidence += 0.3;
-        if (referenceMatch) confidence += 0.2;
-
-        // Debug match details
-        if (confidence > 0) {
-          console.log('Potential match found:', {
-            invoiceNumber: invoice.InvoiceNumber,
-            transactionReference: transaction.reference,
-            invoiceAmount: invoice.Total,
-            transactionAmount: transaction.amount,
-            amountMatch,
-            dateMatch,
-            referenceMatch,
-            confidence
-          });
-        }
-
-        // Consider it a match if the confidence is at least 0.5 (amount + either date or reference)
-        if (confidence >= 0.5) {
-          transaction.confidence = confidence;
-          return true;
-        }
-        return false;
-      });
-
-      if (matches.length > 0) {
-        console.log(`Found ${matches.length} potential matches for invoice ${invoice.InvoiceNumber}`);
-        // Sort matches by confidence (highest first)
-        const sortedMatches = [...matches].sort((a, b) => b.confidence - a.confidence);
-        
-        potentialMatches.push({
-          invoice,
-          matches: sortedMatches.map(match => ({
-            id: match.transactionNumber, // Use transaction number as ID for CSV
-            reference: match.reference,
-            amount: match.amount,
-            date: match.date,
-            description: match.description,
-            confidence: match.confidence,
-            source: 'CSV'
-          }))
-        });
-      }
+    console.log('Matching results:', {
+      perfectMatches: matchResults.perfectMatches.length,
+      mismatches: matchResults.mismatches.length,
+      unmatchedAR: matchResults.unmatchedItems.company1.length,
+      unmatchedAP: matchResults.unmatchedItems.company2.length,
+      dateMismatches: matchResults.dateMismatches.length,
+      historicalInsights: matchResults.historicalInsights.length
     });
 
-    console.log(`Matching complete: Found potential matches for ${potentialMatches.length} invoices`);
     res.status(200).json({
       success: true,
-      count: potentialMatches.length,
-      data: potentialMatches
+      data: matchResults
     });
   } catch (error) {
     console.error('Error matching customer invoices with CSV:', error);
