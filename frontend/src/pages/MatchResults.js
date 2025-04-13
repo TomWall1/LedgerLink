@@ -38,7 +38,24 @@ const MatchResults = () => {
   const processMatchResults = (rawData) => {
     console.log('Processing raw data:', rawData);
     
-    // Create the base structure for the results
+    // Check if we're receiving data in the new format from the improved backend
+    if (rawData.data && typeof rawData.data === 'object' && 'perfectMatches' in rawData.data) {
+      console.log('Processing improved backend format');
+      // The data is already structured properly
+      return {
+        ...rawData,
+        perfectMatches: rawData.data.perfectMatches || [],
+        mismatches: rawData.data.mismatches || [],
+        dateMismatches: rawData.data.dateMismatches || [],
+        unmatchedItems: rawData.data.unmatchedItems || { company1: [], company2: [] },
+        historicalInsights: rawData.data.historicalInsights || [],
+        totals: rawData.data.totals || { company1Total: 0, company2Total: 0, variance: 0 },
+        // Maintain customer information if available
+        customer: rawData.customer || null
+      };
+    }
+    
+    // For legacy format, create the base structure for the results
     const processedData = {
       ...rawData,
       perfectMatches: [],
@@ -272,7 +289,7 @@ const MatchResults = () => {
     processedData.totals = {
       company1Total: arTotal,
       company2Total: apTotal,
-      variance: arTotal - apTotal
+      variance: Math.abs(arTotal - apTotal)
     };
     
     console.log('Processed data summary:', {
