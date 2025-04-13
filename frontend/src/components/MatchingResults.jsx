@@ -200,7 +200,7 @@ const MatchingResults = ({ matchResults }) => {
             {safeHistoricalInsights.length}
           </p>
           <p className="text-sm text-gray-600 mt-2">
-            {safeHistoricalInsights.length > 0 ? 'Insights based on historical data' : 'No historical insights'}
+            {safeHistoricalInsights.length > 0 ? 'Historical insights for AP items' : 'No historical insights found'}
           </p>
         </div>
       </div>
