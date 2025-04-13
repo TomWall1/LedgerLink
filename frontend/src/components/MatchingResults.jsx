@@ -192,15 +192,15 @@ const MatchingResults = ({ matchResults }) => {
         </div>
 
         <div 
-          className={`bg-white rounded-lg shadow-lg p-6 border-l-4 border ${safeHistoricalInsights.length > 0 ? 'border-amber-400 cursor-pointer hover:bg-gray-50' : 'border-gray-300'} transition-colors`}
-          onClick={() => safeHistoricalInsights.length > 0 && scrollToSection(historicalInsightsRef)}
+          className={`bg-white rounded-lg shadow-lg p-6 border-l-4 border ${safeDateMismatches.length > 0 ? 'border-purple-400 cursor-pointer hover:bg-gray-50' : 'border-gray-300'} transition-colors`}
+          onClick={() => safeDateMismatches.length > 0 && scrollToSection(dateMismatchesRef)}
         >
-          <h3 className="text-lg font-semibold text-blue-700">Historical Insights</h3>
-          <p className={`text-3xl font-bold ${safeHistoricalInsights.length > 0 ? 'text-amber-500' : 'text-gray-400'}`}>
-            {safeHistoricalInsights.length}
+          <h3 className="text-lg font-semibold text-blue-700">Date Discrepancies</h3>
+          <p className={`text-3xl font-bold ${safeDateMismatches.length > 0 ? 'text-purple-500' : 'text-gray-400'}`}>
+            {safeDateMismatches.length}
           </p>
           <p className="text-sm text-gray-600 mt-2">
-            {safeHistoricalInsights.length > 0 ? 'Historical matches found' : 'No historical insights'}
+            {safeDateMismatches.length > 0 ? 'Date differences in matched transactions' : 'No date discrepancies found'}
           </p>
         </div>
       </div>
