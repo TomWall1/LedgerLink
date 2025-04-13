@@ -38,10 +38,20 @@ export const formatDate = (date) => {
     // For anything else, try the standard Date parsing
     const dateObj = new Date(date);
     if (!isNaN(dateObj.getTime())) {
+      // Check if the year is reasonable (between 1900 and current year + 50)
+      const year = dateObj.getFullYear();
+      const currentYear = new Date().getFullYear();
+      
+      if (year < 1900 || year > currentYear + 50) {
+        // Invalid year - this is likely a formatting error
+        // Return original string if available or "Invalid date"
+        console.error('Invalid year detected:', year, 'for date:', date);
+        return typeof date === 'string' ? date : 'Invalid date';
+      }
+      
       // Format with day first (DD/MM/YYYY)
       const day = dateObj.getDate().toString().padStart(2, '0');
       const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-      const year = dateObj.getFullYear();
       return `${day}/${month}/${year}`;
     }
     
