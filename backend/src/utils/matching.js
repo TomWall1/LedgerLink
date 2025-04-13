@@ -61,8 +61,11 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
     // Array to track date mismatches in otherwise perfect matches
     const dateMismatches = [];
 
-    // Calculate totals
-    const company1Total = calculateTotal(normalizedCompany1);
+    // Calculate totals - only consider open items for company1 (AR)
+    const openCompany1Items = normalizedCompany1.filter(item => 
+      !item.is_paid && item.status !== 'PAID' && item.status !== 'VOIDED'
+    );
+    const company1Total = calculateTotal(openCompany1Items);
     const company2Total = calculateTotal(normalizedCompany2);
 
     console.log('Company totals:', { company1Total, company2Total });
@@ -74,7 +77,11 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
 
       if (potentialMatches.length === 1) {
         const match = potentialMatches[0];
-        if (isExactMatch(item1, match)) {
+        
+        // Check for status mismatches (e.g., Paid in one system but Open in another)
+        const statusMismatch = hasStatusMismatch(item1, match);
+        
+        if (isExactMatch(item1, match) && !statusMismatch) {
           console.log(`Perfect match found for transaction: ${item1.transactionNumber}`);
           perfectMatches.push({ company1: item1, company2: match });
           
@@ -177,6 +184,38 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
     console.error('Error in matchRecords:', error);
     throw new Error(`Matching error: ${error.message}`);
   }
+};
+
+/**
+ * Check if two items have mismatched statuses
+ * @param {Object} item1 - Item from first company (AR)
+ * @param {Object} item2 - Item from second company (AP)
+ * @returns {boolean} True if there is a status mismatch
+ */
+const hasStatusMismatch = (item1, item2) => {
+  // Check for paid status mismatch
+  if ((item1.is_paid || item1.status === 'PAID') && (!item2.is_paid && item2.status !== 'PAID')) {
+    console.log(`Status mismatch: ${item1.transactionNumber} is paid in AR but not in AP`);
+    return true;
+  }
+  
+  if ((!item1.is_paid && item1.status !== 'PAID') && (item2.is_paid || item2.status === 'PAID')) {
+    console.log(`Status mismatch: ${item1.transactionNumber} is not paid in AR but paid in AP`);
+    return true;
+  }
+  
+  // Check for voided status mismatch
+  if ((item1.is_voided || item1.status === 'VOIDED') && (!item2.is_voided && item2.status !== 'VOIDED')) {
+    console.log(`Status mismatch: ${item1.transactionNumber} is voided in AR but not in AP`);
+    return true;
+  }
+  
+  if ((!item1.is_voided && item1.status !== 'VOIDED') && (item2.is_voided || item2.status === 'VOIDED')) {
+    console.log(`Status mismatch: ${item1.transactionNumber} is not voided in AR but voided in AP`);
+    return true;
+  }
+  
+  return false;
 };
 
 /**
@@ -390,8 +429,8 @@ const normalizeData = (data, dateFormat) => {
     const transactionNumber = record.transaction_number || record.transactionNumber || record.invoice_number || '';
     const type = record.transaction_type || record.type || '';
     const amount = record.amount;
-    const issueDate = record.issue_date || record.date;
-    const dueDate = record.due_date || record.dueDate;
+    const issueDate = record.issue_date || record.date || record.Date;
+    const dueDate = record.due_date || record.dueDate || record.DueDate;
     
     // Debug logging to understand the input format
     if (transactionNumber) {
@@ -402,18 +441,18 @@ const normalizeData = (data, dateFormat) => {
     const normalized = {
       transactionNumber: transactionNumber?.toString().trim(),
       type: type?.toString().trim(),
-      amount: parseAmount(amount),
+      amount: parseAmount(amount || record.Total || 0),
       date: parseDate(issueDate, dateFormat),
       dueDate: parseDate(dueDate, dateFormat),
-      status: record.status?.toString().trim(),
-      reference: record.reference?.toString().trim(),
+      status: record.status?.toString().trim() || record.Status || '',
+      reference: record.reference?.toString().trim() || record.Reference || '',
       // Add historical data fields if they exist
       payment_date: record.payment_date ? parseDate(record.payment_date, dateFormat) : null,
-      is_paid: record.is_paid || record.status === 'PAID',
-      is_voided: record.is_voided || record.status === 'VOIDED',
+      is_paid: record.is_paid || record.Status === 'PAID',
+      is_voided: record.is_voided || record.Status === 'VOIDED',
       // Add part payment fields
       is_partially_paid: record.is_partially_paid || false,
-      original_amount: parseAmount(record.original_amount || record.amount),
+      original_amount: parseAmount(record.original_amount || record.amount || record.Total || 0),
       amount_paid: parseAmount(record.amount_paid || 0),
       // Add void date if available
       void_date: record.void_date ? parseDate(record.void_date, dateFormat) : null
@@ -426,17 +465,31 @@ const normalizeData = (data, dateFormat) => {
 const parseDate = (dateString, format) => {
   if (!dateString) return null;
   
+  console.log(`Parsing date: ${dateString} with format ${format}`);
+  
+  // Handle dates differently based on format
+  if (format === 'DD/MM/YYYY' && typeof dateString === 'string' && dateString.includes('/')) {
+    // Use explicit DD/MM/YYYY parsing
+    const [day, month, year] = dateString.split('/');
+    const parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+    }
+  }
+  
   // If already a standard ISO date string, return it directly
   if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}/)) {
     return dateString;
   }
   
-  // Try to parse using the specified format (which should now be DD/MM/YYYY by default)
+  // Try to parse using the specified format 
   let parsed = dayjs(dateString, format);
+  console.log(`Date parsed with format: ${format}, valid: ${parsed.isValid()}`);
   
   // If that fails, try the default parsing
   if (!parsed.isValid()) {
     parsed = dayjs(dateString);
+    console.log(`Date parsed with default, valid: ${parsed.isValid()}`);
   }
   
   return parsed.isValid() ? parsed.format('YYYY-MM-DD') : null;
