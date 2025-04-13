@@ -192,15 +192,27 @@ const MatchingResults = ({ matchResults }) => {
         </div>
 
         <div 
-          className={`bg-white rounded-lg shadow-lg p-6 border-l-4 border ${safeHistoricalInsights.length > 0 ? 'border-amber-400 cursor-pointer hover:bg-gray-50' : 'border-gray-300'} transition-colors`}
-          onClick={() => safeHistoricalInsights.length > 0 && scrollToSection(historicalInsightsRef)}
+          className={`bg-white rounded-lg shadow-lg p-6 border-l-4 border ${safeDateMismatches.length > 0 ? 'border-purple-400 cursor-pointer hover:bg-gray-50' : safeHistoricalInsights.length > 0 ? 'border-amber-400 cursor-pointer hover:bg-gray-50' : 'border-gray-300'} transition-colors`}
+          onClick={() => {
+            if (safeDateMismatches.length > 0) {
+              scrollToSection(dateMismatchesRef);
+            } else if (safeHistoricalInsights.length > 0) {
+              scrollToSection(historicalInsightsRef);
+            }
+          }}
         >
-          <h3 className="text-lg font-semibold text-blue-700">Historical Insights</h3>
-          <p className={`text-3xl font-bold ${safeHistoricalInsights.length > 0 ? 'text-amber-500' : 'text-gray-400'}`}>
-            {safeHistoricalInsights.length}
+          <h3 className="text-lg font-semibold text-blue-700">
+            {safeDateMismatches.length > 0 ? 'Date Discrepancies' : 'Historical Insights'}
+          </h3>
+          <p className={`text-3xl font-bold ${safeDateMismatches.length > 0 ? 'text-purple-500' : safeHistoricalInsights.length > 0 ? 'text-amber-500' : 'text-gray-400'}`}>
+            {safeDateMismatches.length > 0 ? safeDateMismatches.length : safeHistoricalInsights.length}
           </p>
           <p className="text-sm text-gray-600 mt-2">
-            {safeHistoricalInsights.length > 0 ? 'Historical data for unmatched items' : 'No historical data found'}
+            {safeDateMismatches.length > 0 
+              ? 'Date differences in matched transactions' 
+              : safeHistoricalInsights.length > 0 
+                ? 'Historical data for reconciliation' 
+                : 'No historical data found'}
           </p>
         </div>
       </div>
@@ -253,21 +265,25 @@ const MatchingResults = ({ matchResults }) => {
           </div>
           <ResultTable
             data={safeMismatches.map(mismatch => {
+              // Determine if the invoice is paid
+              const isInvoicePaid = mismatch.company1?.is_paid || mismatch.company1?.status === 'PAID';
+              const isAPPaid = mismatch.company2?.is_paid || mismatch.company2?.status === 'PAID';
+              
               // Extract the amounts with proper handling for null/undefined values
               const receivableAmount = Math.abs(parseFloat(mismatch?.company1?.amount || 0));
+              const originalAmount = Math.abs(parseFloat(mismatch?.company1?.original_amount || receivableAmount));
               const payableAmount = Math.abs(parseFloat(mismatch?.company2?.amount || 0));
               
-              // For paid items, we need to calculate the difference based on the original amount
-              const originalAmount = mismatch.company1?.original_amount || receivableAmount;
+              // For paid items, show $0 instead of the original amount
+              const displayReceivableAmount = isInvoicePaid ? 0 : receivableAmount;
+              const displayPayableAmount = isAPPaid ? 0 : payableAmount;
               
               // Calculate difference - if one is paid and one is open, the difference is the original amount
               let difference;
-              if ((mismatch.company1?.is_paid || mismatch.company1?.status === 'PAID') && 
-                 (!mismatch.company2?.is_paid && mismatch.company2?.status !== 'PAID')) {
-                difference = originalAmount; // Company1 is paid, Company2 is open
-              } else if ((!mismatch.company1?.is_paid && mismatch.company1?.status !== 'PAID') && 
-                         (mismatch.company2?.is_paid || mismatch.company2?.status === 'PAID')) {
-                difference = originalAmount; // Company1 is open, Company2 is paid
+              if (isInvoicePaid && !isAPPaid) {
+                difference = payableAmount; // Company1 is paid, Company2 is open
+              } else if (!isInvoicePaid && isAPPaid) {
+                difference = receivableAmount; // Company1 is open, Company2 is paid
               } else {
                 difference = Math.abs(receivableAmount - payableAmount);
               }
@@ -281,20 +297,34 @@ const MatchingResults = ({ matchResults }) => {
               const ar_statusBadge = getStatusBadge(mismatch.company1?.status);
               const ap_statusBadge = getStatusBadge(mismatch.company2?.status);
               
+              // Prepare payment info display with historical context
               let paymentInfo = null;
+              let historyNote = null;
+              
               if (mismatch.company1?.payment_date || mismatch.company2?.payment_date) {
                 const paymentDate = mismatch.company1?.payment_date || mismatch.company2?.payment_date;
+                
+                // Format the text based on whether it's partial or full payment
+                const paymentType = mismatch.company1?.is_partially_paid || mismatch.company2?.is_partially_paid ? 'Partial payment' : 'Payment';
+                
                 paymentInfo = (
                   <div>
-                    <span>{formatCurrency(mismatch?.company2?.amount || 0)}</span>
+                    <span>{formatCurrency(displayPayableAmount)}</span>
                     <div className="text-xs text-green-600 mt-1">
-                      {mismatch.company1?.is_partially_paid || mismatch.company2?.is_partially_paid ? 'Partial payment' : 'Payment'} 
-                      on {formatDate(paymentDate)}
+                      {paymentType} on {formatDate(paymentDate)}
                     </div>
                   </div>
                 );
+                
+                // Add history note for insights section
+                historyNote = {
+                  type: 'payment',
+                  message: `${paymentType} made on ${formatDate(paymentDate)}`,
+                  amount: mismatch.company1?.amount_paid || mismatch.company2?.amount_paid || 'unknown',
+                  date: paymentDate
+                };
               } else {
-                paymentInfo = formatCurrency(mismatch?.company2?.amount || 0);
+                paymentInfo = formatCurrency(displayPayableAmount);
               }
               
               return {
@@ -307,7 +337,7 @@ const MatchingResults = ({ matchResults }) => {
                 'Type': mismatch?.company1?.type || mismatch?.company2?.type || 'N/A',
                 'Receivable Amount': (
                   <div className="flex items-center">
-                    <span>{formatCurrency(mismatch?.company1?.amount || 0)}</span>
+                    <span>{formatCurrency(displayReceivableAmount)}</span>
                     {ar_statusBadge}
                   </div>
                 ),
@@ -319,7 +349,16 @@ const MatchingResults = ({ matchResults }) => {
                 ),
                 'Difference': formatCurrency(difference),
                 'Date': formatDate(mismatch?.company1?.date || mismatch?.company2?.date),
-                'Status': `${mismatch?.company1?.status || 'N/A'} / ${mismatch?.company2?.status || 'N/A'}`
+                'Status': (
+                  <div>
+                    {`${mismatch?.company1?.status || 'N/A'} / ${mismatch?.company2?.status || 'N/A'}`}
+                    {historyNote && (
+                      <div className="text-xs text-amber-600 mt-1">
+                        {historyNote.message}
+                      </div>
+                    )}
+                  </div>
+                )
               };
             })}
             columns={['Transaction #', 'Type', 'Receivable Amount', 'Payable Amount', 'Difference', 'Date', 'Status']}
