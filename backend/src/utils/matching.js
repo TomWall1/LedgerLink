@@ -55,10 +55,10 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
       company2: [...normalizedCompany2]
     };
     
-    // New array to track historical insights for unmatched AP items
+    // Array to track historical insights for unmatched AP items
     const historicalInsights = [];
     
-    // NEW: Array to track date mismatches in otherwise perfect matches
+    // Array to track date mismatches in otherwise perfect matches
     const dateMismatches = [];
 
     // Calculate totals
@@ -78,7 +78,7 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
           console.log(`Perfect match found for transaction: ${item1.transactionNumber}`);
           perfectMatches.push({ company1: item1, company2: match });
           
-          // NEW: Check for date mismatches in perfect matches
+          // Check for date mismatches in perfect matches
           const dateMismatch = findDateMismatch(item1, match);
           if (dateMismatch) {
             console.log(`Date mismatch found for transaction: ${item1.transactionNumber}`);
@@ -107,6 +107,9 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
       // If no matches found, item1 remains in unmatchedItems.company1
     }
     
+    // Ensure company2 items are properly tracked as unmatched
+    console.log(`Unmatched company2 items before check: ${unmatchedItems.company2.length}`);
+    
     // After regular matching, check for historical insights for unmatched AP items
     if (normalizedHistorical.length > 0) {
       for (const apItem of unmatchedItems.company2) {
@@ -130,14 +133,20 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
           // Take the best historical match
           const bestHistoricalMatch = sortedMatches[0];
           
+          const insight = determineHistoricalInsight(apItem, bestHistoricalMatch);
+          console.log(`Historical insight generated for ${apItem.transactionNumber}: ${insight.message}`);
+          
           historicalInsights.push({
             apItem: apItem,
             historicalMatch: bestHistoricalMatch,
-            insight: determineHistoricalInsight(apItem, bestHistoricalMatch)
+            insight: insight
           });
         }
       }
     }
+    
+    // Log final unmatched counts
+    console.log(`Final unmatched counts - Company1: ${unmatchedItems.company1.length}, Company2: ${unmatchedItems.company2.length}`);
 
     // Calculate variance - the absolute difference between totals
     const variance = calculateVariance(company1Total, company2Total);
@@ -157,7 +166,7 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
       mismatches,
       unmatchedItems,
       historicalInsights,
-      dateMismatches, // NEW: Include date mismatches in the results
+      dateMismatches,
       totals: {
         company1Total,
         company2Total,
@@ -177,7 +186,7 @@ export const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD
  * @returns {Object|null} Date mismatch details or null if dates match
  */
 const findDateMismatch = (item1, item2) => {
-  // Check normal date mismatch
+  // Check transaction date mismatch
   if (item1.date && item2.date) {
     const date1 = dayjs(item1.date);
     const date2 = dayjs(item2.date);
@@ -310,23 +319,32 @@ const determineHistoricalInsight = (apItem, historicalItem) => {
   
   if (historicalItem.is_paid) {
     insight.type = 'already_paid';
-    insight.message = `Invoice ${apItem.transactionNumber} appears to have been paid on ${dayjs(historicalItem.payment_date).format('DD/MM/YYYY')}`;
+    // More specific message with invoice number and date
+    insight.message = `Invoice ${apItem.transactionNumber || 'unknown'} appears to have been paid on ${dayjs(historicalItem.payment_date).format('DD/MM/YYYY')}`;
     insight.severity = 'warning';
   } else if (historicalItem.is_partially_paid) {
     insight.type = 'partially_paid';
-    insight.message = `Invoice ${apItem.transactionNumber} is partially paid in AR system. Original amount: ${formatCurrency(historicalItem.original_amount)}, Paid: ${formatCurrency(historicalItem.amount_paid)}, Outstanding: ${formatCurrency(historicalItem.amount)}`;
+    // More detailed message showing payment details
+    insight.message = `Invoice ${apItem.transactionNumber || 'unknown'} is partially paid in AR system. Original amount: ${formatCurrency(historicalItem.original_amount)}, Paid: ${formatCurrency(historicalItem.amount_paid)}, Outstanding: ${formatCurrency(historicalItem.amount)}`;
     insight.severity = 'warning';
   } else if (historicalItem.is_voided) {
     insight.type = 'voided';
-    insight.message = `Invoice ${apItem.transactionNumber} was voided in the AR system`;
+    // Include when it was voided if that information is available
+    const voidedDate = historicalItem.void_date ? ` on ${dayjs(historicalItem.void_date).format('DD/MM/YYYY')}` : '';
+    insight.message = `Invoice ${apItem.transactionNumber || 'unknown'} was voided in the AR system${voidedDate}`;
     insight.severity = 'error';
   } else if (historicalItem.status === 'DRAFT') {
     insight.type = 'draft';
-    insight.message = `Invoice ${apItem.transactionNumber} exists as a draft in the AR system`;
+    // Add date information if available
+    const draftDate = historicalItem.date ? ` created on ${dayjs(historicalItem.date).format('DD/MM/YYYY')}` : '';
+    insight.message = `Invoice ${apItem.transactionNumber || 'unknown'} exists as a draft in the AR system${draftDate}`;
     insight.severity = 'info';
   } else {
     insight.type = 'found_in_history';
-    insight.message = `Invoice ${apItem.transactionNumber} found in AR history with status: ${historicalItem.status}`;
+    // Include more details about the historical match
+    let additionalInfo = historicalItem.date ? ` from ${dayjs(historicalItem.date).format('DD/MM/YYYY')}` : '';
+    additionalInfo += historicalItem.amount ? `, amount: ${formatCurrency(historicalItem.amount)}` : '';
+    insight.message = `Invoice ${apItem.transactionNumber || 'unknown'} found in AR history with status: ${historicalItem.status}${additionalInfo}`;
     insight.severity = 'info';
   }
   
@@ -396,7 +414,9 @@ const normalizeData = (data, dateFormat) => {
       // Add part payment fields
       is_partially_paid: record.is_partially_paid || false,
       original_amount: parseAmount(record.original_amount || record.amount),
-      amount_paid: parseAmount(record.amount_paid || 0)
+      amount_paid: parseAmount(record.amount_paid || 0),
+      // Add void date if available
+      void_date: record.void_date ? parseDate(record.void_date, dateFormat) : null
     };
     
     return normalized;
@@ -518,24 +538,28 @@ const calculateMatchScore = (item1, item2) => {
 };
 
 const removeFromUnmatched = (unmatchedItems, item1, item2) => {
-  // Use a more reliable way to identify items for removal
-  unmatchedItems.company1 = unmatchedItems.company1.filter(item => {
-    // If we have transaction numbers, use them for comparison
-    if (item1.transactionNumber && item.transactionNumber) {
-      return item.transactionNumber !== item1.transactionNumber;
-    }
-    // Otherwise check all properties to find a match
-    return JSON.stringify(item) !== JSON.stringify(item1);
-  });
+  // Use transaction number as the primary identifier for removing matched items
+  if (item1.transactionNumber) {
+    unmatchedItems.company1 = unmatchedItems.company1.filter(item => 
+      item.transactionNumber !== item1.transactionNumber
+    );
+  } else {
+    // Fallback to JSON comparison if no transaction number
+    unmatchedItems.company1 = unmatchedItems.company1.filter(item => 
+      JSON.stringify(item) !== JSON.stringify(item1)
+    );
+  }
   
-  unmatchedItems.company2 = unmatchedItems.company2.filter(item => {
-    // If we have transaction numbers, use them for comparison
-    if (item2.transactionNumber && item.transactionNumber) {
-      return item.transactionNumber !== item2.transactionNumber;
-    }
-    // Otherwise check all properties to find a match
-    return JSON.stringify(item) !== JSON.stringify(item2);
-  });
+  if (item2.transactionNumber) {
+    unmatchedItems.company2 = unmatchedItems.company2.filter(item => 
+      item.transactionNumber !== item2.transactionNumber
+    );
+  } else {
+    // Fallback to JSON comparison if no transaction number
+    unmatchedItems.company2 = unmatchedItems.company2.filter(item => 
+      JSON.stringify(item) !== JSON.stringify(item2)
+    );
+  }
 };
 
 export default matchRecords;
