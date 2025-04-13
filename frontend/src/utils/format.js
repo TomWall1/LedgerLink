@@ -14,6 +14,8 @@ export const formatDate = (date) => {
   if (!date) return 'N/A';
   
   try {
+    console.log('Formatting date:', date, typeof date);
+    
     // Handle .NET JSON date format: "/Date(1728950400000+0000)/"
     if (typeof date === 'string' && date.startsWith('/Date(') && date.includes('+')) {
       const timestamp = parseInt(date.substring(6, date.indexOf('+')));
@@ -22,21 +24,6 @@ export const formatDate = (date) => {
         const day = dateObj.getDate().toString().padStart(2, '0');
         const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
         const year = dateObj.getFullYear();
-        return `${day}/${month}/${year}`;
-      }
-    }
-    
-    // Handle the specific format "27T00:00:00.000Z/10/2024"
-    if (typeof date === 'string' && date.includes('T') && date.includes('/')) {
-      const parts = date.split('/');
-      if (parts.length >= 3) {
-        // Assuming it's in format "DD/MM/YYYY" or similar
-        return parts.slice(0, 3).join('/');
-      } else if (parts.length === 2) {
-        // Format "27T00:00:00.000Z/10/2024" (day/month/year)
-        const day = parts[0].split('T')[0].padStart(2, '0');
-        const month = parts[1].padStart(2, '0');
-        const year = parts.length > 2 ? parts[2] : new Date().getFullYear().toString();
         return `${day}/${month}/${year}`;
       }
     }
