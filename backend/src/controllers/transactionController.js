@@ -250,7 +250,7 @@ export const matchCustomerInvoices = async (req, res) => {
 
     // Get the format of the date in the CSV (default to MM/DD/YYYY if not specified)
     const csvDateFormat = dateFormat || 'MM/DD/YYYY';
-    const arDateFormat = 'YYYY-MM-DD'; // Assuming Xero data comes in ISO format
+    const arDateFormat = 'YYYY-MM-DD'; // Xero data comes in ISO format
     console.log('Using date formats - CSV:', csvDateFormat, 'AR:', arDateFormat);
 
     // Parse the CSV file (AP data)
@@ -279,7 +279,9 @@ export const matchCustomerInvoices = async (req, res) => {
       is_partially_paid: invoice.AmountPaid > 0 && invoice.AmountPaid < invoice.Total,
       original_amount: invoice.Total,
       amount_paid: invoice.AmountPaid || 0,
-      payment_date: invoice.PaymentDate
+      payment_date: invoice.PaymentDate,
+      // Keep the original data too
+      ...invoice
     }));
 
     // Historical data (if available and useHistoricalData is true)
@@ -294,8 +296,8 @@ export const matchCustomerInvoices = async (req, res) => {
     const matchResults = await matchRecords(
       transformedInvoices, // AR data (company1)
       csvTransactions,     // AP data (company2)
-      arDateFormat,
-      csvDateFormat,
+      arDateFormat,        // YYYY-MM-DD format for AR data
+      csvDateFormat,       // User-specified format for CSV
       historicalData
     );
 
