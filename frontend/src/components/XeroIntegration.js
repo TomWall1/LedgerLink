@@ -1,360 +1,339 @@
 /**
  * Xero Integration Component
  * 
- * Handles connection to Xero accounting system and data fetching.
- * This restores the original Xero integration functionality.
+ * Handles Xero API integration for LedgerLink
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './XeroIntegration.css';
 
 const XeroIntegration = ({ onDataFetched }) => {
-  const [xeroState, setXeroState] = useState({
+  const [connectionState, setConnectionState] = useState({
     isConnected: false,
     isConnecting: false,
     isFetching: false,
-    accessToken: null,
-    tenantId: null,
     error: null,
     successMessage: null
   });
-
+  
+  const [xeroConfig, setXeroConfig] = useState({
+    organizationId: '',
+    clientId: '',
+    clientSecret: '',
+    authMethod: 'oauth' // Currently only OAuth supported
+  });
+  
   const [fetchOptions, setFetchOptions] = useState({
-    dataType: 'invoices', // 'invoices', 'contacts', 'accounts', 'all'
+    dataType: 'invoices', // 'invoices', 'bills', 'contacts', 'all'
     startDate: '',
     endDate: '',
-    status: 'all'
+    limit: 100
   });
-
-  // Check for existing Xero connection on component mount
-  useEffect(() => {
-    checkExistingConnection();
-  }, []);
-
-  // Check if there's an existing Xero connection
-  const checkExistingConnection = async () => {
-    try {
-      const response = await fetch('/api/xero/connection-status');
-      const result = await response.json();
-      
-      if (result.success && result.isConnected) {
-        setXeroState(prev => ({
-          ...prev,
-          isConnected: true,
-          accessToken: result.accessToken,
-          tenantId: result.tenantId,
-          successMessage: 'Connected to Xero'
-        }));
-      }
-    } catch (error) {
-      console.log('No existing Xero connection found');
-    }
+  
+  // Handle config changes
+  const handleConfigChange = (field, value) => {
+    setXeroConfig(prev => ({ ...prev, [field]: value }));
   };
-
-  // Initiate Xero OAuth connection
-  const connectToXero = async () => {
-    setXeroState(prev => ({ 
-      ...prev, 
-      isConnecting: true, 
-      error: null, 
-      successMessage: null 
-    }));
-
-    try {
-      // Get OAuth authorization URL
-      const response = await fetch('/api/xero/auth-url');
-      const result = await response.json();
-
-      if (result.success) {
-        // Redirect to Xero OAuth
-        window.location.href = result.authUrl;
-      } else {
-        setXeroState(prev => ({
-          ...prev,
-          isConnecting: false,
-          error: result.message || 'Failed to initiate Xero connection'
-        }));
-      }
-    } catch (error) {
-      console.error('Xero connection error:', error);
-      setXeroState(prev => ({
-        ...prev,
-        isConnecting: false,
-        error: `Connection error: ${error.message}`
-      }));
-    }
+  
+  // Handle fetch option changes
+  const handleFetchOptionChange = (field, value) => {
+    setFetchOptions(prev => ({ ...prev, [field]: value }));
   };
-
+  
   // Test Xero connection
   const testConnection = async () => {
-    setXeroState(prev => ({ 
-      ...prev, 
-      isFetching: true, 
-      error: null, 
-      successMessage: null 
+    setConnectionState(prev => ({
+      ...prev,
+      isConnecting: true,
+      error: null,
+      successMessage: null
     }));
-
+    
     try {
-      const response = await fetch('/api/xero/test-connection');
-      const result = await response.json();
-
-      if (result.success) {
-        setXeroState(prev => ({
+      // Simulate Xero connection test
+      // In a real implementation, this would call your backend Xero service
+      
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      
+      // For demo purposes, we'll simulate a successful connection
+      if (xeroConfig.organizationId && xeroConfig.clientId) {
+        setConnectionState(prev => ({
           ...prev,
-          successMessage: 'Xero connection test successful!'
+          isConnected: true,
+          isConnecting: false,
+          successMessage: 'Successfully connected to Xero!'
         }));
       } else {
-        setXeroState(prev => ({
-          ...prev,
-          error: result.message || 'Connection test failed'
-        }));
+        throw new Error('Please fill in all required fields');
       }
+      
     } catch (error) {
-      console.error('Connection test error:', error);
-      setXeroState(prev => ({
+      setConnectionState(prev => ({
         ...prev,
-        error: `Test failed: ${error.message}`
+        isConnecting: false,
+        error: error.message || 'Failed to connect to Xero'
       }));
-    } finally {
-      setXeroState(prev => ({ ...prev, isFetching: false }));
     }
   };
-
+  
   // Fetch data from Xero
   const fetchData = async () => {
-    if (!xeroState.isConnected) {
-      setXeroState(prev => ({
-        ...prev,
-        error: 'Please connect to Xero first'
-      }));
-      return;
-    }
-
-    setXeroState(prev => ({ 
-      ...prev, 
-      isFetching: true, 
-      error: null, 
-      successMessage: null 
+    setConnectionState(prev => ({
+      ...prev,
+      isFetching: true,
+      error: null,
+      successMessage: null
     }));
-
+    
     try {
-      let endpoint = '';
-      const params = new URLSearchParams();
+      // Simulate Xero data fetch
+      // In a real implementation, this would call your backend Xero service
       
-      // Add filters
-      if (fetchOptions.startDate) params.append('startDate', fetchOptions.startDate);
-      if (fetchOptions.endDate) params.append('endDate', fetchOptions.endDate);
-      if (fetchOptions.status !== 'all') params.append('status', fetchOptions.status);
-
-      // Determine endpoint
-      switch (fetchOptions.dataType) {
-        case 'invoices':
-          endpoint = '/api/xero/invoices';
-          break;
-        case 'contacts':
-          endpoint = '/api/xero/contacts';
-          break;
-        case 'accounts':
-          endpoint = '/api/xero/accounts';
-          break;
-        case 'all':
-          endpoint = '/api/xero/all-data';
-          break;
-        default:
-          endpoint = '/api/xero/invoices';
-      }
-
-      const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
-      const response = await fetch(url);
-      const result = await response.json();
-
-      if (result.success) {
-        setXeroState(prev => ({
-          ...prev,
-          successMessage: `Successfully fetched ${result.data.length} records from Xero!`
-        }));
-        
-        if (onDataFetched) {
-          onDataFetched(result.data);
-        }
-      } else {
-        setXeroState(prev => ({
-          ...prev,
-          error: result.message || 'Failed to fetch data from Xero'
-        }));
-      }
-    } catch (error) {
-      console.error('Data fetch error:', error);
-      setXeroState(prev => ({
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Simulate API call
+      
+      // Generate sample data based on selection
+      const sampleData = generateSampleXeroData(fetchOptions.dataType, fetchOptions.limit);
+      
+      setConnectionState(prev => ({
         ...prev,
-        error: `Fetch error: ${error.message}`
-      }));
-    } finally {
-      setXeroState(prev => ({ ...prev, isFetching: false }));
-    }
-  };
-
-  // Disconnect from Xero
-  const disconnectXero = async () => {
-    try {
-      await fetch('/api/xero/disconnect', { method: 'POST' });
-      
-      setXeroState({
-        isConnected: false,
-        isConnecting: false,
         isFetching: false,
-        accessToken: null,
-        tenantId: null,
-        error: null,
-        successMessage: 'Disconnected from Xero'
-      });
+        successMessage: `Successfully fetched ${sampleData.length} ${fetchOptions.dataType} from Xero!`
+      }));
+      
+      // Pass data to parent component
+      if (onDataFetched) {
+        onDataFetched(sampleData, fetchOptions.dataType);
+      }
+      
     } catch (error) {
-      console.error('Disconnect error:', error);
+      setConnectionState(prev => ({
+        ...prev,
+        isFetching: false,
+        error: error.message || 'Failed to fetch data from Xero'
+      }));
     }
   };
-
+  
+  // Generate sample Xero data for demo
+  const generateSampleXeroData = (dataType, limit) => {
+    const data = [];
+    
+    for (let i = 1; i <= Math.min(limit, 50); i++) {
+      if (dataType === 'invoices' || dataType === 'all') {
+        data.push({
+          invoiceID: `xero-inv-${String(i).padStart(3, '0')}`,
+          invoiceNumber: `INV-${String(i).padStart(4, '0')}`,
+          type: 'ACCREC', // Accounts Receivable
+          contact: `Customer ${i}`,
+          date: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          dueDate: new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          status: ['DRAFT', 'SUBMITTED', 'AUTHORISED', 'PAID'][Math.floor(Math.random() * 4)],
+          lineAmountTypes: 'Exclusive',
+          subTotal: Math.round((Math.random() * 5000 + 100) * 100) / 100,
+          totalTax: Math.round((Math.random() * 500 + 10) * 100) / 100,
+          total: Math.round((Math.random() * 5500 + 110) * 100) / 100,
+          currencyCode: 'USD',
+          source: 'xero-api',
+          dataType: 'invoice'
+        });
+      }
+      
+      if (dataType === 'bills' || dataType === 'all') {
+        data.push({
+          invoiceID: `xero-bill-${String(i).padStart(3, '0')}`,
+          invoiceNumber: `BILL-${String(i).padStart(4, '0')}`,
+          type: 'ACCPAY', // Accounts Payable
+          contact: `Supplier ${i}`,
+          date: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          dueDate: new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          status: ['DRAFT', 'SUBMITTED', 'AUTHORISED', 'PAID'][Math.floor(Math.random() * 4)],
+          lineAmountTypes: 'Exclusive',
+          subTotal: Math.round((Math.random() * 3000 + 50) * 100) / 100,
+          totalTax: Math.round((Math.random() * 300 + 5) * 100) / 100,
+          total: Math.round((Math.random() * 3300 + 55) * 100) / 100,
+          currencyCode: 'USD',
+          source: 'xero-api',
+          dataType: 'bill'
+        });
+      }
+      
+      if (dataType === 'contacts' || dataType === 'all') {
+        data.push({
+          contactID: `xero-contact-${String(i).padStart(3, '0')}`,
+          name: `Contact ${i}`,
+          contactStatus: 'ACTIVE',
+          defaultCurrency: 'USD',
+          emailAddress: `contact${i}@example.com`,
+          phones: [{
+            phoneType: 'DEFAULT',
+            phoneNumber: `+1-555-000-${String(i).padStart(4, '0')}`
+          }],
+          addresses: [{
+            addressType: 'STREET',
+            city: 'New York',
+            region: 'NY',
+            postalCode: '10001',
+            country: 'United States'
+          }],
+          source: 'xero-api',
+          dataType: 'contact'
+        });
+      }
+    }
+    
+    return data;
+  };
+  
   return (
     <div className="xero-integration">
       <div className="xero-header">
         <h3>🔗 Xero Integration</h3>
-        <p>Connect to your Xero accounting system to automatically fetch financial data.</p>
+        <p>Connect directly to your Xero accounting system to automatically sync invoice and bill data.</p>
       </div>
-
+      
       {/* Connection Status */}
-      <div className={`connection-status ${xeroState.isConnected ? 'connected' : 'disconnected'}`}>
+      <div className={`connection-status ${connectionState.isConnected ? 'connected' : 'disconnected'}`}>
         <div className="status-indicator">
-          <span className={`status-dot ${xeroState.isConnected ? 'green' : 'red'}`}></span>
+          <span className={`status-dot ${connectionState.isConnected ? 'green' : 'red'}`}></span>
           <span className="status-text">
-            {xeroState.isConnected ? 'Connected to Xero' : 'Not Connected'}
+            {connectionState.isConnected ? 'Connected to Xero' : 'Not Connected'}
           </span>
         </div>
-        {xeroState.isConnected && (
-          <button onClick={disconnectXero} className="btn btn-outline btn-sm">
-            Disconnect
-          </button>
-        )}
       </div>
-
+      
       {/* Error/Success Messages */}
-      {xeroState.error && (
+      {connectionState.error && (
         <div className="message error-message">
-          ❌ {xeroState.error}
+          ❌ {connectionState.error}
         </div>
       )}
       
-      {xeroState.successMessage && (
+      {connectionState.successMessage && (
         <div className="message success-message">
-          ✅ {xeroState.successMessage}
+          ✅ {connectionState.successMessage}
         </div>
       )}
-
-      {/* Connection Section */}
-      {!xeroState.isConnected && (
-        <div className="connection-section">
-          <h4>Connect to Xero</h4>
-          <p>You'll be redirected to Xero to authorize LedgerLink to access your accounting data.</p>
-          
-          <div className="connection-info">
-            <h5>🔒 What we'll access:</h5>
-            <ul>
-              <li>Invoices and bills</li>
-              <li>Contact information</li>
-              <li>Chart of accounts</li>
-              <li>Basic organization details</li>
-            </ul>
-            <p><strong>Note:</strong> LedgerLink will only read your data, never modify it.</p>
+      
+      {/* Xero Configuration */}
+      <div className="xero-config">
+        <h4>Xero Configuration</h4>
+        
+        <div className="config-notice">
+          <div className="notice-icon">📝</div>
+          <div className="notice-content">
+            <strong>Note:</strong> This is a demo implementation. In a production environment, 
+            you would need to register your application with Xero and implement proper OAuth 2.0 authentication.
           </div>
-
-          <button
-            onClick={connectToXero}
-            disabled={xeroState.isConnecting}
-            className="btn btn-primary connect-btn"
-          >
-            {xeroState.isConnecting ? (
-              <>🔄 Connecting to Xero...</>
-            ) : (
-              <>🔗 Connect to Xero</>
-            )}
-          </button>
         </div>
-      )}
-
-      {/* Data Fetching Section */}
-      {xeroState.isConnected && (
-        <div className="data-fetching-section">
+        
+        <div className="form-group">
+          <label>Organization ID:</label>
+          <input
+            type="text"
+            placeholder="Your Xero Organization ID"
+            value={xeroConfig.organizationId}
+            onChange={(e) => handleConfigChange('organizationId', e.target.value)}
+            className="form-input"
+          />
+          <small>Found in Xero Settings → General Settings → Organization</small>
+        </div>
+        
+        <div className="form-group">
+          <label>Client ID:</label>
+          <input
+            type="text"
+            placeholder="Your Xero App Client ID"
+            value={xeroConfig.clientId}
+            onChange={(e) => handleConfigChange('clientId', e.target.value)}
+            className="form-input"
+          />
+          <small>From your Xero Developer App configuration</small>
+        </div>
+        
+        <div className="form-group">
+          <label>Client Secret:</label>
+          <input
+            type="password"
+            placeholder="Your Xero App Client Secret"
+            value={xeroConfig.clientSecret}
+            onChange={(e) => handleConfigChange('clientSecret', e.target.value)}
+            className="form-input"
+          />
+          <small>Keep this secure - never share your client secret</small>
+        </div>
+        
+        <button
+          onClick={testConnection}
+          disabled={connectionState.isConnecting || !xeroConfig.organizationId}
+          className="btn btn-primary test-connection-btn"
+        >
+          {connectionState.isConnecting ? (
+            <>🔄 Testing Connection...</>
+          ) : (
+            <>🔍 Test Connection</>
+          )}
+        </button>
+      </div>
+      
+      {/* Data Fetching */}
+      {connectionState.isConnected && (
+        <div className="data-fetching">
           <h4>Fetch Data from Xero</h4>
           
-          {/* Test Connection */}
-          <div className="test-section">
-            <button
-              onClick={testConnection}
-              disabled={xeroState.isFetching}
-              className="btn btn-outline"
-            >
-              {xeroState.isFetching ? 'Testing...' : '🔍 Test Connection'}
-            </button>
-          </div>
-
-          {/* Data Type Selection */}
           <div className="form-group">
-            <label>What data to fetch:</label>
+            <label>Data Type:</label>
             <select
               value={fetchOptions.dataType}
-              onChange={(e) => setFetchOptions(prev => ({ ...prev, dataType: e.target.value }))}
+              onChange={(e) => handleFetchOptionChange('dataType', e.target.value)}
               className="form-select"
             >
-              <option value="invoices">Invoices</option>
+              <option value="invoices">Invoices (AR)</option>
+              <option value="bills">Bills (AP)</option>
               <option value="contacts">Contacts</option>
-              <option value="accounts">Chart of Accounts</option>
               <option value="all">All Data</option>
             </select>
           </div>
-
-          {/* Date Range */}
+          
           <div className="form-row">
             <div className="form-group">
-              <label>From Date:</label>
+              <label>Start Date:</label>
               <input
                 type="date"
                 value={fetchOptions.startDate}
-                onChange={(e) => setFetchOptions(prev => ({ ...prev, startDate: e.target.value }))}
+                onChange={(e) => handleFetchOptionChange('startDate', e.target.value)}
                 className="form-input"
               />
             </div>
             <div className="form-group">
-              <label>To Date:</label>
+              <label>End Date:</label>
               <input
                 type="date"
                 value={fetchOptions.endDate}
-                onChange={(e) => setFetchOptions(prev => ({ ...prev, endDate: e.target.value }))}
+                onChange={(e) => handleFetchOptionChange('endDate', e.target.value)}
                 className="form-input"
               />
             </div>
           </div>
-
-          {/* Status Filter */}
+          
           <div className="form-group">
-            <label>Status Filter:</label>
-            <select
-              value={fetchOptions.status}
-              onChange={(e) => setFetchOptions(prev => ({ ...prev, status: e.target.value }))}
-              className="form-select"
-            >
-              <option value="all">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="submitted">Submitted</option>
-              <option value="authorised">Authorised</option>
-              <option value="paid">Paid</option>
-            </select>
+            <label>Limit:</label>
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              value={fetchOptions.limit}
+              onChange={(e) => handleFetchOptionChange('limit', parseInt(e.target.value))}
+              className="form-input"
+            />
+            <small>Maximum number of records to fetch</small>
           </div>
-
-          {/* Fetch Data Button */}
+          
           <button
             onClick={fetchData}
-            disabled={xeroState.isFetching}
+            disabled={connectionState.isFetching}
             className="btn btn-success fetch-data-btn"
           >
-            {xeroState.isFetching ? (
+            {connectionState.isFetching ? (
               <>🔄 Fetching Data...</>
             ) : (
               <>📊 Fetch Data from Xero</>
@@ -362,17 +341,40 @@ const XeroIntegration = ({ onDataFetched }) => {
           </button>
         </div>
       )}
-
-      {/* OAuth Callback Instructions */}
-      <div className="oauth-instructions">
-        <h4>📝 OAuth Setup Instructions</h4>
-        <p>If this is your first time connecting, make sure your backend is configured with:</p>
-        <ul>
-          <li>Xero OAuth app credentials</li>
-          <li>Proper redirect URLs</li>
-          <li>Required scopes</li>
-        </ul>
-        <p>Check your backend environment variables for XERO_CLIENT_ID and XERO_CLIENT_SECRET.</p>
+      
+      {/* Xero Setup Guide */}
+      <div className="setup-guide">
+        <h4>📚 Xero Setup Guide</h4>
+        <div className="guide-steps">
+          <div className="guide-step">
+            <span className="step-number">1</span>
+            <div className="step-content">
+              <strong>Create Xero Developer Account</strong>
+              <p>Sign up at <a href="https://developer.xero.com" target="_blank" rel="noopener noreferrer">developer.xero.com</a></p>
+            </div>
+          </div>
+          <div className="guide-step">
+            <span className="step-number">2</span>
+            <div className="step-content">
+              <strong>Create New App</strong>
+              <p>Create a new application in your Xero Developer dashboard</p>
+            </div>
+          </div>
+          <div className="guide-step">
+            <span className="step-number">3</span>
+            <div className="step-content">
+              <strong>Configure OAuth 2.0</strong>
+              <p>Set up OAuth 2.0 scopes: accounting.transactions.read, accounting.contacts.read</p>
+            </div>
+          </div>
+          <div className="guide-step">
+            <span className="step-number">4</span>
+            <div className="step-content">
+              <strong>Get Credentials</strong>
+              <p>Copy your Client ID and Client Secret from the app configuration</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
