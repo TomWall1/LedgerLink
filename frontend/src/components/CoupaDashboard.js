@@ -3,6 +3,10 @@ import axios from 'axios';
 import { Download, FileText, BarChart3, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
 import './CoupaDashboard.css';
 
+// Configure axios base URL for production
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+axios.defaults.baseURL = API_BASE_URL;
+
 const CoupaDashboard = () => {
   const [activeTab, setActiveTab] = useState('upload');
   const [coupaData, setCoupaData] = useState([]);
@@ -34,7 +38,7 @@ const CoupaDashboard = () => {
       setCoupaData(response.data.data);
       setUploadStatus(`Coupa data uploaded successfully. ${response.data.data.length} records processed.`);
     } catch (error) {
-      setUploadStatus('Error uploading Coupa data: ' + error.message);
+      setUploadStatus('Error uploading Coupa data: ' + (error.response?.data?.error || error.message));
     }
     setIsUploading(false);
   };
@@ -56,7 +60,7 @@ const CoupaDashboard = () => {
       setNetsuiteData(response.data.data);
       setUploadStatus(`NetSuite data uploaded successfully. ${response.data.data.length} records processed.`);
     } catch (error) {
-      setUploadStatus('Error uploading NetSuite data: ' + error.message);
+      setUploadStatus('Error uploading NetSuite data: ' + (error.response?.data?.error || error.message));
     }
     setIsUploading(false);
   };
@@ -83,7 +87,7 @@ const CoupaDashboard = () => {
       setUploadStatus(`Matching completed. ${response.data.matched.length} matches found.`);
       setActiveTab('review');
     } catch (error) {
-      setUploadStatus('Error during matching: ' + error.message);
+      setUploadStatus('Error during matching: ' + (error.response?.data?.error || error.message));
     }
     setMatchingInProgress(false);
   };
@@ -105,7 +109,7 @@ const CoupaDashboard = () => {
       link.click();
       link.remove();
     } catch (error) {
-      setUploadStatus('Error exporting to CSV: ' + error.message);
+      setUploadStatus('Error exporting to CSV: ' + (error.response?.data?.error || error.message));
     }
   };
 
@@ -125,7 +129,7 @@ const CoupaDashboard = () => {
       link.click();
       link.remove();
     } catch (error) {
-      setUploadStatus('Error exporting to Excel: ' + error.message);
+      setUploadStatus('Error exporting to Excel: ' + (error.response?.data?.error || error.message));
     }
   };
 
