@@ -1,653 +1,315 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Download, FileText, BarChart3, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
+/**
+ * Coupa Dashboard Integration Example
+ * 
+ * This shows how to integrate the Coupa components into your existing LedgerLink dashboard.
+ * Copy the relevant parts into your actual dashboard component.
+ */
+
+import React, { useState } from 'react';
+import CoupaConnection from './CoupaConnection';
+import CoupaDataPreview from './CoupaDataPreview';
 import './CoupaDashboard.css';
 
-// Configure axios base URL for production
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-axios.defaults.baseURL = API_BASE_URL;
-
 const CoupaDashboard = () => {
-  const [activeTab, setActiveTab] = useState('upload');
-  const [coupaData, setCoupaData] = useState([]);
-  const [netsuiteData, setNetsuiteData] = useState([]);
-  const [matchedData, setMatchedData] = useState([]);
-  const [unmatchedCoupa, setUnmatchedCoupa] = useState([]);
-  const [unmatchedNetsuite, setUnmatchedNetsuite] = useState([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState('');
-  const [matchingInProgress, setMatchingInProgress] = useState(false);
-  const [showExportOptions, setShowExportOptions] = useState(false);
-  const [reviewSubTab, setReviewSubTab] = useState('matched');
+  // State for managing Coupa integration
+  const [coupaData, setCoupaData] = useState(null);
+  const [showCoupaPreview, setShowCoupaPreview] = useState(false);
+  const [importedData, setImportedData] = useState([]);
+  const [activeTab, setActiveTab] = useState('connect'); // 'connect', 'preview', 'imported'
 
-  // File upload handlers
-  const handleCoupaUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    setUploadStatus('Uploading Coupa data...');
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await axios.post('/api/coupa/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      setCoupaData(response.data.data);
-      setUploadStatus(`Coupa data uploaded successfully. ${response.data.data.length} records processed.`);
-    } catch (error) {
-      setUploadStatus('Error uploading Coupa data: ' + (error.response?.data?.error || error.message));
-    }
-    setIsUploading(false);
+  // Handle successful Coupa connection
+  const handleCoupaConnectionSuccess = (connectionResult) => {
+    console.log('Coupa connection successful:', connectionResult);
+    // You could save connection status to state or localStorage
   };
 
-  const handleNetsuiteUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    setUploadStatus('Uploading NetSuite data...');
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await axios.post('/api/netsuite/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      setNetsuiteData(response.data.data);
-      setUploadStatus(`NetSuite data uploaded successfully. ${response.data.data.length} records processed.`);
-    } catch (error) {
-      setUploadStatus('Error uploading NetSuite data: ' + (error.response?.data?.error || error.message));
-    }
-    setIsUploading(false);
+  // Handle data fetched from Coupa
+  const handleCoupaDataFetched = (data, dataType) => {
+    console.log(`Fetched ${data.length} ${dataType} records from Coupa`);
+    
+    setCoupaData({ 
+      data, 
+      dataType,
+      fetchedAt: new Date().toISOString()
+    });
+    
+    setShowCoupaPreview(true);
+    setActiveTab('preview');
   };
 
-  // Matching function
-  const handleMatching = async () => {
-    if (coupaData.length === 0 || netsuiteData.length === 0) {
-      setUploadStatus('Please upload both Coupa and NetSuite data before matching.');
+  // Handle user accepting/importing Coupa data
+  const handleCoupaDataAccepted = (selectedData, dataType) => {
+    console.log(`Importing ${selectedData.length} ${dataType} records`);
+    
+    // Add metadata to the imported data
+    const dataWithMetadata = selectedData.map(item => ({
+      ...item,
+      importedAt: new Date().toISOString(),
+      importedFrom: 'coupa-api',
+      dataType: dataType
+    }));
+    
+    // Add to imported data list
+    setImportedData(prev => [...prev, ...dataWithMetadata]);
+    
+    // Clear preview
+    setShowCoupaPreview(false);
+    setCoupaData(null);
+    
+    // Switch to imported data tab
+    setActiveTab('imported');
+    
+    // Here you would integrate with your existing reconciliation logic
+    // For example:
+    // processReconciliationData(dataWithMetadata);
+    
+    alert(`Successfully imported ${selectedData.length} records from Coupa!`);
+  };
+
+  // Handle user rejecting Coupa data
+  const handleCoupaDataRejected = () => {
+    console.log('User rejected Coupa data');
+    
+    setShowCoupaPreview(false);
+    setCoupaData(null);
+    setActiveTab('connect');
+  };
+
+  // Clear all imported data
+  const clearImportedData = () => {
+    if (window.confirm('Are you sure you want to clear all imported Coupa data?')) {
+      setImportedData([]);
+    }
+  };
+
+  // Export imported data to CSV (example functionality)
+  const exportToCSV = () => {
+    if (importedData.length === 0) {
+      alert('No data to export');
       return;
     }
 
-    setMatchingInProgress(true);
-    setUploadStatus('Matching records...');
+    // Convert data to CSV format
+    const headers = Object.keys(importedData[0]);
+    const csvContent = [
+      headers.join(','),
+      ...importedData.map(item => 
+        headers.map(header => 
+          JSON.stringify(item[header] || '')
+        ).join(',')
+      )
+    ].join('\n');
 
-    try {
-      const response = await axios.post('/api/match', {
-        coupaData,
-        netsuiteData
-      });
-
-      setMatchedData(response.data.matched);
-      setUnmatchedCoupa(response.data.unmatchedCoupa);
-      setUnmatchedNetsuite(response.data.unmatchedNetsuite);
-      setUploadStatus(`Matching completed. ${response.data.matched.length} matches found.`);
-      setActiveTab('review');
-    } catch (error) {
-      setUploadStatus('Error during matching: ' + (error.response?.data?.error || error.message));
-    }
-    setMatchingInProgress(false);
-  };
-
-  // Export functions
-  const exportToCSV = async () => {
-    try {
-      const response = await axios.post('/api/export/csv', {
-        matched: matchedData,
-        unmatchedCoupa,
-        unmatchedNetsuite
-      }, { responseType: 'blob' });
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `coupa-netsuite-reconciliation-${new Date().toISOString().split('T')[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      setUploadStatus('Error exporting to CSV: ' + (error.response?.data?.error || error.message));
-    }
-  };
-
-  const exportToExcel = async () => {
-    try {
-      const response = await axios.post('/api/export/excel', {
-        matched: matchedData,
-        unmatchedCoupa,
-        unmatchedNetsuite
-      }, { responseType: 'blob' });
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `coupa-netsuite-reconciliation-${new Date().toISOString().split('T')[0]}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      setUploadStatus('Error exporting to Excel: ' + (error.response?.data?.error || error.message));
-    }
-  };
-
-  // Calculate statistics for charts
-  const getMatchStats = () => {
-    const totalRecords = coupaData.length;
-    const matchedCount = matchedData.length;
-    const unmatchedCount = unmatchedCoupa.length;
-    const matchRate = totalRecords > 0 ? (matchedCount / totalRecords) * 100 : 0;
-    
-    const perfectMatches = matchedData.filter(m => Math.abs(m.difference || 0) < 0.01).length;
-    const varianceMatches = matchedData.filter(m => Math.abs(m.difference || 0) >= 0.01).length;
-    
-    return {
-      totalRecords,
-      matchedCount,
-      unmatchedCount,
-      matchRate,
-      perfectMatches,
-      varianceMatches
-    };
-  };
-
-  // Upload Tab Content
-  const renderUploadTab = () => (
-    <div className="upload-section">
-      <div className="upload-instructions">
-        <h3>Upload Your Files</h3>
-        <p>Upload your Coupa invoice approvals and NetSuite AR ledger data to begin the reconciliation process.</p>
-        <div className="file-requirements">
-          <div className="requirement">
-            <strong>Coupa File Requirements:</strong> CSV/Excel with columns: Invoice Number, Amount, Date, Vendor, Status
-          </div>
-          <div className="requirement">
-            <strong>NetSuite File Requirements:</strong> CSV/Excel with columns: Invoice Number, Amount, Date, Vendor, AR Status
-          </div>
-        </div>
-      </div>
-      
-      <div className="upload-containers">
-        <div className="upload-container">
-          <h4><FileText size={20} /> Coupa Invoice Approvals</h4>
-          <div className="file-upload">
-            <input 
-              type="file" 
-              accept=".csv,.xlsx,.xls" 
-              onChange={handleCoupaUpload}
-              disabled={isUploading}
-              id="coupa-upload"
-            />
-            <label htmlFor="coupa-upload" className={`upload-label ${isUploading ? 'disabled' : ''}`}>
-              Choose Coupa File
-            </label>
-          </div>
-          {coupaData.length > 0 && (
-            <div className="upload-success">
-              <CheckCircle size={16} /> {coupaData.length} Coupa records loaded
-            </div>
-          )}
-        </div>
-
-        <div className="upload-container">
-          <h4><BarChart3 size={20} /> NetSuite AR Ledger</h4>
-          <div className="file-upload">
-            <input 
-              type="file" 
-              accept=".csv,.xlsx,.xls" 
-              onChange={handleNetsuiteUpload}
-              disabled={isUploading}
-              id="netsuite-upload"
-            />
-            <label htmlFor="netsuite-upload" className={`upload-label ${isUploading ? 'disabled' : ''}`}>
-              Choose NetSuite File
-            </label>
-          </div>
-          {netsuiteData.length > 0 && (
-            <div className="upload-success">
-              <CheckCircle size={16} /> {netsuiteData.length} NetSuite records loaded
-            </div>
-          )}
-        </div>
-      </div>
-
-      {uploadStatus && (
-        <div className={`status-message ${uploadStatus.includes('Error') ? 'error' : 'success'}`}>
-          {uploadStatus.includes('Error') ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
-          {uploadStatus}
-        </div>
-      )}
-
-      <div className="match-section">
-        <button 
-          className="match-button" 
-          onClick={handleMatching}
-          disabled={coupaData.length === 0 || netsuiteData.length === 0 || matchingInProgress}
-        >
-          {matchingInProgress ? 'Matching in Progress...' : 'Start Intelligent Matching'}
-        </button>
-        <p className="match-description">
-          Our AI-powered matching algorithm compares invoice numbers, amounts, dates, and vendor information to find the best matches.
-        </p>
-      </div>
-    </div>
-  );
-
-  // Review Tab Content
-  const renderReviewTab = () => {
-    const stats = getMatchStats();
-    
-    return (
-      <div className="review-section">
-        <div className="review-header">
-          <h3>Review Matching Results</h3>
-          <div className="summary-stats">
-            <div className="stat-card matched">
-              <div className="stat-icon"><CheckCircle size={24} /></div>
-              <div className="stat-number">{matchedData.length}</div>
-              <div className="stat-label">Matched Records</div>
-            </div>
-            <div className="stat-card unmatched-coupa">
-              <div className="stat-icon"><AlertCircle size={24} /></div>
-              <div className="stat-number">{unmatchedCoupa.length}</div>
-              <div className="stat-label">Unmatched Coupa</div>
-            </div>
-            <div className="stat-card unmatched-netsuite">
-              <div className="stat-icon"><AlertCircle size={24} /></div>
-              <div className="stat-number">{unmatchedNetsuite.length}</div>
-              <div className="stat-label">Unmatched NetSuite</div>
-            </div>
-            <div className="stat-card match-rate">
-              <div className="stat-icon"><TrendingUp size={24} /></div>
-              <div className="stat-number">{stats.matchRate.toFixed(1)}%</div>
-              <div className="stat-label">Match Rate</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="review-tabs">
-          <div className="review-tab-buttons">
-            <button 
-              className={`review-tab-btn ${reviewSubTab === 'matched' ? 'active' : ''}`}
-              onClick={() => setReviewSubTab('matched')}
-            >
-              Matched Records ({matchedData.length})
-            </button>
-            <button 
-              className={`review-tab-btn ${reviewSubTab === 'unmatched-coupa' ? 'active' : ''}`}
-              onClick={() => setReviewSubTab('unmatched-coupa')}
-            >
-              Unmatched Coupa ({unmatchedCoupa.length})
-            </button>
-            <button 
-              className={`review-tab-btn ${reviewSubTab === 'unmatched-netsuite' ? 'active' : ''}`}
-              onClick={() => setReviewSubTab('unmatched-netsuite')}
-            >
-              Unmatched NetSuite ({unmatchedNetsuite.length})
-            </button>
-          </div>
-
-          <div className="review-content">
-            {reviewSubTab === 'matched' && (
-              <div className="matched-records">
-                <div className="section-header">
-                  <h4>Matched Records Analysis</h4>
-                  <div className="match-summary">
-                    <span className="perfect-matches">{stats.perfectMatches} Perfect Matches</span>
-                    <span className="variance-matches">{stats.varianceMatches} Amount Variances</span>
-                  </div>
-                </div>
-                {matchedData.length > 0 ? (
-                  <div className="table-container">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Invoice Number</th>
-                          <th>Coupa Amount</th>
-                          <th>NetSuite Amount</th>
-                          <th>Difference</th>
-                          <th>Match Confidence</th>
-                          <th>Vendor</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {matchedData.map((match, index) => (
-                          <tr key={index} className={Math.abs(match.difference || 0) >= 0.01 ? 'amount-difference' : ''}>
-                            <td>{match.invoiceNumber}</td>
-                            <td>${match.coupaAmount?.toFixed(2)}</td>
-                            <td>${match.netsuiteAmount?.toFixed(2)}</td>
-                            <td className={Math.abs(match.difference || 0) >= 0.01 ? 'difference' : 'no-difference'}>
-                              ${Math.abs(match.difference || 0).toFixed(2)}
-                            </td>
-                            <td>
-                              <span className={`confidence ${match.confidence >= 0.9 ? 'high' : match.confidence >= 0.7 ? 'medium' : 'low'}`}>
-                                {(match.confidence * 100).toFixed(0)}%
-                              </span>
-                            </td>
-                            <td>{match.vendor || 'N/A'}</td>
-                            <td>
-                              <span className={`status ${Math.abs(match.difference || 0) < 0.01 ? 'perfect' : 'variance'}`}>
-                                {Math.abs(match.difference || 0) < 0.01 ? 'Perfect Match' : 'Amount Variance'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="no-data">No matched records found.</div>
-                )}
-              </div>
-            )}
-
-            {reviewSubTab === 'unmatched-coupa' && (
-              <div className="unmatched-records">
-                <div className="section-header">
-                  <h4>Unmatched Coupa Records</h4>
-                  <p>These invoice approvals from Coupa could not be matched with NetSuite AR records.</p>
-                </div>
-                {unmatchedCoupa.length > 0 ? (
-                  <div className="table-container">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Invoice Number</th>
-                          <th>Amount</th>
-                          <th>Date</th>
-                          <th>Vendor</th>
-                          <th>Coupa Status</th>
-                          <th>Potential Issues</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {unmatchedCoupa.map((record, index) => (
-                          <tr key={index}>
-                            <td>{record.invoiceNumber}</td>
-                            <td>${record.amount?.toFixed(2)}</td>
-                            <td>{record.date}</td>
-                            <td>{record.vendor}</td>
-                            <td>{record.status}</td>
-                            <td>
-                              <span className="issue-tag">
-                                {record.amount > 10000 ? 'High Value' : 'Not in NetSuite'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="no-data success">All Coupa records were successfully matched!</div>
-                )}
-              </div>
-            )}
-
-            {reviewSubTab === 'unmatched-netsuite' && (
-              <div className="unmatched-records">
-                <div className="section-header">
-                  <h4>Unmatched NetSuite Records</h4>
-                  <p>These AR ledger entries from NetSuite could not be matched with Coupa approvals.</p>
-                </div>
-                {unmatchedNetsuite.length > 0 ? (
-                  <div className="table-container">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Invoice Number</th>
-                          <th>Amount</th>
-                          <th>Date</th>
-                          <th>Vendor</th>
-                          <th>AR Status</th>
-                          <th>Potential Issues</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {unmatchedNetsuite.map((record, index) => (
-                          <tr key={index}>
-                            <td>{record.invoiceNumber}</td>
-                            <td>${record.amount?.toFixed(2)}</td>
-                            <td>{record.date}</td>
-                            <td>{record.vendor}</td>
-                            <td>{record.arStatus}</td>
-                            <td>
-                              <span className="issue-tag">
-                                {record.arStatus === 'Paid' ? 'Already Paid' : 'Missing Approval'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="no-data success">All NetSuite records were successfully matched!</div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Results Tab Content with Charts
-  const renderResultsTab = () => {
-    const stats = getMatchStats();
-    const totalVariance = matchedData.reduce((sum, m) => sum + Math.abs(m.difference || 0), 0);
-    const avgVariance = stats.varianceMatches > 0 ? totalVariance / stats.varianceMatches : 0;
-    
-    return (
-      <div className="results-section">
-        <div className="results-header">
-          <h3><BarChart3 size={24} /> Reconciliation Results Dashboard</h3>
-          <p>Comprehensive analysis and export options for your Coupa-NetSuite reconciliation</p>
-        </div>
-
-        {/* Key Metrics Dashboard */}
-        <div className="metrics-dashboard">
-          <div className="metric-row">
-            <div className="metric-card primary">
-              <div className="metric-icon"><BarChart3 size={32} /></div>
-              <div className="metric-content">
-                <div className="metric-value">{stats.totalRecords}</div>
-                <div className="metric-label">Total Records Processed</div>
-              </div>
-            </div>
-            <div className="metric-card success">
-              <div className="metric-icon"><CheckCircle size={32} /></div>
-              <div className="metric-content">
-                <div className="metric-value">{stats.perfectMatches}</div>
-                <div className="metric-label">Perfect Matches</div>
-              </div>
-            </div>
-            <div className="metric-card warning">
-              <div className="metric-icon"><AlertCircle size={32} /></div>
-              <div className="metric-content">
-                <div className="metric-value">{stats.varianceMatches}</div>
-                <div className="metric-label">Amount Variances</div>
-              </div>
-            </div>
-            <div className="metric-card info">
-              <div className="metric-icon"><TrendingUp size={32} /></div>
-              <div className="metric-content">
-                <div className="metric-value">{stats.matchRate.toFixed(1)}%</div>
-                <div className="metric-label">Overall Match Rate</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Charts Section */}
-        <div className="charts-section">
-          <div className="chart-container">
-            <h4>Match Distribution</h4>
-            <div className="pie-chart-simple">
-              <div className="chart-legend">
-                <div className="legend-item matched">
-                  <span className="legend-color"></span>
-                  <span>Matched ({stats.matchedCount})</span>
-                </div>
-                <div className="legend-item unmatched">
-                  <span className="legend-color"></span>
-                  <span>Unmatched ({stats.unmatchedCount})</span>
-                </div>
-              </div>
-              <div className="simple-donut">
-                <div className="donut-chart" style={{
-                  background: `conic-gradient(
-                    #22c55e 0deg ${(stats.matchedCount / stats.totalRecords) * 360}deg,
-                    #ef4444 ${(stats.matchedCount / stats.totalRecords) * 360}deg 360deg
-                  )`
-                }}>
-                  <div className="donut-center">
-                    <div className="center-value">{stats.matchRate.toFixed(0)}%</div>
-                    <div className="center-label">Matched</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="chart-container">
-            <h4>Quality Breakdown</h4>
-            <div className="bar-chart-simple">
-              <div className="bar-item">
-                <div className="bar-label">Perfect Matches</div>
-                <div className="bar-container">
-                  <div className="bar bar-success" style={{width: `${(stats.perfectMatches / stats.totalRecords) * 100}%`}}></div>
-                </div>
-                <div className="bar-value">{stats.perfectMatches}</div>
-              </div>
-              <div className="bar-item">
-                <div className="bar-label">Amount Variances</div>
-                <div className="bar-container">
-                  <div className="bar bar-warning" style={{width: `${(stats.varianceMatches / stats.totalRecords) * 100}%`}}></div>
-                </div>
-                <div className="bar-value">{stats.varianceMatches}</div>
-              </div>
-              <div className="bar-item">
-                <div className="bar-label">Unmatched</div>
-                <div className="bar-container">
-                  <div className="bar bar-error" style={{width: `${(stats.unmatchedCount / stats.totalRecords) * 100}%`}}></div>
-                </div>
-                <div className="bar-value">{stats.unmatchedCount}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Variance Analysis */}
-        <div className="variance-analysis">
-          <h4>Amount Variance Analysis</h4>
-          {stats.varianceMatches > 0 ? (
-            <div className="variance-grid">
-              <div className="variance-card">
-                <div className="variance-label">Total Variance Amount</div>
-                <div className="variance-value">${totalVariance.toFixed(2)}</div>
-              </div>
-              <div className="variance-card">
-                <div className="variance-label">Average Variance</div>
-                <div className="variance-value">${avgVariance.toFixed(2)}</div>
-              </div>
-              <div className="variance-card">
-                <div className="variance-label">Variance Rate</div>
-                <div className="variance-value">{((stats.varianceMatches / stats.totalRecords) * 100).toFixed(1)}%</div>
-              </div>
-            </div>
-          ) : (
-            <div className="no-variances">
-              <CheckCircle size={48} className="success-icon" />
-              <h5>Perfect Reconciliation!</h5>
-              <p>No amount variances detected - all matched records have perfect amount alignment.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Export Section */}
-        <div className="export-section">
-          <h4><Download size={20} /> Export & Download Options</h4>
-          <div className="export-grid">
-            <div className="export-option">
-              <button className="export-btn csv" onClick={exportToCSV}>
-                <FileText size={20} />
-                <span>Download CSV</span>
-              </button>
-              <p>Complete data export in CSV format</p>
-            </div>
-            <div className="export-option">
-              <button className="export-btn excel" onClick={exportToExcel}>
-                <BarChart3 size={20} />
-                <span>Download Excel</span>
-              </button>
-              <p>Formatted Excel workbook with multiple sheets</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Items */}
-        <div className="action-items">
-          <h4>Recommended Next Steps</h4>
-          <div className="steps-grid">
-            <div className="step-card high-priority">
-              <div className="step-priority">High Priority</div>
-              <div className="step-title">Review Amount Variances</div>
-              <div className="step-description">Investigate {stats.varianceMatches} records with amount differences</div>
-            </div>
-            <div className="step-card medium-priority">
-              <div className="step-priority">Medium Priority</div>
-              <div className="step-title">Research Unmatched Records</div>
-              <div className="step-description">Analyze {stats.unmatchedCount} unmatched items for data quality issues</div>
-            </div>
-            <div className="step-card low-priority">
-              <div className="step-priority">Low Priority</div>
-              <div className="step-title">Document Results</div>
-              <div className="step-description">Export and archive reconciliation results for audit trail</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    // Download CSV file
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `coupa-data-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
     <div className="coupa-dashboard">
+      {/* Dashboard Header */}
       <div className="dashboard-header">
-        <h1>🔗 Coupa-NetSuite Reconciliation</h1>
-        <p>Automated matching and reconciliation between Coupa invoice approvals and NetSuite AR ledger data</p>
+        <h2>🔗 Coupa Integration Dashboard</h2>
+        <p>Connect to Coupa and automatically sync your invoice and approval data</p>
       </div>
 
-      <div className="dashboard-nav">
+      {/* Navigation Tabs */}
+      <div className="dashboard-tabs">
         <button 
-          className={`nav-tab ${activeTab === 'upload' ? 'active' : ''}`}
-          onClick={() => setActiveTab('upload')}
+          className={`tab ${activeTab === 'connect' ? 'active' : ''}`}
+          onClick={() => setActiveTab('connect')}
         >
-          <FileText size={16} /> Upload Data
+          🔗 Connect
         </button>
+        
         <button 
-          className={`nav-tab ${activeTab === 'review' ? 'active' : ''}`}
-          onClick={() => setActiveTab('review')}
-          disabled={matchedData.length === 0}
+          className={`tab ${activeTab === 'preview' ? 'active' : ''} ${!showCoupaPreview ? 'disabled' : ''}`}
+          onClick={() => showCoupaPreview && setActiveTab('preview')}
+          disabled={!showCoupaPreview}
         >
-          <BarChart3 size={16} /> Review Data
+          👁️ Preview {coupaData ? `(${coupaData.data.length})` : ''}
         </button>
+        
         <button 
-          className={`nav-tab ${activeTab === 'results' ? 'active' : ''}`}
-          onClick={() => setActiveTab('results')}
-          disabled={matchedData.length === 0}
+          className={`tab ${activeTab === 'imported' ? 'active' : ''}`}
+          onClick={() => setActiveTab('imported')}
         >
-          <TrendingUp size={16} /> Results & Export
+          📊 Imported Data ({importedData.length})
         </button>
       </div>
 
+      {/* Tab Content */}
       <div className="dashboard-content">
-        {activeTab === 'upload' && renderUploadTab()}
-        {activeTab === 'review' && renderReviewTab()}
-        {activeTab === 'results' && renderResultsTab()}
+        
+        {/* Connect Tab */}
+        {activeTab === 'connect' && (
+          <div className="tab-content">
+            <CoupaConnection 
+              onConnectionSuccess={handleCoupaConnectionSuccess}
+              onDataFetched={handleCoupaDataFetched}
+            />
+            
+            {/* Quick Stats */}
+            {importedData.length > 0 && (
+              <div className="quick-stats">
+                <h4>📈 Import Summary</h4>
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <div className="stat-number">{importedData.length}</div>
+                    <div className="stat-label">Total Records</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-number">
+                      {new Set(importedData.map(item => item.dataType)).size}
+                    </div>
+                    <div className="stat-label">Data Types</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-number">
+                      {importedData.filter(item => item.amount).reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                    </div>
+                    <div className="stat-label">Total Amount</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Preview Tab */}
+        {activeTab === 'preview' && showCoupaPreview && coupaData && (
+          <div className="tab-content">
+            <CoupaDataPreview
+              data={coupaData.data}
+              dataType={coupaData.dataType}
+              onDataAccept={handleCoupaDataAccepted}
+              onDataReject={handleCoupaDataRejected}
+            />
+          </div>
+        )}
+        
+        {/* Imported Data Tab */}
+        {activeTab === 'imported' && (
+          <div className="tab-content">
+            <div className="imported-data-section">
+              <div className="section-header">
+                <h3>📊 Imported Coupa Data</h3>
+                <div className="section-actions">
+                  {importedData.length > 0 && (
+                    <>
+                      <button 
+                        onClick={exportToCSV}
+                        className="btn btn-secondary"
+                      >
+                        📄 Export CSV
+                      </button>
+                      <button 
+                        onClick={clearImportedData}
+                        className="btn btn-danger"
+                      >
+                        🗑️ Clear All
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              {importedData.length === 0 ? (
+                <div className="empty-state">
+                  <h4>No Data Imported Yet</h4>
+                  <p>Connect to Coupa and import data to see it here.</p>
+                  <button 
+                    onClick={() => setActiveTab('connect')}
+                    className="btn btn-primary"
+                  >
+                    🔗 Go to Connect Tab
+                  </button>
+                </div>
+              ) : (
+                <div className="imported-data-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Invoice #</th>
+                        <th>Vendor</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Type</th>
+                        <th>Imported</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importedData.slice(0, 50).map((item, index) => (
+                        <tr key={index}>
+                          <td>{item.invoiceNumber || 'N/A'}</td>
+                          <td>{item.vendor || item.name || 'N/A'}</td>
+                          <td>
+                            {item.amount 
+                              ? item.amount.toLocaleString('en-US', { style: 'currency', currency: item.currency || 'USD' })
+                              : 'N/A'
+                            }
+                          </td>
+                          <td>
+                            {item.issueDate 
+                              ? new Date(item.issueDate).toLocaleDateString()
+                              : 'N/A'
+                            }
+                          </td>
+                          <td>
+                            <span className={`status-badge ${item.status?.toLowerCase()}`}>
+                              {item.status || 'Unknown'}
+                            </span>
+                          </td>
+                          <td>{item.dataType}</td>
+                          <td>
+                            {item.importedAt 
+                              ? new Date(item.importedAt).toLocaleString()
+                              : 'N/A'
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  
+                  {importedData.length > 50 && (
+                    <div className="table-footer">
+                      <p>Showing first 50 of {importedData.length} records. Export to CSV to see all data.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Instructions Panel */}
+      <div className="instructions-panel">
+        <h4>💡 How to Use</h4>
+        <ol>
+          <li><strong>Connect:</strong> Enter your Coupa credentials and test the connection</li>
+          <li><strong>Fetch:</strong> Choose data type (invoices, approvals, etc.) and date range</li>
+          <li><strong>Preview:</strong> Review the fetched data and select what to import</li>
+          <li><strong>Import:</strong> Selected data will be added to your imported data list</li>
+          <li><strong>Process:</strong> Use the imported data for reconciliation in LedgerLink</li>
+        </ol>
+        
+        <div className="tips">
+          <h5>💡 Tips:</h5>
+          <ul>
+            <li>Start with a small date range to test the connection</li>
+            <li>Use the preview to verify data accuracy before importing</li>
+            <li>Export to CSV if you need to work with the data offline</li>
+            <li>Clear imported data regularly to keep the interface clean</li>
+          </ul>
+        </div>
       </div>
     </div>
   );
