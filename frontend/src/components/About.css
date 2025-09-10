@@ -1,0 +1,330 @@
+.about {
+  min-height: 100vh;
+}
+
+/* About Hero */
+.about-hero {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 100px 20px;
+  text-align: center;
+}
+
+.about-hero-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.about-hero h1 {
+  font-size: 3.5em;
+  font-weight: 800;
+  margin-bottom: 20px;
+}
+
+.hero-subtitle {
+  font-size: 1.3em;
+  line-height: 1.6;
+  opacity: 0.95;
+}
+
+/* Mission Section */
+.mission {
+  padding: 100px 20px;
+  background: white;
+}
+
+.mission-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 80px;
+  align-items: center;
+}
+
+.mission-text h2 {
+  font-size: 2.5em;
+  color: #1e293b;
+  margin-bottom: 30px;
+  font-weight: 700;
+}
+
+.mission-text p {
+  font-size: 1.1em;
+  line-height: 1.7;
+  color: #475569;
+  margin-bottom: 20px;
+}
+
+.mission-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.stat {
+  text-align: center;
+  padding: 30px;
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.stat-number {
+  font-size: 3em;
+  font-weight: 800;
+  color: #667eea;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.stat-label {
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.9em;
+  letter-spacing: 0.5px;
+}
+
+/* How It Works */
+.how-it-works {
+  padding: 100px 20px;
+  background: #f8fafc;
+}
+
+.how-it-works-content {
+  max-width: 1000px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.how-it-works h2 {
+  font-size: 2.5em;
+  color: #1e293b;
+  margin-bottom: 60px;
+  font-weight: 700;
+}
+
+.process-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 40px;
+}
+
+.step {
+  background: white;
+  padding: 40px;
+  border-radius: 16px;
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+  position: relative;
+  text-align: left;
+}
+
+.step-number {
+  position: absolute;
+  top: -20px;
+  left: 40px;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2em;
+}
+
+.step h3 {
+  color: #1e293b;
+  margin-bottom: 15px;
+  font-size: 1.4em;
+  font-weight: 600;
+}
+
+.step p {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* Technology Section */
+.technology {
+  padding: 100px 20px;
+  background: white;
+}
+
+.technology-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.technology h2 {
+  font-size: 2.5em;
+  color: #1e293b;
+  margin-bottom: 60px;
+  font-weight: 700;
+}
+
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 40px;
+}
+
+.tech-item {
+  padding: 30px;
+  border-radius: 12px;
+  transition: transform 0.3s ease;
+}
+
+.tech-item:hover {
+  transform: translateY(-5px);
+}
+
+.tech-icon {
+  width: 48px;
+  height: 48px;
+  color: #667eea;
+  margin-bottom: 20px;
+}
+
+.tech-item h3 {
+  color: #1e293b;
+  margin-bottom: 15px;
+  font-size: 1.3em;
+  font-weight: 600;
+}
+
+.tech-item p {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* Benefits Section */
+.benefits {
+  padding: 100px 20px;
+  background: #f8fafc;
+}
+
+.benefits-content {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.benefits h2 {
+  text-align: center;
+  font-size: 2.5em;
+  color: #1e293b;
+  margin-bottom: 60px;
+  font-weight: 700;
+}
+
+.benefits-list {
+  display: grid;
+  gap: 30px;
+}
+
+.benefit {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+}
+
+.benefit-icon {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.benefit-icon .icon {
+  color: white;
+  width: 28px;
+  height: 28px;
+}
+
+.benefit-text h3 {
+  color: #1e293b;
+  margin-bottom: 10px;
+  font-size: 1.3em;
+  font-weight: 600;
+}
+
+.benefit-text p {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* Contact Section */
+.contact {
+  padding: 100px 20px;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  color: white;
+  text-align: center;
+}
+
+.contact-content {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.contact h2 {
+  font-size: 2.5em;
+  margin-bottom: 20px;
+  font-weight: 700;
+}
+
+.contact p {
+  font-size: 1.2em;
+  line-height: 1.6;
+  margin-bottom: 40px;
+  opacity: 0.9;
+}
+
+.contact-info {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.contact-item {
+  font-size: 1.1em;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .about-hero h1 {
+    font-size: 2.5em;
+  }
+  
+  .mission-content {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  
+  .process-steps {
+    grid-template-columns: 1fr;
+  }
+  
+  .tech-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .contact-info {
+    text-align: left;
+  }
+}
