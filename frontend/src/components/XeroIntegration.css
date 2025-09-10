@@ -1,0 +1,429 @@
+/* Xero Integration Component Styles */
+
+.xero-integration {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Header */
+.xero-header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.xero-header h3 {
+  color: #2c3e50;
+  font-size: 28px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.xero-header p {
+  color: #6c757d;
+  font-size: 16px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Connection Status */
+.connection-status {
+  margin-bottom: 24px;
+  padding: 16px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.connection-status.connected {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+}
+
+.connection-status.disconnected {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.green {
+  background: #28a745;
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.4);
+}
+
+.status-dot.red {
+  background: #dc3545;
+  box-shadow: 0 0 8px rgba(220, 53, 69, 0.4);
+}
+
+.status-text {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+/* Messages */
+.message {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.error-message {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.success-message {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+/* Configuration Section */
+.xero-config,
+.data-fetching {
+  margin-bottom: 32px;
+  padding: 24px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.xero-config h4,
+.data-fetching h4 {
+  color: #2c3e50;
+  font-size: 20px;
+  margin-bottom: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.xero-config h4::before {
+  content: '🔗';
+}
+
+.data-fetching h4::before {
+  content: '📊';
+}
+
+/* Configuration Notice */
+.config-notice {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: #e7f3ff;
+  border: 1px solid #b8daff;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.notice-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.notice-content {
+  color: #004085;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.notice-content strong {
+  font-weight: 600;
+}
+
+/* Form Elements */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  background: #ffffff;
+}
+
+.form-input:focus,
+.form-select:focus {
+  outline: none;
+  border-color: #13B5EA;
+  box-shadow: 0 0 0 3px rgba(19, 181, 234, 0.1);
+}
+
+.form-input[type="password"] {
+  font-family: 'Courier New', monospace;
+}
+
+.form-group small {
+  display: block;
+  margin-top: 4px;
+  color: #6c757d;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.form-group a {
+  color: #13B5EA;
+  text-decoration: none;
+}
+
+.form-group a:hover {
+  text-decoration: underline;
+}
+
+/* Buttons */
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  min-height: 48px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #13B5EA;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0E7A9C;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(19, 181, 234, 0.3);
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #1e7e34;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.test-connection-btn,
+.fetch-data-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* Setup Guide */
+.setup-guide {
+  background: #e7f3ff;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #b8daff;
+}
+
+.setup-guide h4 {
+  color: #004085;
+  font-size: 20px;
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+.guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.guide-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  background: #13B5EA;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-content strong {
+  color: #004085;
+  font-size: 16px;
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.step-content p {
+  color: #495057;
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.step-content a {
+  color: #13B5EA;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.step-content a:hover {
+  text-decoration: underline;
+}
+
+/* Loading States */
+.btn:disabled {
+  position: relative;
+}
+
+.btn:disabled::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .xero-integration {
+    margin: 16px;
+    padding: 16px;
+  }
+  
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .xero-header h3 {
+    font-size: 24px;
+  }
+  
+  .xero-config,
+  .data-fetching {
+    padding: 16px;
+  }
+  
+  .setup-guide {
+    padding: 16px;
+  }
+  
+  .guide-step {
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+  }
+}
+
+/* Xero Brand Colors */
+.xero-integration {
+  --xero-blue: #13B5EA;
+  --xero-dark-blue: #0E7A9C;
+  --xero-light-blue: #E7F7FF;
+}
+
+/* Enhanced Focus States */
+.form-input:focus,
+.form-select:focus,
+.btn:focus {
+  box-shadow: 0 0 0 3px rgba(19, 181, 234, 0.25);
+}
+
+/* Success/Error State Animations */
+.message {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Connection Status Animation */
+.status-dot {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
