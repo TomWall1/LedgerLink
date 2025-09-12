@@ -10,13 +10,14 @@ import Register from './components/Register';
 import XeroAuth from './components/XeroAuth';
 import CustomerTransactionMatcher from './components/CustomerTransactionMatcher';
 import ERPConnectionManager from './components/ERPConnectionManager';
+import DebugInfo from './components/DebugInfo';
 
 function LoadingScreen() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
-        <p className="mt-4 text-lg text-gray-600">Loading...</p>
+        <p className="mt-4 text-lg text-gray-600">Loading LedgerLink...</p>
       </div>
     </div>
   );
@@ -24,6 +25,8 @@ function LoadingScreen() {
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
+  
+  console.log('ProtectedRoute - Loading:', loading, 'User:', user);
   
   if (loading) {
     return <LoadingScreen />;
@@ -35,18 +38,33 @@ function ProtectedRoute({ children }) {
 function AppContent() {
   const { user, loading } = useAuth();
   
+  console.log('AppContent - Loading:', loading, 'User:', user, 'Path:', window.location.pathname);
+  
   // Show loading screen while checking authentication
   if (loading) {
+    console.log('Showing loading screen');
     return <LoadingScreen />;
   }
   
   return (
     <div className="min-h-screen">
+      <DebugInfo />
       <Routes>
         {/* Public Routes */}
         <Route 
           path="/" 
-          element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} 
+          element={
+            (() => {
+              console.log('Root route - User:', user);
+              if (user) {
+                console.log('User authenticated, redirecting to dashboard');
+                return <Navigate to="/dashboard" replace />;
+              } else {
+                console.log('No user, showing landing page');
+                return <LandingPage />;
+              }
+            })()
+          }
         />
         <Route 
           path="/login" 
@@ -102,6 +120,8 @@ function AppContent() {
 }
 
 function App() {
+  console.log('App component rendering');
+  
   return (
     <AuthProvider>
       <XeroProvider>
