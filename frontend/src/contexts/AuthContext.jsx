@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
 
   const checkAuthStatus = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       if (token) {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         const response = await api.get('/api/users/profile');
@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      localStorage.removeItem('token');
+      localStorage.removeItem('authToken');
       delete api.defaults.headers.common['Authorization'];
     } finally {
       setLoading(false);
@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
       const response = await api.post('/api/users/login', { email, password });
       const { token, user } = response.data;
       
-      localStorage.setItem('token', token);
+      localStorage.setItem('authToken', token);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
       
@@ -64,7 +64,7 @@ export function AuthProvider({ children }) {
       
       const { token, user } = response.data;
       
-      localStorage.setItem('token', token);
+      localStorage.setItem('authToken', token);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
       
@@ -79,7 +79,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      localStorage.removeItem('token');
+      localStorage.removeItem('authToken');
       delete api.defaults.headers.common['Authorization'];
       setUser(null);
     } catch (error) {
