@@ -18,21 +18,27 @@ export const AuthProvider = ({ children }) => {
   
   useEffect(() => {
     // Check if user is logged in on app start
+    console.log('AuthContext: Initializing auth check...');
     checkAuthStatus();
   }, []);
   
   const checkAuthStatus = async () => {
     try {
+      console.log('AuthContext: Checking auth status...');
       setLoading(true);
       const token = localStorage.getItem('authToken');
       
+      console.log('AuthContext: Token found:', !!token);
+      
       if (!token) {
         // No token, user is not logged in
+        console.log('AuthContext: No token found, setting user to null');
         setUser(null);
         setLoading(false);
         return;
       }
       
+      console.log('AuthContext: Verifying token with backend...');
       // Verify token with backend
       const response = await fetch(`${apiUrl}/api/users/me`, {
         headers: {
@@ -42,24 +48,28 @@ export const AuthProvider = ({ children }) => {
       
       if (response.ok) {
         const userData = await response.json();
+        console.log('AuthContext: Token valid, user authenticated:', userData.email);
         setUser(userData);
       } else {
         // Token is invalid, remove it
+        console.log('AuthContext: Token invalid, removing token');
         localStorage.removeItem('authToken');
         setUser(null);
       }
     } catch (error) {
-      console.error('Error checking auth status:', error);
+      console.error('AuthContext: Error checking auth status:', error);
       // On error, assume user is not logged in
       localStorage.removeItem('authToken');
       setUser(null);
     } finally {
+      console.log('AuthContext: Auth check complete, loading set to false');
       setLoading(false);
     }
   };
   
   const login = async (email, password) => {
     try {
+      console.log('AuthContext: Attempting login for:', email);
       const response = await fetch(`${apiUrl}/api/users/login`, {
         method: 'POST',
         headers: {
@@ -71,20 +81,23 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
       
       if (response.ok) {
+        console.log('AuthContext: Login successful');
         localStorage.setItem('authToken', data.token);
         setUser(data.user);
         return { success: true };
       } else {
+        console.log('AuthContext: Login failed:', data.error);
         return { success: false, error: data.error };
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('AuthContext: Login error:', error);
       return { success: false, error: 'Network error - please try again' };
     }
   };
   
   const register = async (name, email, password) => {
     try {
+      console.log('AuthContext: Attempting registration for:', email);
       const response = await fetch(`${apiUrl}/api/users/register`, {
         method: 'POST',
         headers: {
@@ -96,19 +109,22 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
       
       if (response.ok) {
+        console.log('AuthContext: Registration successful');
         localStorage.setItem('authToken', data.token);
         setUser(data.user);
         return { success: true };
       } else {
+        console.log('AuthContext: Registration failed:', data.error);
         return { success: false, error: data.error };
       }
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('AuthContext: Registration error:', error);
       return { success: false, error: 'Network error - please try again' };
     }
   };
   
   const logout = () => {
+    console.log('AuthContext: Logging out user');
     localStorage.removeItem('authToken');
     setUser(null);
   };
@@ -121,6 +137,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     checkAuthStatus
   };
+  
+  console.log('AuthContext: Current state - user:', !!user, 'loading:', loading);
   
   return (
     <AuthContext.Provider value={value}>
