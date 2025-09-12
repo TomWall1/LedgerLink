@@ -220,7 +220,7 @@ const CustomerTransactionMatcher = () => {
   
   // Handle back to dashboard
   const handleBackToDashboard = () => {
-    navigate('/');
+    navigate('/dashboard');
   };
   
   if (loading) {
