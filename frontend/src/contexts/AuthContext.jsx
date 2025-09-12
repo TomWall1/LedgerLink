@@ -1,123 +1,103 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../utils/api';
 
 const AuthContext = createContext();
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
+}
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
-  
+
   useEffect(() => {
-    checkAuth();
+    checkAuthStatus();
   }, []);
-  
-  const checkAuth = async () => {
+
+  const checkAuthStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-      
-      const response = await fetch(`${apiUrl}/api/users/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-      } else {
-        localStorage.removeItem('token');
+      if (token) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        const response = await api.get('/api/users/profile');
+        setUser(response.data.user);
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      console.error('Auth check failed:', error);
       localStorage.removeItem('token');
+      delete api.defaults.headers.common['Authorization'];
     } finally {
       setLoading(false);
     }
   };
-  
+
   const login = async (email, password) => {
     try {
-      const response = await fetch(`${apiUrl}/api/users/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email, password })
-      });
+      const response = await api.post('/api/users/login', { email, password });
+      const { token, user } = response.data;
       
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('token', data.token);
-        setUser(data.user);
-        return { success: true };
-      } else {
-        const error = await response.json();
-        return { success: false, error: error.error };
-      }
+      localStorage.setItem('token', token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setUser(user);
+      
+      return { success: true };
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, error: 'Network error' };
+      return { 
+        success: false, 
+        error: error.response?.data?.error || 'Login failed' 
+      };
     }
   };
-  
-  const register = async (name, email, password) => {
+
+  const register = async (email, password, companyName) => {
     try {
-      const response = await fetch(`${apiUrl}/api/users/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name, email, password })
+      const response = await api.post('/api/users/register', { 
+        email, 
+        password, 
+        companyName 
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('token', data.token);
-        setUser(data.user);
-        return { success: true };
-      } else {
-        const error = await response.json();
-        return { success: false, error: error.error };
-      }
+      const { token, user } = response.data;
+      
+      localStorage.setItem('token', token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setUser(user);
+      
+      return { success: true };
     } catch (error) {
-      console.error('Registration error:', error);
-      return { success: false, error: 'Network error' };
+      return { 
+        success: false, 
+        error: error.response?.data?.error || 'Registration failed' 
+      };
     }
   };
-  
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+
+  const logout = async () => {
+    try {
+      localStorage.removeItem('token');
+      delete api.defaults.headers.common['Authorization'];
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
-  
+
   const value = {
     user,
     loading,
     login,
     register,
-    logout,
-    checkAuth
+    logout
   };
-  
+
   return (
     <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
-};
-
-export default AuthProvider;
+}
