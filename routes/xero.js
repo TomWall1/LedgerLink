@@ -1,206 +1,141 @@
 const express = require('express');
 const router = express.Router();
 const { XeroClient } = require('xero-node');
-const session = require('express-session');
+const { requireXeroAuth } = require('../middleware/xeroAuth');
 
-// Xero client configuration
-const client_id = process.env.XERO_CLIENT_ID;
-const client_secret = process.env.XERO_CLIENT_SECRET;
-const redirectUris = [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/api/xero/callback'];
-const scopes = 'offline_access accounting.contacts.read accounting.transactions.read accounting.settings.read';
-
-let xero = new XeroClient({
-  clientId: client_id,
-  clientSecret: client_secret,
-  redirectUris,
-  scopes: scopes.split(' ')
-});
-
-// Helper function to get Xero client with token
-const getXeroClient = async (req) => {
-  if (!req.session.xeroTokenSet) {
-    throw new Error('No Xero token found in session');
-  }
-  
-  await xero.setTokenSet(req.session.xeroTokenSet);
-  
-  // Check if token needs refresh
-  if (xero.tokenSet.expired()) {
-    const tokenSet = await xero.refreshToken();
-    req.session.xeroTokenSet = tokenSet;
-  }
-  
-  return xero;
+// Initialize Xero client
+const getXeroClient = (tokenSet) => {
+  return new XeroClient({
+    clientId: process.env.XERO_CLIENT_ID,
+    clientSecret: process.env.XERO_CLIENT_SECRET,
+    redirectUris: [`${process.env.API_URL || 'https://ledgerlink.onrender.com'}/api/xero/callback`],
+    scopes: ['accounting.contacts.read', 'accounting.transactions.read'],
+    state: 'returnPage=main',
+    httpTimeout: 3000
+  }, tokenSet);
 };
-
-// Route to initiate Xero connection
-router.get('/connect', async (req, res) => {
-  try {
-    const consentUrl = await xero.buildConsentUrl();
-    res.json({ authUrl: consentUrl });
-  } catch (error) {
-    console.error('Error building consent URL:', error);
-    res.status(500).json({ error: 'Failed to generate Xero connection URL' });
-  }
-});
-
-// Xero OAuth callback
-router.get('/callback', async (req, res) => {
-  try {
-    const { code, state } = req.query;
-    
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code not provided' });
-    }
-    
-    // Exchange code for tokens
-    const tokenSet = await xero.apiCallback(req.url);
-    req.session.xeroTokenSet = tokenSet;
-    
-    // Get tenant info
-    await xero.setTokenSet(tokenSet);
-    const tenants = await xero.updateTenants(false);
-    
-    if (tenants && tenants.length > 0) {
-      req.session.tenantId = tenants[0].tenantId;
-    }
-    
-    // Redirect to frontend with success
-    const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
-    res.redirect(`${frontendUrl}/xero-auth?success=true`);
-    
-  } catch (error) {
-    console.error('Error in Xero callback:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
-    res.redirect(`${frontendUrl}/xero-auth?error=auth_failed`);
-  }
-});
 
 // Check authentication status
 router.get('/auth-status', (req, res) => {
+  const authenticated = !!req.session.xeroTokenSet;
+  res.json({
+    authenticated,
+    tenantId: req.session.tenantId || null
+  });
+});
+
+// Initiate Xero connection
+router.get('/connect', async (req, res) => {
   try {
-    const isAuthenticated = !!(req.session.xeroTokenSet && req.session.tenantId);
-    
-    res.json({
-      authenticated: isAuthenticated,
-      tenantId: req.session.tenantId || null
-    });
+    const xeroClient = getXeroClient();
+    const consentUrl = await xeroClient.buildConsentUrl();
+    res.json({ authUrl: consentUrl });
   } catch (error) {
-    console.error('Error checking auth status:', error);
-    res.json({ authenticated: false, tenantId: null });
+    console.error('Error building consent URL:', error);
+    res.status(500).json({ error: 'Failed to initiate Xero connection' });
+  }
+});
+
+// Handle Xero callback
+router.get('/callback', async (req, res) => {
+  try {
+    const xeroClient = getXeroClient();
+    const tokenSet = await xeroClient.apiCallback(req.url);
+    
+    if (tokenSet.expired()) {
+      return res.status(400).json({ error: 'Token expired' });
+    }
+    
+    // Store token in session
+    req.session.xeroTokenSet = tokenSet;
+    
+    // Get tenant info
+    await xeroClient.updateTenants();
+    const tenants = xeroClient.tenants;
+    
+    if (tenants.length > 0) {
+      req.session.tenantId = tenants[0].tenantId;
+    }
+    
+    // Redirect back to frontend - FIXED URL
+    res.redirect('https://ledgerlink.vercel.app/invoice-matching?connected=true');
+    
+  } catch (error) {
+    console.error('Error in Xero callback:', error);
+    // Redirect to frontend with error - FIXED URL
+    res.redirect('https://ledgerlink.vercel.app/xero-auth?error=connection_failed');
   }
 });
 
 // Disconnect from Xero
 router.post('/disconnect', (req, res) => {
-  try {
-    // Clear Xero session data
-    delete req.session.xeroTokenSet;
-    delete req.session.tenantId;
-    
-    res.json({ success: true, message: 'Disconnected from Xero successfully' });
-  } catch (error) {
-    console.error('Error disconnecting from Xero:', error);
-    res.status(500).json({ error: 'Failed to disconnect from Xero' });
-  }
+  req.session.xeroTokenSet = null;
+  req.session.tenantId = null;
+  res.json({ success: true, message: 'Disconnected from Xero' });
 });
 
-// Get customers/contacts from Xero
-router.get('/customers', async (req, res) => {
+// Get customers from Xero
+router.get('/customers', requireXeroAuth, async (req, res) => {
   try {
-    const xeroClient = await getXeroClient(req);
+    const xeroClient = getXeroClient(req.session.xeroTokenSet);
     
     const response = await xeroClient.accountingApi.getContacts(
       req.session.tenantId,
       undefined, // ifModifiedSince
-      'ContactStatus=="ACTIVE"', // where
-      'Name', // order
-      undefined, // ids
-      undefined, // page
-      false, // includeArchived
-      false, // summaryOnly
-      undefined // searchTerm
+      "ContactStatus==\"ACTIVE\" AND IsCustomer==true", // where clause
+      'Name' // order
     );
     
     const customers = response.body.contacts || [];
-    
-    // Filter to only include customers (not suppliers)
-    const customerContacts = customers.filter(contact => 
-      contact.isCustomer === true || 
-      (contact.isCustomer === undefined && contact.isSupplier !== true)
-    );
-    
-    res.json(customerContacts);
+    res.json(customers);
     
   } catch (error) {
-    console.error('Error fetching customers from Xero:', error);
+    console.error('Error fetching customers:', error);
+    if (error.response && error.response.status === 401) {
+      req.session.xeroTokenSet = null;
+      req.session.tenantId = null;
+      return res.status(401).json({ error: 'Xero authentication expired' });
+    }
     res.status(500).json({ error: 'Failed to fetch customers from Xero' });
   }
 });
 
-// Get invoices for a specific customer
-router.get('/customers/:customerId/invoices', async (req, res) => {
+// Get customer invoices from Xero
+router.get('/customers/:customerId/invoices', requireXeroAuth, async (req, res) => {
   try {
     const { customerId } = req.params;
-    const xeroClient = await getXeroClient(req);
+    const xeroClient = getXeroClient(req.session.xeroTokenSet);
     
     const response = await xeroClient.accountingApi.getInvoices(
       req.session.tenantId,
       undefined, // ifModifiedSince
-      `Contact.ContactID=guid"${customerId}"`, // where
+      undefined, // where
       'Date DESC', // order
       undefined, // ids
       undefined, // invoiceNumbers
-      undefined, // contactIDs
-      ['AUTHORISED', 'PAID', 'SUBMITTED'], // statuses
-      undefined, // page
-      false, // includeArchived
-      false, // createdByMyApp
-      undefined, // unitdp
-      undefined // summaryOnly
+      [customerId], // contactIDs
+      ['AUTHORISED', 'SUBMITTED'] // statuses - only unpaid invoices
     );
     
     const invoices = response.body.invoices || [];
-    
-    // Filter for outstanding invoices (not fully paid)
-    const outstandingInvoices = invoices.filter(invoice => 
-      invoice.status !== 'PAID' && 
-      parseFloat(invoice.amountDue) > 0
-    );
-    
-    res.json(outstandingInvoices);
+    res.json(invoices);
     
   } catch (error) {
-    console.error('Error fetching customer invoices from Xero:', error);
+    console.error('Error fetching customer invoices:', error);
+    if (error.response && error.response.status === 401) {
+      req.session.xeroTokenSet = null;
+      req.session.tenantId = null;
+      return res.status(401).json({ error: 'Xero authentication expired' });
+    }
     res.status(500).json({ error: 'Failed to fetch customer invoices from Xero' });
   }
 });
 
-// Get organization details
-router.get('/organization', async (req, res) => {
-  try {
-    const xeroClient = await getXeroClient(req);
-    
-    const response = await xeroClient.accountingApi.getOrganisations(
-      req.session.tenantId
-    );
-    
-    const organizations = response.body.organisations || [];
-    const organization = organizations[0];
-    
-    res.json(organization);
-    
-  } catch (error) {
-    console.error('Error fetching organization from Xero:', error);
-    res.status(500).json({ error: 'Failed to fetch organization from Xero' });
-  }
-});
-
-// Export helper function for use in other routes
+// Export the getXeroClient function for use in other modules
 module.exports = {
   router,
-  getXeroClient
+  getXeroClient: (req) => getXeroClient(req.session.xeroTokenSet)
 };
 
-// Export just the router as default
+// Export the router as default
 module.exports = router;
