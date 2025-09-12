@@ -23,25 +23,36 @@ export const AuthProvider = ({ children }) => {
   
   const checkAuthStatus = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('authToken');
-      if (token) {
-        // Verify token with backend
-        const response = await fetch(`${apiUrl}/api/users/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else {
-          localStorage.removeItem('authToken');
+      
+      if (!token) {
+        // No token, user is not logged in
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      
+      // Verify token with backend
+      const response = await fetch(`${apiUrl}/api/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+      } else {
+        // Token is invalid, remove it
+        localStorage.removeItem('authToken');
+        setUser(null);
       }
     } catch (error) {
       console.error('Error checking auth status:', error);
+      // On error, assume user is not logged in
       localStorage.removeItem('authToken');
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -67,7 +78,8 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: data.error };
       }
     } catch (error) {
-      return { success: false, error: 'Network error' };
+      console.error('Login error:', error);
+      return { success: false, error: 'Network error - please try again' };
     }
   };
   
@@ -91,7 +103,8 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: data.error };
       }
     } catch (error) {
-      return { success: false, error: 'Network error' };
+      console.error('Registration error:', error);
+      return { success: false, error: 'Network error - please try again' };
     }
   };
   
