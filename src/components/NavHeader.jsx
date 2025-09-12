@@ -10,7 +10,7 @@ const NavHeader = () => {
   
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
   
   const isActive = (path) => {
@@ -18,7 +18,7 @@ const NavHeader = () => {
   };
   
   const menuItems = [
-    { path: '/', label: 'Dashboard' },
+    { path: '/dashboard', label: 'Dashboard' },
     { path: '/invoice-matching', label: 'Invoice Matching' },
     { path: '/xero-auth', label: 'Xero Connection' },
     { path: '/erp-connections', label: 'ERP Connections' }
@@ -29,7 +29,7 @@ const NavHeader = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
+          <Link to="/dashboard" className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">LL</span>
             </div>
