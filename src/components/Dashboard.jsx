@@ -8,7 +8,7 @@ const Dashboard = () => {
         {/* Hero Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-[#1B365D] mb-4">
-            Welcome to LedgerLink
+            Welcome to Your Dashboard
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Streamline your invoice matching process with automated CSV reconciliation 
