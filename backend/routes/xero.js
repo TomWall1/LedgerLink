@@ -62,7 +62,7 @@ router.get('/connect', async (req, res) => {
 router.get('/callback', async (req, res) => {
   try {
     if (!xero) {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://ledgerlink.vercel.app';  // ✅ FIXED
       return res.redirect(`${frontendUrl}/xero-auth?error=xero_not_configured`);
     }
     
@@ -85,12 +85,12 @@ router.get('/callback', async (req, res) => {
     }
     
     // Redirect to frontend with success
-    const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://ledgerlink.vercel.app';  // ✅ FIXED
     res.redirect(`${frontendUrl}/xero-auth?success=true`);
     
   } catch (error) {
     console.error('Error in Xero callback:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://ledgerlink.vercel.app';  // ✅ FIXED
     res.redirect(`${frontendUrl}/xero-auth?error=auth_failed`);
   }
 });

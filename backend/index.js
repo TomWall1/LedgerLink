@@ -21,10 +21,10 @@ console.log('📁 Routes loaded:', {
   transactions: !!transactionRoutes
 });
 
-// CORS configuration
+// CORS configuration (FIXED URL)
 app.use(cors({
   origin: [
-    'https://lledgerlink.vercel.app',
+    'https://ledgerlink.vercel.app',  // ✅ FIXED: Removed extra 'l'
     'http://localhost:3000',
     'http://localhost:3001'
   ],
