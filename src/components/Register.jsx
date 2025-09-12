@@ -31,7 +31,8 @@ const Register = () => {
     const result = await register(name, email, password);
     
     if (result.success) {
-      navigate('/');
+      // Redirect to dashboard after successful registration
+      navigate('/dashboard', { replace: true });
     } else {
       setError(result.error || 'Registration failed');
     }
@@ -43,9 +44,11 @@ const Register = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center mb-4">
-            <span className="text-white font-bold text-xl">LL</span>
-          </div>
+          <Link to="/" className="inline-block mb-4">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xl">LL</span>
+            </div>
+          </Link>
           <h2 className="text-3xl font-bold text-[#1B365D]">Create your account</h2>
           <p className="mt-2 text-gray-600">Join LedgerLink today</p>
         </div>
@@ -53,11 +56,12 @@ const Register = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex">
-                <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+              <div className="flex items-center">
+                <svg className="h-5 w-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
-                <span className="ml-2 text-red-700 text-sm">{error}</span>
+                <span className="text-red-700 font-medium">Error:</span>
+                <span className="text-red-600 ml-1">{error}</span>
               </div>
             </div>
           )}
@@ -156,6 +160,12 @@ const Register = () => {
             <span className="text-gray-600">Already have an account? </span>
             <Link to="/login" className="text-blue-600 hover:text-blue-500 font-medium">
               Sign in
+            </Link>
+          </div>
+          
+          <div className="text-center">
+            <Link to="/" className="text-gray-500 hover:text-gray-700 text-sm">
+              ← Back to home
             </Link>
           </div>
         </form>
