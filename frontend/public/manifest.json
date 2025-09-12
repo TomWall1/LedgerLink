@@ -1,6 +1,6 @@
 {
   "short_name": "LedgerLink",
-  "name": "LedgerLink - Account Reconciliation System",
+  "name": "LedgerLink Invoice Matching Platform",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,6 +10,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#1B365D",
   "background_color": "#ffffff"
 }
