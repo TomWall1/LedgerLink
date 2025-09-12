@@ -17,31 +17,33 @@ export const AuthProvider = ({ children }) => {
   const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
   
   useEffect(() => {
-    // Check if user is logged in on app start
-    checkAuthStatus();
+    checkAuth();
   }, []);
   
-  const checkAuthStatus = async () => {
+  const checkAuth = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (token) {
-        // Verify token with backend
-        const response = await fetch(`${apiUrl}/api/users/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else {
-          localStorage.removeItem('authToken');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      
+      const response = await fetch(`${apiUrl}/api/users/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+      } else {
+        localStorage.removeItem('token');
       }
     } catch (error) {
-      console.error('Error checking auth status:', error);
-      localStorage.removeItem('authToken');
+      console.error('Auth check error:', error);
+      localStorage.removeItem('token');
     } finally {
       setLoading(false);
     }
@@ -57,16 +59,17 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password })
       });
       
-      const data = await response.json();
-      
       if (response.ok) {
-        localStorage.setItem('authToken', data.token);
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
         setUser(data.user);
         return { success: true };
       } else {
-        return { success: false, error: data.error };
+        const error = await response.json();
+        return { success: false, error: error.error };
       }
     } catch (error) {
+      console.error('Login error:', error);
       return { success: false, error: 'Network error' };
     }
   };
@@ -81,22 +84,23 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ name, email, password })
       });
       
-      const data = await response.json();
-      
       if (response.ok) {
-        localStorage.setItem('authToken', data.token);
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
         setUser(data.user);
         return { success: true };
       } else {
-        return { success: false, error: data.error };
+        const error = await response.json();
+        return { success: false, error: error.error };
       }
     } catch (error) {
+      console.error('Registration error:', error);
       return { success: false, error: 'Network error' };
     }
   };
   
   const logout = () => {
-    localStorage.removeItem('authToken');
+    localStorage.removeItem('token');
     setUser(null);
   };
   
@@ -106,7 +110,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    checkAuthStatus
+    checkAuth
   };
   
   return (
@@ -115,3 +119,5 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+export default AuthProvider;

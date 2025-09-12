@@ -1,103 +1,99 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useXero } from '../contexts/XeroContext';
 
 const ERPConnectionManager = () => {
   const navigate = useNavigate();
-  const { isAuthenticated: xeroConnected, isLoading: xeroLoading } = useXero();
-  const [connections, setConnections] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated: xeroConnected, connectToXero, disconnectFromXero } = useXero();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   
-  useEffect(() => {
-    // Simulate loading connections
-    setTimeout(() => {
-      setConnections([
-        {
-          id: 'xero',
-          name: 'Xero',
-          type: 'Accounting',
-          status: xeroConnected ? 'connected' : 'disconnected',
-          description: 'Accounting and invoice management platform',
-          features: ['Customer Data', 'Invoice Import', 'Financial Reports'],
-          lastSync: xeroConnected ? new Date().toISOString() : null
-        },
-        {
-          id: 'coupa',
-          name: 'Coupa',
-          type: 'Procurement',
-          status: 'available',
-          description: 'Procurement and spend management platform',
-          features: ['Purchase Orders', 'Supplier Management', 'Expense Tracking'],
-          lastSync: null
-        },
-        {
-          id: 'sap',
-          name: 'SAP',
-          type: 'ERP',
-          status: 'coming-soon',
-          description: 'Enterprise resource planning system',
-          features: ['Financial Management', 'Supply Chain', 'HR Management'],
-          lastSync: null
-        }
-      ]);
+  const handleXeroConnect = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      await connectToXero();
+    } catch (error) {
+      setError('Failed to connect to Xero');
+    } finally {
       setLoading(false);
-    }, 1000);
-  }, [xeroConnected]);
+    }
+  };
+  
+  const handleXeroDisconnect = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      await disconnectFromXero();
+      setSuccess('Successfully disconnected from Xero');
+    } catch (error) {
+      setError('Failed to disconnect from Xero');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleBackToDashboard = () => {
+    navigate('/');
+  };
+  
+  const connections = [
+    {
+      id: 'xero',
+      name: 'Xero',
+      description: 'Connect to Xero for customer and invoice data',
+      status: xeroConnected ? 'connected' : 'disconnected',
+      color: 'green',
+      onConnect: handleXeroConnect,
+      onDisconnect: handleXeroDisconnect
+    },
+    {
+      id: 'coupa',
+      name: 'Coupa',
+      description: 'Connect to Coupa for procurement data',
+      status: 'coming-soon',
+      color: 'blue',
+      onConnect: () => alert('Coupa integration coming soon!'),
+      onDisconnect: () => {}
+    },
+    {
+      id: 'sap',
+      name: 'SAP',
+      description: 'Connect to SAP for enterprise resource planning',
+      status: 'coming-soon',
+      color: 'purple',
+      onConnect: () => alert('SAP integration coming soon!'),
+      onDisconnect: () => {}
+    },
+    {
+      id: 'quickbooks',
+      name: 'QuickBooks',
+      description: 'Connect to QuickBooks for accounting data',
+      status: 'coming-soon',
+      color: 'yellow',
+      onConnect: () => alert('QuickBooks integration coming soon!'),
+      onDisconnect: () => {}
+    }
+  ];
   
   const getStatusColor = (status) => {
     switch (status) {
-      case 'connected':
-        return 'bg-green-100 text-green-800';
-      case 'disconnected':
-        return 'bg-red-100 text-red-800';
-      case 'available':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'coming-soon':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'connected': return 'text-green-600 bg-green-50';
+      case 'disconnected': return 'text-red-600 bg-red-50';
+      case 'coming-soon': return 'text-gray-600 bg-gray-50';
+      default: return 'text-gray-600 bg-gray-50';
     }
   };
   
   const getStatusText = (status) => {
     switch (status) {
-      case 'connected':
-        return 'Connected';
-      case 'disconnected':
-        return 'Disconnected';
-      case 'available':
-        return 'Available';
-      case 'coming-soon':
-        return 'Coming Soon';
-      default:
-        return 'Unknown';
+      case 'connected': return 'Connected';
+      case 'disconnected': return 'Not Connected';
+      case 'coming-soon': return 'Coming Soon';
+      default: return 'Unknown';
     }
   };
-  
-  const handleConnectionAction = (connection) => {
-    if (connection.id === 'xero') {
-      navigate('/xero-auth');
-    } else if (connection.status === 'available') {
-      // Handle other connection types
-      alert(`${connection.name} integration coming soon!`);
-    }
-  };
-  
-  const formatLastSync = (lastSync) => {
-    if (!lastSync) return 'Never';
-    return new Date(lastSync).toLocaleString('en-AU');
-  };
-  
-  if (loading || xeroLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">Loading connections...</p>
-        </div>
-      </div>
-    );
-  }
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
@@ -106,94 +102,92 @@ const ERPConnectionManager = () => {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-[#1B365D]">ERP Connections</h1>
-            <p className="text-gray-600 mt-2">Manage your enterprise system integrations</p>
+            <p className="text-gray-600 mt-2">Manage your ERP system integrations</p>
           </div>
           <button
-            onClick={() => navigate('/')}
+            onClick={handleBackToDashboard}
             className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition-colors"
           >
             ← Back to Dashboard
           </button>
         </div>
         
-        {/* Connection Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <svg className="h-5 w-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <span className="text-red-700 font-medium">Error:</span>
+              <span className="text-red-600 ml-1">{error}</span>
+            </div>
+          </div>
+        )}
+        
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <svg className="h-5 w-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              <span className="text-green-700 font-medium">Success:</span>
+              <span className="text-green-600 ml-1">{success}</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Connections Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {connections.map((connection) => (
-            <div key={connection.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-              {/* Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3">
-                    <span className="text-white font-bold text-lg">
+            <div key={connection.id} className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-12 h-12 bg-${connection.color}-100 rounded-lg flex items-center justify-center`}>
+                    <span className={`text-${connection.color}-600 font-bold text-lg`}>
                       {connection.name.charAt(0)}
                     </span>
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-[#1B365D]">{connection.name}</h3>
-                    <p className="text-sm text-gray-600">{connection.type}</p>
+                    <h3 className="text-lg font-semibold text-[#1B365D]">{connection.name}</h3>
+                    <p className="text-sm text-gray-600">{connection.description}</p>
                   </div>
                 </div>
                 
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(connection.status)}`}>
+                <div className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(connection.status)}`}>
                   {getStatusText(connection.status)}
-                </span>
-              </div>
-              
-              {/* Description */}
-              <p className="text-gray-600 mb-4">{connection.description}</p>
-              
-              {/* Features */}
-              <div className="mb-4">
-                <h4 className="font-medium text-gray-900 mb-2">Features:</h4>
-                <div className="flex flex-wrap gap-2">
-                  {connection.features.map((feature, index) => (
-                    <span
-                      key={index}
-                      className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium"
-                    >
-                      {feature}
-                    </span>
-                  ))}
                 </div>
               </div>
               
-              {/* Last Sync */}
-              <div className="mb-4 text-sm text-gray-600">
-                <strong>Last Sync:</strong> {formatLastSync(connection.lastSync)}
-              </div>
-              
-              {/* Actions */}
-              <div className="pt-4 border-t border-gray-200">
+              <div className="flex space-x-3">
                 {connection.status === 'connected' ? (
-                  <div className="flex space-x-2">
+                  <>
                     <button
-                      onClick={() => handleConnectionAction(connection)}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                      onClick={connection.onDisconnect}
+                      disabled={loading}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
                     >
-                      Manage
+                      {loading ? 'Disconnecting...' : 'Disconnect'}
                     </button>
-                    <button className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm">
-                      Sync Now
+                    <button
+                      onClick={() => navigate('/invoice-matching')}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    >
+                      Use Connection
                     </button>
-                  </div>
+                  </>
                 ) : connection.status === 'disconnected' ? (
                   <button
-                    onClick={() => handleConnectionAction(connection)}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    onClick={connection.onConnect}
+                    disabled={loading}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
                   >
-                    Connect
-                  </button>
-                ) : connection.status === 'available' ? (
-                  <button
-                    onClick={() => handleConnectionAction(connection)}
-                    className="w-full bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                  >
-                    Setup Integration
+                    {loading ? 'Connecting...' : 'Connect'}
                   </button>
                 ) : (
                   <button
-                    disabled
-                    className="w-full bg-gray-300 text-gray-500 px-4 py-2 rounded-lg font-medium cursor-not-allowed"
+                    onClick={connection.onConnect}
+                    className="w-full bg-gray-400 text-white px-4 py-2 rounded-lg font-medium cursor-default"
                   >
                     Coming Soon
                   </button>
@@ -203,45 +197,69 @@ const ERPConnectionManager = () => {
           ))}
         </div>
         
-        {/* Integration Information */}
+        {/* Information Section */}
         <div className="mt-12 bg-white rounded-lg shadow-md p-8">
-          <h2 className="text-2xl font-bold text-[#1B365D] mb-6">Integration Benefits</h2>
+          <h2 className="text-2xl font-bold text-[#1B365D] mb-6">About ERP Integrations</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <h3 className="font-semibold text-[#1B365D] mb-2">Automated Data Sync</h3>
-              <p className="text-gray-600 text-sm">
-                Keep your systems in sync with real-time data synchronization across all connected platforms.
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h3 className="text-lg font-semibold text-[#1B365D] mb-3">Current Features</h3>
+              <ul className="space-y-2 text-gray-600">
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-green-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Xero customer and invoice import
+                </li>
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-green-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  OAuth 2.0 secure authentication
+                </li>
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-green-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Real-time data synchronization
+                </li>
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-green-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  CSV transaction matching
+                </li>
+              </ul>
             </div>
             
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="font-semibold text-[#1B365D] mb-2">Improved Accuracy</h3>
-              <p className="text-gray-600 text-sm">
-                Reduce manual data entry errors and ensure consistency across your business systems.
-              </p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="h-8 w-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="font-semibold text-[#1B365D] mb-2">Time Savings</h3>
-              <p className="text-gray-600 text-sm">
-                Save hours of manual work with automated invoice matching and transaction processing.
-              </p>
+            <div>
+              <h3 className="text-lg font-semibold text-[#1B365D] mb-3">Coming Soon</h3>
+              <ul className="space-y-2 text-gray-600">
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-blue-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+                  </svg>
+                  Coupa procurement integration
+                </li>
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-blue-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+                  </svg>
+                  SAP ERP connectivity
+                </li>
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-blue-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+                  </svg>
+                  QuickBooks integration
+                </li>
+                <li className="flex items-start">
+                  <svg className="h-5 w-5 text-blue-500 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+                  </svg>
+                  Custom API integrations
+                </li>
+              </ul>
             </div>
           </div>
         </div>
