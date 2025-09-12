@@ -1,275 +1,179 @@
-# 🔗 LedgerLink - Automated Financial Reconciliation
+# LedgerLink - Invoice Matching Platform
 
-LedgerLink is an intelligent financial reconciliation platform that automates the matching process between Coupa invoice approvals and NetSuite AR ledger data. Built with advanced fuzzy matching algorithms and a modern React interface.
+🚀 **LedgerLink** is a sophisticated invoice matching platform that automates the reconciliation of CSV transaction data with ERP systems like Xero.
 
 ## ✨ Features
 
-- **🤖 Intelligent Matching**: AI-powered algorithm with 95%+ accuracy
-- **⚡ Lightning Fast**: Process thousands of records in seconds
-- **📊 Comprehensive Analytics**: Detailed charts and variance analysis
-- **📁 Multiple Formats**: Support for CSV, Excel (.xlsx, .xls) files
-- **🔍 Fuzzy Matching**: Handles data inconsistencies and variations
-- **📈 Real-time Dashboard**: Interactive UI with progress tracking
-- **📋 Audit Ready**: Detailed reporting and export capabilities
-- **🔒 Secure**: Bank-grade security for financial data
+### 🎯 **Core Functionality**
+- **Smart CSV Processing**: Upload and parse CSV files with automatic column detection
+- **Xero Integration**: Secure OAuth 2.0 connection to import customers and invoices
+- **Intelligent Matching**: AI-powered matching algorithm with confidence scoring
+- **3-Panel Workflow**: Streamlined customer → upload → review process
+- **User Authentication**: Secure account management with JWT tokens
 
-## 🏗️ Architecture
+### 📊 **Matching Algorithm**
+Our sophisticated matching engine uses weighted confidence scoring:
+- **Amount Matching (50%)**: Exact or near-exact invoice amounts
+- **Date Proximity (30%)**: Transaction dates within 7-30 days of invoice dates
+- **Reference Matching (20%)**: Invoice numbers in transaction references
 
-### Frontend (React)
-- **Framework**: React 18 with React Router
-- **UI Components**: Custom components with Lucide React icons
-- **Styling**: Modern CSS with responsive design
-- **State Management**: React Hooks (useState, useEffect)
-- **HTTP Client**: Axios for API communication
+### 🎨 **User Experience**
+- **Modern Interface**: Clean, responsive design with Tailwind CSS
+- **Australian Focus**: DD/MM/YYYY date formats and AUD currency by default
+- **Drag & Drop**: Easy file uploads with format validation
+- **Color-Coded Results**: Green/Yellow/Red confidence indicators
 
-### Backend (Node.js/Express)
-- **Runtime**: Node.js with Express framework
-- **File Processing**: Multer for uploads, CSV-parser, SheetJS for Excel
-- **Matching Engine**: Custom fuzzy matching algorithm
-- **Data Export**: CSV and Excel export capabilities
-- **API**: RESTful endpoints with comprehensive error handling
+## 🏗️ **Architecture**
 
-## 🚀 Quick Start
+### **Frontend** (React + Vercel)
+- React 18 with hooks and context
+- React Router for navigation
+- Tailwind CSS for styling
+- Axios for API communication
+- Deployed on Vercel
 
-### Prerequisites
-- Node.js 16+ and npm 8+
-- Git for version control
+### **Backend** (Node.js + Render)
+- Express.js server
+- MongoDB with Mongoose
+- Xero API integration
+- JWT authentication
+- Session management
+- Deployed on Render
 
-### Installation
+## 🚦 **Getting Started**
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/TomWall1/LedgerLink.git
-   cd LedgerLink
-   ```
+### **Prerequisites**
+- Node.js 18+
+- MongoDB (local or Atlas)
+- Xero Developer Account
 
-2. **Install backend dependencies**
-   ```bash
-   cd backend
-   npm install
-   ```
-
-3. **Install frontend dependencies**
-   ```bash
-   cd ../frontend
-   npm install
-   ```
-
-4. **Set up environment variables**
-   ```bash
-   cd ../backend
-   cp .env.example .env
-   # Edit .env file with your configuration
-   ```
-
-5. **Create uploads directory**
-   ```bash
-   mkdir uploads
-   mkdir temp
-   ```
-
-### 🏃‍♂️ Running the Application
-
-1. **Start the backend server**
-   ```bash
-   cd backend
-   npm run dev  # Development mode with nodemon
-   # OR
-   npm start    # Production mode
-   ```
-   The API will be available at `http://localhost:5000`
-
-2. **Start the frontend application**
-   ```bash
-   cd frontend
-   npm start
-   ```
-   The app will be available at `http://localhost:3000`
-
-### 🧪 Testing the Application
-
-1. **Health Check**: Visit `http://localhost:5000/api/health`
-2. **Frontend**: Navigate to `http://localhost:3000`
-3. **Upload Test Files**: Use the Coupa-NetSuite dashboard to upload sample CSV/Excel files
-
-## 📁 File Format Requirements
-
-### Coupa Invoice Approvals
-Your Coupa file should contain these columns (case-insensitive):
-- **Invoice Number** (required)
-- **Amount** (required) 
-- **Date**
-- **Vendor**
-- **Status**
-
-### NetSuite AR Ledger
-Your NetSuite file should contain these columns (case-insensitive):
-- **Invoice Number** (required)
-- **Amount** (required)
-- **Date**
-- **Vendor** 
-- **AR Status**
-
-## 🔧 API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check |
-| POST | `/api/coupa/upload` | Upload Coupa data file |
-| POST | `/api/netsuite/upload` | Upload NetSuite data file |
-| POST | `/api/match` | Execute matching algorithm |
-| POST | `/api/export/csv` | Export results to CSV |
-| POST | `/api/export/excel` | Export results to Excel |
-
-## 🧠 Matching Algorithm
-
-LedgerLink uses a sophisticated multi-stage matching process:
-
-1. **Exact Matching**: Perfect invoice number matches
-2. **Fuzzy Matching**: Similarity-based matching using:
-   - Invoice number similarity (50% weight)
-   - Amount similarity (30% weight)  
-   - Vendor similarity (20% weight)
-3. **Confidence Scoring**: Each match receives a confidence score (0-100%)
-4. **Threshold Filtering**: Only matches above 70% confidence are accepted
-
-## 📊 Dashboard Features
-
-### Upload Tab
-- Drag-and-drop file upload
-- File validation and processing
-- Real-time upload progress
-- Data preview and statistics
-
-### Review Tab
-- Matched records with confidence scores
-- Amount variance highlighting
-- Unmatched record analysis
-- Interactive data tables
-
-### Results Tab
-- Comprehensive analytics dashboard
-- Visual charts and metrics
-- Variance analysis
-- Export options (CSV, Excel)
-- Recommended next steps
-
-## 🛠️ Development
-
-### Project Structure
-```
-LedgerLink/
-├── backend/
-│   ├── app.js              # Main Express application
-│   ├── package.json        # Backend dependencies
-│   ├── .env.example        # Environment variables template
-│   └── uploads/            # File upload directory
-├── frontend/
-│   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── App.js          # Main React application
-│   │   └── index.js        # React entry point
-│   └── package.json        # Frontend dependencies
-└── README.md               # This file
-```
-
-### Development Commands
-
-**Backend**
+### **Environment Setup**
 ```bash
-npm run dev     # Start with nodemon (auto-restart)
-npm start       # Start production server
-npm test        # Run tests
+# Clone the repository
+git clone https://github.com/TomWall1/LedgerLink.git
+cd LedgerLink
+
+# Backend setup
+cp .env.example .env
+# Edit .env with your configuration
+
+npm install
+npm run dev
+
+# Frontend setup (new terminal)
+cd frontend
+npm install
+npm start
 ```
 
-**Frontend**
-```bash
-npm start       # Start development server
-npm run build   # Build for production
-npm test        # Run tests
+### **Required Environment Variables**
+```env
+MONGODB_URI=your-mongodb-connection-string
+XERO_CLIENT_ID=your-xero-client-id
+XERO_CLIENT_SECRET=your-xero-client-secret
+JWT_SECRET=your-jwt-secret
+SESSION_SECRET=your-session-secret
 ```
 
-## 🚀 Deployment
+## 📁 **CSV File Requirements**
 
-### Backend (Render)
-1. Connect your GitHub repository to Render
-2. Set build command: `cd backend && npm install`
-3. Set start command: `cd backend && npm start`
-4. Configure environment variables
+Your CSV files should include these columns:
 
-### Frontend (Vercel)
-1. Connect your GitHub repository to Vercel
-2. Set root directory to `frontend`
-3. Build command: `npm run build`
-4. Output directory: `build`
+### **Required Columns**
+- **Amount**: `amount`, `value`, `total`, `payment_amount`
+- **Date**: `date`, `transaction_date`, `invoice_date`, `payment_date`
+- **Reference**: `reference`, `transaction_number`, `id`, `invoice_number`
 
-### Environment Variables for Production
-```bash
-# Backend (.env)
-PORT=5000
-NODE_ENV=production
-CORS_ORIGIN=https://your-frontend-domain.vercel.app
+### **Optional Columns**
+- **Description**: `description`, `memo`, `note`, `particulars`
+- **Status**: `status`, `state`
 
-# Frontend
-REACT_APP_API_URL=https://your-backend-domain.onrender.com
-```
+### **Supported Date Formats**
+- DD/MM/YYYY (Australian)
+- MM/DD/YYYY (American)
+- YYYY-MM-DD (ISO)
+- DD-MM-YYYY, MM-DD-YYYY, DD.MM.YYYY
 
-## 🔒 Security Features
+## 🔐 **Security Features**
 
-- File type validation (CSV, Excel only)
-- File size limits (10MB max)
-- CORS configuration
-- Input sanitization
-- Temporary file cleanup
-- Error handling and logging
+- **OAuth 2.0**: Secure Xero API integration
+- **JWT Tokens**: Stateless authentication
+- **Password Hashing**: bcrypt with salt rounds
+- **Session Management**: MongoDB-backed sessions
+- **CORS Protection**: Configured for specific origins
+- **Input Validation**: Comprehensive data sanitization
 
-## 🐛 Troubleshooting
+## 🌐 **API Endpoints**
 
-### Common Issues
+### **Authentication**
+- `POST /api/users/register` - Create new account
+- `POST /api/users/login` - User login
+- `GET /api/users/me` - Get current user
 
-1. **Upload Fails**
-   - Check file format (CSV, .xlsx, .xls only)
-   - Verify file size (max 10MB)
-   - Ensure required columns are present
+### **Xero Integration**
+- `GET /api/xero/connect` - Initiate OAuth flow
+- `GET /api/xero/callback` - OAuth callback
+- `GET /api/xero/customers` - Fetch Xero customers
+- `GET /api/xero/customers/:id/invoices` - Get customer invoices
 
-2. **No Matches Found**
-   - Verify invoice number formats are similar
-   - Check for leading/trailing spaces
-   - Ensure amount fields contain numeric values
+### **Transaction Processing**
+- `POST /api/transactions/match-customer-invoices` - Upload and match CSV
+- `POST /api/transactions/approve-customer-match` - Approve matches
 
-3. **Backend Connection Error**
-   - Verify backend is running on port 5000
-   - Check CORS configuration
-   - Confirm API endpoints are accessible
+## 📊 **Live Deployment**
 
-### Debug Mode
-Set `NODE_ENV=development` in `.env` for detailed error messages.
+- **Frontend**: https://lledgerlink.vercel.app/
+- **Backend**: https://ledgerlink.onrender.com/
+- **Repository**: https://github.com/TomWall1/LedgerLink
 
-## 📞 Support
+## 🛠️ **Technology Stack**
 
-- **Email**: support@ledgerlink.com
-- **Documentation**: [GitHub Wiki](https://github.com/TomWall1/LedgerLink/wiki)
-- **Issues**: [GitHub Issues](https://github.com/TomWall1/LedgerLink/issues)
+### **Frontend Technologies**
+- React 18, React Router, Tailwind CSS
+- Axios, Context API, Custom Hooks
 
-## 🤝 Contributing
+### **Backend Technologies**
+- Node.js, Express.js, MongoDB, Mongoose
+- JWT, bcrypt, xero-node, multer, csv-parser
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`) 
-5. Open a Pull Request
+### **DevOps & Deployment**
+- Vercel (Frontend), Render (Backend)
+- MongoDB Atlas, GitHub Actions ready
 
-## 📄 License
+## 🎯 **Use Cases**
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### **For Accounting Firms**
+- Automate client invoice reconciliation
+- Reduce manual data entry errors
+- Process multiple client files efficiently
 
-## 🏆 Acknowledgments
+### **For Businesses**
+- Match bank statements with Xero invoices
+- Streamline accounts receivable processes
+- Improve cash flow visibility
 
-- Built with React and Node.js
-- Icons by Lucide React
-- Styling inspired by modern financial applications
-- Fuzzy matching algorithms based on Levenshtein distance
+### **For Bookkeepers**
+- Bulk process transaction matching
+- Generate reconciliation reports
+- Maintain audit trails
+
+## 📈 **Roadmap**
+
+- [ ] **Multi-ERP Support**: QuickBooks, MYOB, SAP integrations
+- [ ] **Advanced Analytics**: Matching success rate dashboards
+- [ ] **Bulk Operations**: Process multiple customers simultaneously
+- [ ] **API Rate Limiting**: Enterprise-grade performance
+- [ ] **Audit Logging**: Comprehensive activity tracking
+- [ ] **White-label Options**: Custom branding capabilities
+
+## 🤝 **Contributing**
+
+Contributions are welcome! Please read our contributing guidelines and submit pull requests.
+
+## 📜 **License**
+
+MIT License - see LICENSE file for details.
 
 ---
 
-**Made with ❤️ for finance teams who deserve better tools**
+**Built with ❤️ for the Australian accounting community**
