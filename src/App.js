@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { XeroProvider } from './contexts/XeroContext';
 import NavHeader from './components/NavHeader';
+import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import Register from './components/Register';
@@ -32,36 +33,53 @@ function AppContent() {
   
   return (
     <div className="min-h-screen bg-gray-50">
-      {user && <NavHeader />}
+      {/* Show NavHeader only for authenticated users and not on landing page */}
+      {user && window.location.pathname !== '/' && <NavHeader />}
       
       <Routes>
-        <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
-        <Route path="/register" element={!user ? <Register /> : <Navigate to="/" />} />
+        {/* Public Routes */}
+        <Route path="/" element={!user ? <LandingPage /> : <Navigate to="/dashboard" />} />
+        <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
+        <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" />} />
         
-        <Route path="/" element={
+        {/* Protected Routes */}
+        <Route path="/dashboard" element={
           <ProtectedRoute>
-            <Dashboard />
+            <>
+              <NavHeader />
+              <Dashboard />
+            </>
           </ProtectedRoute>
         } />
         
         <Route path="/invoice-matching" element={
           <ProtectedRoute>
-            <CustomerTransactionMatcher />
+            <>
+              <NavHeader />
+              <CustomerTransactionMatcher />
+            </>
           </ProtectedRoute>
         } />
         
         <Route path="/xero-auth" element={
           <ProtectedRoute>
-            <XeroAuth />
+            <>
+              <NavHeader />
+              <XeroAuth />
+            </>
           </ProtectedRoute>
         } />
         
         <Route path="/erp-connections" element={
           <ProtectedRoute>
-            <ERPConnectionManager />
+            <>
+              <NavHeader />
+              <ERPConnectionManager />
+            </>
           </ProtectedRoute>
         } />
         
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </div>
