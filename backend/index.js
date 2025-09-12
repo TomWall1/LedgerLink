@@ -14,6 +14,13 @@ const transactionRoutes = require('./routes/transactions');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+console.log('🚀 Starting LedgerLink server...');
+console.log('📁 Routes loaded:', {
+  users: !!userRoutes,
+  xero: !!xeroRoutes, 
+  transactions: !!transactionRoutes
+});
+
 // CORS configuration
 app.use(cors({
   origin: [
@@ -26,20 +33,20 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Session configuration with MongoDB store (works even before connection)
+// Session configuration with MongoDB store
 const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'your-secret-key-change-this-in-production',
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({
     mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/ledgerlink',
-    touchAfter: 24 * 3600, // lazy session update
-    ttl: 24 * 60 * 60 // 24 hours session expiry
+    touchAfter: 24 * 3600,
+    ttl: 24 * 60 * 60
   }),
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 24 * 60 * 60 * 1000
   }
 };
 
@@ -56,7 +63,6 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ledgerlin
 })
 .catch((error) => {
   console.error('❌ MongoDB connection error:', error);
-  // For development, continue without database
   if (process.env.NODE_ENV !== 'production') {
     console.warn('⚠️  Running without database connection in development mode');
   } else {
@@ -76,10 +82,25 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// API Routes
+// API Routes (with logging)
+console.log('🔗 Setting up API routes...');
 app.use('/api/users', userRoutes);
 app.use('/api/xero', xeroRoutes);
 app.use('/api/transactions', transactionRoutes);
+console.log('✅ API routes configured');
+
+// Test route to verify server is working
+app.get('/api/test', (req, res) => {
+  res.json({
+    message: 'LedgerLink API is working!',
+    timestamp: new Date().toISOString(),
+    routes: {
+      users: '/api/users',
+      xero: '/api/xero',
+      transactions: '/api/transactions'
+    }
+  });
+});
 
 // Health check endpoint
 app.get('/', (req, res) => {
@@ -89,7 +110,13 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    sessionStore: 'MongoDB (MongoStore)'
+    sessionStore: 'MongoDB (MongoStore)',
+    routes: {
+      test: '/api/test',
+      users: '/api/users',
+      xero: '/api/xero',
+      transactions: '/api/transactions'
+    }
   });
 });
 
@@ -115,11 +142,9 @@ app.use((error, req, res, next) => {
     stack: error.stack,
     url: req.url,
     method: req.method,
-    body: req.body,
     timestamp: new Date().toISOString()
   });
   
-  // Don't leak error details in production
   const isDevelopment = process.env.NODE_ENV !== 'production';
   
   res.status(error.status || 500).json({ 
@@ -131,10 +156,19 @@ app.use((error, req, res, next) => {
 
 // Handle 404 errors
 app.use('*', (req, res) => {
+  console.log('❌ 404 - Route not found:', req.method, req.originalUrl);
   res.status(404).json({ 
     error: 'Route not found',
     path: req.originalUrl,
-    method: req.method
+    method: req.method,
+    availableRoutes: {
+      root: '/',
+      health: '/health',
+      test: '/api/test',
+      users: '/api/users/*',
+      xero: '/api/xero/*',
+      transactions: '/api/transactions/*'
+    }
   });
 });
 
@@ -156,6 +190,13 @@ app.listen(PORT, () => {
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 API URL: http://localhost:${PORT}`);
   console.log(`💾 Session Store: MongoDB (production-ready)`);
+  console.log(`🔗 Available routes:`);
+  console.log(`   GET  /              - API info`);
+  console.log(`   GET  /health        - Health check`);
+  console.log(`   GET  /api/test      - Test route`);
+  console.log(`   *    /api/users/*   - User authentication`);
+  console.log(`   *    /api/xero/*    - Xero integration`);
+  console.log(`   *    /api/transactions/* - Transaction processing`);
 });
 
 module.exports = app;

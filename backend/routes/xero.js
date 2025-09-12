@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const { XeroClient } = require('xero-node');
-const session = require('express-session');
 
 // Xero client configuration
 const client_id = process.env.XERO_CLIENT_ID;
@@ -9,15 +8,26 @@ const client_secret = process.env.XERO_CLIENT_SECRET;
 const redirectUris = [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/api/xero/callback'];
 const scopes = 'offline_access accounting.contacts.read accounting.transactions.read accounting.settings.read';
 
-let xero = new XeroClient({
-  clientId: client_id,
-  clientSecret: client_secret,
-  redirectUris,
-  scopes: scopes.split(' ')
-});
+let xero;
+
+// Initialize Xero client only if credentials are available
+if (client_id && client_secret) {
+  xero = new XeroClient({
+    clientId: client_id,
+    clientSecret: client_secret,
+    redirectUris,
+    scopes: scopes.split(' ')
+  });
+} else {
+  console.warn('Xero credentials not configured. Some features may not work.');
+}
 
 // Helper function to get Xero client with token
 const getXeroClient = async (req) => {
+  if (!xero) {
+    throw new Error('Xero client not configured. Please set XERO_CLIENT_ID and XERO_CLIENT_SECRET.');
+  }
+  
   if (!req.session.xeroTokenSet) {
     throw new Error('No Xero token found in session');
   }
@@ -36,6 +46,10 @@ const getXeroClient = async (req) => {
 // Route to initiate Xero connection
 router.get('/connect', async (req, res) => {
   try {
+    if (!xero) {
+      return res.status(500).json({ error: 'Xero client not configured' });
+    }
+    
     const consentUrl = await xero.buildConsentUrl();
     res.json({ authUrl: consentUrl });
   } catch (error) {
@@ -47,6 +61,11 @@ router.get('/connect', async (req, res) => {
 // Xero OAuth callback
 router.get('/callback', async (req, res) => {
   try {
+    if (!xero) {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://lledgerlink.vercel.app';
+      return res.redirect(`${frontendUrl}/xero-auth?error=xero_not_configured`);
+    }
+    
     const { code, state } = req.query;
     
     if (!code) {
@@ -79,7 +98,15 @@ router.get('/callback', async (req, res) => {
 // Check authentication status
 router.get('/auth-status', (req, res) => {
   try {
+    console.log('Checking Xero auth status...');
+    
+    if (!xero) {
+      console.log('Xero client not configured');
+      return res.json({ authenticated: false, tenantId: null, error: 'Xero not configured' });
+    }
+    
     const isAuthenticated = !!(req.session.xeroTokenSet && req.session.tenantId);
+    console.log('Xero auth status:', { isAuthenticated, tenantId: req.session.tenantId });
     
     res.json({
       authenticated: isAuthenticated,
@@ -87,7 +114,7 @@ router.get('/auth-status', (req, res) => {
     });
   } catch (error) {
     console.error('Error checking auth status:', error);
-    res.json({ authenticated: false, tenantId: null });
+    res.json({ authenticated: false, tenantId: null, error: error.message });
   }
 });
 
@@ -196,11 +223,10 @@ router.get('/organization', async (req, res) => {
   }
 });
 
-// Export helper function for use in other routes
-module.exports = {
-  router,
-  getXeroClient
-};
+// Test route to verify the router is working
+router.get('/test', (req, res) => {
+  res.json({ message: 'Xero routes are working!', timestamp: new Date().toISOString() });
+});
 
-// Export just the router as default
+// Export the router (fixed export)
 module.exports = router;
