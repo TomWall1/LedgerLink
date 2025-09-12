@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { XeroProvider } from './contexts/XeroContext';
 import NavHeader from './components/NavHeader';
@@ -11,134 +11,91 @@ import XeroAuth from './components/XeroAuth';
 import CustomerTransactionMatcher from './components/CustomerTransactionMatcher';
 import ERPConnectionManager from './components/ERPConnectionManager';
 
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-4 text-lg text-gray-600">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
   
-  return user ? children : <Navigate to="/login" replace />;
-}
-
-function PublicRoute({ children }) {
-  const { user, loading } = useAuth();
-  
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  return !user ? children : <Navigate to="/dashboard" replace />;
+  return user ? children : <Navigate to="/login" />;
 }
 
 function AppContent() {
   const { user, loading } = useAuth();
-  const location = useLocation();
   
-  // Don't show NavHeader on public pages
-  const isPublicPage = ['/', '/login', '/register'].includes(location.pathname);
-  const showNavHeader = user && !isPublicPage;
-  
+  // Show loading screen while checking authentication
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
   
   return (
     <div className="min-h-screen">
-      {showNavHeader && <NavHeader />}
-      
       <Routes>
         {/* Public Routes */}
         <Route 
           path="/" 
-          element={
-            <PublicRoute>
-              <LandingPage />
-            </PublicRoute>
-          } 
+          element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} 
         />
         <Route 
           path="/login" 
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } 
+          element={user ? <Navigate to="/dashboard" replace /> : <Login />} 
         />
         <Route 
           path="/register" 
-          element={
-            <PublicRoute>
-              <Register />
-            </PublicRoute>
-          } 
+          element={user ? <Navigate to="/dashboard" replace /> : <Register />} 
         />
         
         {/* Protected Routes */}
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50">
+              <NavHeader />
               <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
+            </div>
+          </ProtectedRoute>
+        } />
         
-        <Route 
-          path="/invoice-matching" 
-          element={
-            <ProtectedRoute>
+        <Route path="/invoice-matching" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50">
+              <NavHeader />
               <CustomerTransactionMatcher />
-            </ProtectedRoute>
-          } 
-        />
+            </div>
+          </ProtectedRoute>
+        } />
         
-        <Route 
-          path="/xero-auth" 
-          element={
-            <ProtectedRoute>
+        <Route path="/xero-auth" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50">
+              <NavHeader />
               <XeroAuth />
-            </ProtectedRoute>
-          } 
-        />
+            </div>
+          </ProtectedRoute>
+        } />
         
-        <Route 
-          path="/erp-connections" 
-          element={
-            <ProtectedRoute>
+        <Route path="/erp-connections" element={
+          <ProtectedRoute>
+            <div className="min-h-screen bg-gray-50">
+              <NavHeader />
               <ERPConnectionManager />
-            </ProtectedRoute>
-          } 
-        />
+            </div>
+          </ProtectedRoute>
+        } />
         
-        {/* Fallback - redirect to appropriate page based on auth status */}
-        <Route 
-          path="*" 
-          element={
-            user ? <Navigate to="/dashboard" replace /> : <Navigate to="/" replace />
-          } 
-        />
+        {/* Fallback - redirect unknown routes to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   );
