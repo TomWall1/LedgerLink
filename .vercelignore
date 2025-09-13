@@ -17,3 +17,8 @@ frontend/node_modules/
 frontend/dist/
 frontend/.env.local
 frontend/.env.*.local
+
+# Ignore any JS files in src that might conflict with TSX
+frontend/src/**/*.js
+!frontend/src/**/*.test.js
+!frontend/src/**/*.spec.js

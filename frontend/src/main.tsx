@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import App from './App';
+import App from './App.tsx';
 import './styles/global.css';
 
 // Error boundary for better error handling
@@ -46,7 +46,8 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const container = document.getElementById('root')!;
+const container = document.getElementById('root');
+if (!container) throw new Error('Failed to find the root element');
 const root = createRoot(container);
 
 root.render(
@@ -56,5 +57,5 @@ root.render(
         <App />
       </BrowserRouter>
     </ErrorBoundary>
-  </React.StrictMode>,
+  </React.StrictMode>
 );

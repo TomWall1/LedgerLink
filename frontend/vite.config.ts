@@ -10,6 +10,20 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  esbuild: {
+    loader: 'tsx',
+    include: /src\/.*\.(ts|tsx)$/,
+    exclude: []
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      loader: {
+        '.js': 'tsx',
+        '.ts': 'tsx',
+        '.tsx': 'tsx'
+      }
+    }
+  },
   server: {
     port: 3000,
     proxy: {
@@ -24,13 +38,12 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
-      onwarn: (warning, warn) => {
-        // Skip TypeScript warnings during build
-        if (warning.code === 'TS6031' || warning.code === 'TS1259' || warning.code === 'TS7031') {
-          return;
-        }
-        warn(warning);
+      input: {
+        main: path.resolve(__dirname, 'index.html')
       },
-    },
+      output: {
+        manualChunks: undefined
+      }
+    }
   },
 })
