@@ -1,0 +1,26 @@
+# Ignore everything except frontend
+/backend/
+/scripts/
+/docs/
+
+# Keep frontend and required config files
+!/frontend/
+!/.gitignore
+!/README.md
+!/package.json
+
+# Ignore development files
+*.log
+.env*
+node_modules/
+.DS_Store
+
+# Ignore backend-specific files completely
+render.yaml
+railway.json
+app.json
+docker-compose*.yml
+Dockerfile
+Makefile
+DEPLOYMENT.md
+deploy-buttons.md
