@@ -1,26 +1,19 @@
-# Ignore everything except frontend
-/backend/
-/scripts/
-/docs/
-
-# Keep frontend and required config files
-!/frontend/
-!/.gitignore
-!/README.md
-!/package.json
-
-# Ignore development files
-*.log
-.env*
+# Ignore backend and root files that aren't needed for frontend deployment
+backend/
 node_modules/
+.git/
+.env
+.env.local
+.env.*.local
+*.log
 .DS_Store
+Thumbs.db
 
-# Ignore backend-specific files completely
-render.yaml
-railway.json
-app.json
-docker-compose*.yml
-Dockerfile
-Makefile
-DEPLOYMENT.md
-deploy-buttons.md
+# Keep only frontend directory
+!frontend/
+
+# But ignore frontend's node_modules and build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local

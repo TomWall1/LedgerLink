@@ -19,8 +19,7 @@
     "lint": "npm run lint:backend && npm run lint:frontend",
     "lint:backend": "cd backend && npm run lint",
     "lint:frontend": "cd frontend && npm run lint",
-    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
-    "prepare": "husky install"
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\""
   },
   "repository": {
     "type": "git",
@@ -50,19 +49,7 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.0",
-    "husky": "^8.0.3",
-    "lint-staged": "^13.2.3",
     "prettier": "^3.0.0"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "prettier --write",
-      "git add"
-    ],
-    "*.{json,md}": [
-      "prettier --write",
-      "git add"
-    ]
   },
   "workspaces": [
     "backend",
