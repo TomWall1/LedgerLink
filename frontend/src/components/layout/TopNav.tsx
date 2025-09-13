@@ -1,198 +1,129 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
-import { cn } from '../../utils/cn';
 
-export interface TopNavProps {
-  user?: {
-    name: string;
-    email: string;
-    avatar?: string;
-  };
-  onMenuToggle?: () => void;
-  isMobile?: boolean;
-  isLoggedIn?: boolean;
-  onLogin?: () => void;
-  onLogout?: () => void;
-  onInvite?: () => void;
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
 }
 
-const TopNav: React.FC<TopNavProps> = ({
+interface TopNavProps {
+  user?: User;
+  onMenuToggle: () => void;
+  isMobile: boolean;
+  isLoggedIn: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
+  onInvite: () => void;
+}
+
+export const TopNav: React.FC<TopNavProps> = ({
   user,
   onMenuToggle,
-  isMobile = false,
-  isLoggedIn = false,
+  isMobile,
+  isLoggedIn,
   onLogin,
   onLogout,
-  onInvite,
+  onInvite
 }) => {
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Implement global search functionality
-    console.log('Search:', searchQuery);
-  };
-  
   return (
-    <nav className={cn(
-      'fixed top-0 left-0 right-0 z-sticky-header bg-white border-b border-neutral-200',
-      'h-14 md:h-16'
-    )}>
-      <div className="flex items-center justify-between h-full px-4 md:px-6">
-        {/* Left section */}
+    <nav className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-neutral-200 shadow-sm">
+      <div className="flex items-center justify-between px-4 h-14 md:h-16">
+        {/* Left side - Logo and menu */}
         <div className="flex items-center space-x-4">
           {/* Mobile menu button */}
-          {isMobile && (
-            <button
-              type="button"
-              className="p-2 rounded-md text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors duration-120"
-              onClick={onMenuToggle}
-              aria-label="Toggle menu"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          )}
+          <button
+            onClick={onMenuToggle}
+            className="p-2 rounded-md text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors duration-120 lg:hidden"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
           
           {/* Logo */}
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary-500 rounded-md flex items-center justify-center">
+            <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">LL</span>
             </div>
-            <span className="hidden sm:block text-h3 font-semibold text-neutral-900">
-              LedgerLink
-            </span>
+            <span className="text-h3 font-bold text-neutral-900 hidden sm:block">LedgerLink</span>
           </div>
-          
-          {/* Global search - only show when logged in */}
-          {isLoggedIn && (
-            <form onSubmit={handleSearch} className="hidden md:block">
-              <Input
-                type="search"
-                placeholder="Search invoices, customers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64 lg:w-80"
-                leftIcon={
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                }
-              />
-            </form>
-          )}
         </div>
         
-        {/* Right section */}
-        <div className="flex items-center space-x-2 md:space-x-4">
+        {/* Right side - Actions and user menu */}
+        <div className="flex items-center space-x-3">
           {isLoggedIn ? (
             <>
-              {/* Invite button */}
+              {/* Invite button - desktop only */}
               <Button
-                variant="primary"
+                variant="ghost"
                 size="sm"
                 onClick={onInvite}
-                className="hidden sm:flex"
+                className="hidden md:inline-flex"
+                leftIcon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                }
               >
-                Invite counterparty
+                Invite
               </Button>
               
               {/* Notifications */}
-              <button
-                type="button"
-                className="p-2 rounded-md text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors duration-120 relative"
-                aria-label="Notifications"
-              >
+              <button className="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors duration-120 relative">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM10.97 4.97a1.94 1.94 0 014.06 0l6.06 6.06c.98.98.98 2.56 0 3.54l-6.06 6.06a1.94 1.94 0 01-4.06 0L4.91 14.57c-.98-.98-.98-2.56 0-3.54l6.06-6.06z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM10.97 4.97a.235.235 0 00-.02.022L9.477 6.417 8.05 7.847a.698.698 0 01-.988-.01L6.05 6.825a.71.71 0 01-.207-.5c0-.19.074-.372.207-.506l.707-.707M10.97 4.97s.018-.013.028-.02c.298-.164.636-.22.968-.14.332.081.63.284.821.567.191.282.267.62.213.953a1.125 1.125 0 01-.44.832c-.109.073-.234.13-.363.167-.742.21-1.527.32-2.334.32-2.08 0-3.903-.903-5.187-2.34L2.34 2.34A8 8 0 1021.66 21.66 8 8 0 0010.97 4.97z" />
                 </svg>
-                {/* Notification badge */}
-                <span className="absolute -top-1 -right-1 h-4 w-4 bg-error text-white text-xs rounded-full flex items-center justify-center">
-                  3
-                </span>
-              </button>
-              
-              {/* Help */}
-              <button
-                type="button"
-                className="p-2 rounded-md text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors duration-120"
-                aria-label="Help"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
               </button>
               
               {/* User menu */}
               <div className="relative">
-                <button
-                  type="button"
-                  className="flex items-center space-x-2 p-1 rounded-md hover:bg-neutral-100 transition-colors duration-120"
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  aria-label="User menu"
-                >
-                  <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center">
-                    {user?.avatar ? (
-                      <img 
-                        src={user.avatar} 
-                        alt={user.name}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-white text-sm font-medium">
-                        {user?.name?.charAt(0) || 'U'}
-                      </span>
-                    )}
+                <button className="flex items-center space-x-2 p-2 text-sm bg-white rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors duration-120">
+                  <div className="w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-medium text-xs">
+                      {user?.name?.charAt(0) || 'U'}
+                    </span>
                   </div>
-                  <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                  {!isMobile && (
+                    <>
+                      <span className="text-neutral-900 font-medium hidden md:block">
+                        {user?.name?.split(' ')[0] || 'User'}
+                      </span>
+                      <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </>
+                  )}
                 </button>
                 
-                {/* User dropdown */}
-                {isUserMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-neutral-200 py-1 z-10">
-                    <div className="px-4 py-2 border-b border-neutral-200">
-                      <p className="text-sm font-medium text-neutral-900">{user?.name}</p>
-                      <p className="text-xs text-neutral-600">{user?.email}</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 transition-colors duration-120"
-                      onClick={() => {
-                        setIsUserMenuOpen(false);
-                        // Navigate to settings
-                      }}
-                    >
-                      Settings
-                    </button>
-                    <button
-                      type="button"
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 transition-colors duration-120"
-                      onClick={() => {
-                        setIsUserMenuOpen(false);
-                        onLogout?.();
-                      }}
-                    >
-                      Sign out
-                    </button>
-                  </div>
-                )}
+                {/* Dropdown menu - would need proper dropdown implementation */}
+                <div className="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-neutral-200 py-1">
+                  <a href="#" className="block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">Profile</a>
+                  <a href="#" className="block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100">Settings</a>
+                  <div className="border-t border-neutral-100 my-1"></div>
+                  <button 
+                    onClick={onLogout}
+                    className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+                  >
+                    Sign out
+                  </button>
+                </div>
               </div>
             </>
           ) : (
-            /* Not logged in */
-            <Button variant="primary" size="sm" onClick={onLogin}>
-              Login
-            </Button>
+            <>
+              <Button variant="ghost" size="sm" onClick={onLogin}>
+                Login
+              </Button>
+              <Button variant="primary" size="sm">
+                Try for free
+              </Button>
+            </>
           )}
         </div>
       </div>
     </nav>
   );
 };
-
-export { TopNav };
