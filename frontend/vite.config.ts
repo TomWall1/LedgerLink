@@ -7,34 +7,21 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      "@": path.resolve(__dirname, "./src"),
     },
   },
   server: {
     port: 3000,
-    open: true,
     proxy: {
       '/api': {
-        target: 'https://ledgerlink.onrender.com',
+        target: process.env.VITE_API_URL || 'http://localhost:3002',
         changeOrigin: true,
-        secure: true,
+        secure: false,
       },
     },
   },
   build: {
     outDir: 'dist',
     sourcemap: true,
-    minify: 'terser',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          ui: ['clsx', 'tailwind-merge'],
-        },
-      },
-    },
   },
-  optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom'],
-  },
-});
+})
