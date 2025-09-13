@@ -1,195 +1,117 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
-// Create the Authentication Context
+const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+
 const AuthContext = createContext();
 
-// Create a hook to use the auth context
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
 
-// Provider component that wraps the app and makes auth object available to any child component
-export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [token, setToken] = useState(null);
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3002';
-
-  // On mount, check if user is already logged in
   useEffect(() => {
-    const storedToken = localStorage.getItem('authToken');
-    const storedUser = localStorage.getItem('userData');
-
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setCurrentUser(JSON.parse(storedUser));
-      
-      // Configure axios to use the token for all requests
-      axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-    }
-    
-    setLoading(false);
+    checkAuthStatus();
   }, []);
 
-  // Login function
+  const checkAuthStatus = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        // FIXED: Changed from /api/auth/verify to /api/users/profile
+        const response = await axios.get(`${apiUrl}/api/users/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        setUser(response.data.user);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      localStorage.removeItem('authToken');
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const login = async (email, password) => {
     try {
       setError(null);
-      const response = await axios.post(`${apiUrl}/api/auth/login`, {
+      // FIXED: Changed from /api/auth/login to /api/users/login
+      const response = await axios.post(`${apiUrl}/api/users/login`, {
         email,
         password
       });
-
-      if (response.data.success) {
-        const { token, user } = response.data;
-        
-        // Save to localStorage
-        localStorage.setItem('authToken', token);
-        localStorage.setItem('userData', JSON.stringify(user));
-        
-        // Update state
-        setToken(token);
-        setCurrentUser(user);
-        
-        // Set Authorization header for subsequent requests
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        return { success: true };
-      } else {
-        setError('Login failed. Please check your credentials.');
-        return { success: false, error: 'Login failed' };
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || 'Login failed. Please try again.';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    }
-  };
-
-  // Register function
-  const register = async (userData) => {
-    try {
-      setError(null);
       
-      // First create the company
-      const companyResponse = await axios.post(`${apiUrl}/api/companies`, {
-        name: userData.companyName,
-        taxId: userData.taxId
-      });
-
-      if (companyResponse.data.success) {
-        const companyId = companyResponse.data.data._id;
-
-        // Then register the user with the company
-        const userResponse = await axios.post(`${apiUrl}/api/auth/register`, {
-          name: userData.name,
-          email: userData.email,
-          password: userData.password,
-          company: companyId
-        });
-
-        if (userResponse.data.success) {
-          const { token, user } = userResponse.data;
-          
-          // Save to localStorage
-          localStorage.setItem('authToken', token);
-          localStorage.setItem('userData', JSON.stringify(user));
-          
-          // Update state
-          setToken(token);
-          setCurrentUser(user);
-          
-          // Set Authorization header for subsequent requests
-          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          
-          return { success: true };
-        } else {
-          setError('Registration failed. Please try again.');
-          return { success: false, error: 'Registration failed' };
-        }
-      } else {
-        setError('Failed to create company. Please try again.');
-        return { success: false, error: 'Failed to create company' };
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || 'Registration failed. Please try again.';
+      const { token, user } = response.data;
+      
+      localStorage.setItem('authToken', token);
+      setUser(user);
+      
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || 'Login failed';
       setError(errorMessage);
-      return { success: false, error: errorMessage };
+      return { 
+        success: false, 
+        error: errorMessage
+      };
     }
   };
 
-  // Logout function
-  const logout = () => {
-    // Clear localStorage
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userData');
-    
-    // Clear state
-    setToken(null);
-    setCurrentUser(null);
-    
-    // Clear Authorization header
-    delete axios.defaults.headers.common['Authorization'];
-  };
-
-  // Check if user is authenticated
-  const isAuthenticated = () => {
-    return !!token && !!currentUser;
-  };
-
-  // Get the current user's company ID
-  const getCompanyId = () => {
-    return currentUser ? currentUser.company : null;
-  };
-
-  // Update user profile
-  const updateProfile = async (updatedData) => {
+  const register = async (email, password, companyName) => {
     try {
       setError(null);
-      const response = await axios.put(`${apiUrl}/api/users/profile`, updatedData, {
-        headers: { Authorization: `Bearer ${token}` }
+      // FIXED: Changed from /api/auth/register to /api/users/register
+      const response = await axios.post(`${apiUrl}/api/users/register`, {
+        email,
+        password,
+        companyName
       });
-
-      if (response.data.success) {
-        // Update local storage with new user data
-        const updatedUser = { ...currentUser, ...response.data.data };
-        localStorage.setItem('userData', JSON.stringify(updatedUser));
-        setCurrentUser(updatedUser);
-        return { success: true };
-      } else {
-        setError('Failed to update profile. Please try again.');
-        return { success: false, error: 'Failed to update profile' };
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || 'Failed to update profile. Please try again.';
+      
+      const { token, user } = response.data;
+      
+      localStorage.setItem('authToken', token);
+      setUser(user);
+      
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || 'Registration failed';
       setError(errorMessage);
-      return { success: false, error: errorMessage };
+      return { 
+        success: false, 
+        error: errorMessage
+      };
     }
   };
 
-  // Create value object to share with components
+  const logout = () => {
+    localStorage.removeItem('authToken');
+    setUser(null);
+    setError(null);
+  };
+
   const value = {
-    currentUser,
-    token,
-    error,
+    user,
     loading,
+    error,
     login,
     register,
-    logout,
-    isAuthenticated,
-    getCompanyId,
-    updateProfile,
-    setError
+    logout
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
-};
-
-export default AuthContext;
+}

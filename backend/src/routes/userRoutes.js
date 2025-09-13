@@ -1,30 +1,32 @@
 import express from 'express';
-import { 
-  getUsers, 
-  getCompanyUsers, 
-  getUserById,
-  updateUserProfile,
-  updateUser,
-  deleteUser 
-} from '../controllers/userController.js';
-import { protect, admin } from '../middleware/auth.js';
+import {
+  registerUser,
+  loginUser,
+  getUserProfile,
+  updateUserProfile
+} from '../controllers/authController.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Protected routes
-router.use(protect);
+// @desc Register new user
+// @route POST /api/users/register
+// @access Public
+router.post('/register', registerUser);
 
-router.route('/')
-  .get(admin, getUsers); // Admin only: Get all users
+// @desc Authenticate user & get token
+// @route POST /api/users/login
+// @access Public
+router.post('/login', loginUser);
 
-router.get('/company', getCompanyUsers); // Get users from the same company
+// @desc Get user profile
+// @route GET /api/users/profile
+// @access Private
+router.get('/profile', protect, getUserProfile);
 
-router.route('/profile')
-  .put(updateUserProfile); // Update own profile
-
-router.route('/:id')
-  .get(getUserById)
-  .put(admin, updateUser) // Admin only: Update any user
-  .delete(admin, deleteUser); // Admin only: Delete user
+// @desc Update user profile
+// @route PUT /api/users/profile
+// @access Private
+router.put('/profile', protect, updateUserProfile);
 
 export default router;

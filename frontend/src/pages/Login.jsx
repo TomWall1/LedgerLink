@@ -1,150 +1,237 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 
-const Login = () => {
-  const navigate = useNavigate();
+const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
+
+const Login = ({ onSwitchToRegister }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-
-  const { email, password } = formData;
-
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3002';
+  const { login } = useAuth();
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    
+    if (!formData.password.trim()) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    
+    if (!validateForm()) return;
+    
     setIsLoading(true);
-
+    setErrors({});
+    
     try {
-      const response = await axios.post(`${apiUrl}/api/auth/login`, {
-        email,
-        password
+      // FIXED: Changed from /api/auth/login to /api/users/login
+      const response = await axios.post(`${apiUrl}/api/users/login`, {
+        email: formData.email,
+        password: formData.password
       });
-
-      if (response.data.success) {
-        // Store token in localStorage
-        localStorage.setItem('authToken', response.data.token);
-        localStorage.setItem('userData', JSON.stringify(response.data.user));
-        
-        // Redirect to dashboard using React Router
-        navigate('/');
-      } else {
-        setError('Login failed. Please check your credentials.');
+      
+      const { token, user } = response.data;
+      
+      // Store token and update auth state
+      localStorage.setItem('authToken', token);
+      
+      // Use AuthContext login if available, otherwise handle directly
+      if (login) {
+        await login(formData.email, formData.password);
       }
       
-      setIsLoading(false);
-    } catch (err) {
-      setError(
-        err.response?.data?.error || 
-        'Login failed. Please check your credentials.'
-      );
+      // Redirect will be handled by AuthContext
+    } catch (error) {
+      setErrors({
+        submit: error.response?.data?.error || 'Login failed. Please try again.'
+      });
+    } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-lg">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-primary">Login to LedgerLink</h1>
-          <p className="text-gray-600 mt-2">Enter your credentials to access your account</p>
-        </div>
-
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
-              Email Address
-            </label>
-            <input
-              className="shadow appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              name="email"
-              value={email}
-              onChange={handleChange}
-              required
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
-              Password
-            </label>
-            <input
-              className="shadow appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              name="password"
-              value={password}
-              onChange={handleChange}
-              required
-            />
-          </div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <input
-                id="remember"
-                name="remember"
-                type="checkbox"
-                className="h-4 w-4 text-secondary focus:ring-secondary border-gray-300 rounded"
-              />
-              <label htmlFor="remember" className="ml-2 block text-sm text-gray-700">
-                Remember me
-              </label>
-            </div>
-            <div className="text-sm">
-              <Link to="/forgot-password" className="text-indigo-600 hover:text-opacity-80">
-                Forgot your password?
-              </Link>
+    <div className="auth-container">
+      <div className="auth-card animate-fade-in">
+        <div className="card">
+          <div className="card-header text-center">
+            {/* Logo */}
+            <div className="mb-6">
+              <div className="w-12 h-12 mx-auto bg-primary-500 rounded-lg flex items-center justify-center mb-4">
+                <svg 
+                  className="w-6 h-6 text-white" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" 
+                  />
+                </svg>
+              </div>
+              <h1 className="h2 text-neutral-900">Welcome back</h1>
+              <p className="text-base text-neutral-400 mt-2">
+                Sign in to your LedgerLink account
+              </p>
             </div>
           </div>
-          <div className="mb-6">
-            <button
-              type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Logging in...
-                </span>
-              ) : (
-                'Log In'
+
+          <div className="card-body">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Email Field */}
+              <div>
+                <label htmlFor="email" className="label">
+                  Email address
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className={`input ${errors.email ? 'error' : ''}`}
+                  placeholder="Enter your email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                />
+                {errors.email && (
+                  <p className="error-message" role="alert">
+                    {errors.email}
+                  </p>
+                )}
+              </div>
+
+              {/* Password Field */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="password" className="label mb-0">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    className="text-small text-primary-500 hover:text-primary-700 transition-colors"
+                    onClick={() => {/* Handle forgot password */}}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  className={`input ${errors.password ? 'error' : ''}`}
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                />
+                {errors.password && (
+                  <p className="error-message" role="alert">
+                    {errors.password}
+                  </p>
+                )}
+              </div>
+
+              {/* Submit Error */}
+              {errors.submit && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                  <p className="text-small text-error" role="alert">
+                    {errors.submit}
+                  </p>
+                </div>
               )}
-            </button>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="btn btn-primary w-full"
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Signing in...
+                  </div>
+                ) : (
+                  'Sign in'
+                )}
+              </button>
+            </form>
           </div>
-          <div className="text-center">
-            <p className="text-sm text-gray-600">
+
+          <div className="card-footer">
+            <p className="text-center text-small text-neutral-400">
               Don't have an account?{' '}
-              <Link to="/register" className="text-indigo-600 hover:text-opacity-80">
-                Register here
-              </Link>
+              <button
+                type="button"
+                className="text-primary-500 hover:text-primary-700 font-medium transition-colors"
+                onClick={onSwitchToRegister}
+              >
+                Sign up here
+              </button>
             </p>
           </div>
-        </form>
+        </div>
+
+        {/* Trust indicators */}
+        <div className="mt-8 text-center">
+          <div className="flex items-center justify-center gap-6 text-neutral-400">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+              <span className="text-small">Secure login</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span className="text-small">Bank-grade encryption</span>
+            </div>
+          </div>
+          <p className="text-small text-neutral-400 mt-4">
+            Your financial data is protected with enterprise-level security
+          </p>
+        </div>
       </div>
     </div>
   );
