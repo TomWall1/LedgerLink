@@ -29,7 +29,6 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [counterpartyCsvFile, setCounterpartyCsvFile] = useState<File | null>(null);
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -106,7 +105,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
     setExpandedRows(newExpanded);
   };
 
-  const getStatusBadge = (status: string, confidence: number) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case 'matched':
         return <Badge variant="success">Matched</Badge>;
@@ -346,7 +345,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                         {match.confidence}%
                       </Badge>
                     </TableCell>
-                    <TableCell>{getStatusBadge(match.status, match.confidence)}</TableCell>
+                    <TableCell>{getStatusBadge(match.status)}</TableCell>
                     <TableCell>
                       <button
                         className="p-1 hover:bg-neutral-100 rounded transition-colors duration-120"
@@ -450,23 +449,6 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
               Required columns: transaction_number, amount, issue_date, due_date, status, reference
             </p>
           </div>
-
-          {!isLoggedIn && (
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Counterparty Ledger CSV (Optional)
-              </label>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => setCounterpartyCsvFile(e.target.files?.[0] || null)}
-                className="input w-full"
-              />
-              <p className="text-xs text-neutral-500 mt-1">
-                Upload both files to match CSV to CSV
-              </p>
-            </div>
-          )}
 
           <div className="flex space-x-3 pt-4">
             <Button
