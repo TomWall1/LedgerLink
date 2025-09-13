@@ -1,202 +1,149 @@
-const express = require('express');
-const session = require('express-session');
-const mongoose = require('mongoose');
-const MongoStore = require('connect-mongo');
-const cors = require('cors');
-const path = require('path');
-require('dotenv').config();
+import express from 'express';
+import session from 'express-session';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 
-// Import routes
-const userRoutes = require('./routes/users');
-const xeroRoutes = require('./routes/xero');
-const transactionRoutes = require('./routes/transactions');
+// Load environment variables
+dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3002;
 
-console.log('🚀 Starting LedgerLink server...');
-console.log('📁 Routes loaded:', {
-  users: !!userRoutes,
-  xero: !!xeroRoutes, 
-  transactions: !!transactionRoutes
+// Security middleware
+app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
 });
+app.use('/api/', limiter);
 
-// CORS configuration (FIXED URL)
+// CORS configuration
 app.use(cors({
-  origin: [
-    'https://ledgerlink.vercel.app',  // ✅ FIXED: Removed extra 'l'
-    'http://localhost:3000',
-    'http://localhost:3001'
-  ],
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Session configuration with MongoDB store
-const sessionConfig = {
-  secret: process.env.SESSION_SECRET || 'your-secret-key-change-this-in-production',
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'ledgerlink-development-secret',
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/ledgerlink',
-    touchAfter: 24 * 3600,
-    ttl: 24 * 60 * 60
-  }),
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
-};
+}));
 
-app.use(session(sessionConfig));
+// MongoDB connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ledgerlink';
 
-// Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ledgerlink', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('✅ Connected to MongoDB');
-  console.log('✅ Session store configured with MongoDB');
-})
-.catch((error) => {
-  console.error('❌ MongoDB connection error:', error);
-  if (process.env.NODE_ENV !== 'production') {
-    console.warn('⚠️  Running without database connection in development mode');
-  } else {
-    console.error('💥 Production requires database connection');
+mongoose.connect(MONGODB_URI)
+  .then(() => {
+    console.log('Connected to MongoDB successfully');
+  })
+  .catch((error) => {
+    console.error('MongoDB connection error:', error);
     process.exit(1);
+  });
+
+// Basic health check route
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'LedgerLink API is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Test database connection route
+app.get('/test/db', async (req, res) => {
+  try {
+    const dbState = mongoose.connection.readyState;
+    const stateMap = {
+      0: 'disconnected',
+      1: 'connected', 
+      2: 'connecting',
+      3: 'disconnecting'
+    };
+    
+    res.json({
+      database: {
+        status: stateMap[dbState],
+        host: mongoose.connection.host,
+        port: mongoose.connection.port,
+        name: mongoose.connection.name
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Database connection test failed',
+      message: error.message
+    });
   }
 });
 
-// Middleware
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Create uploads directory if it doesn't exist
-const fs = require('fs');
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// API Routes (with logging)
-console.log('🔗 Setting up API routes...');
-app.use('/api/users', userRoutes);
-app.use('/api/xero', xeroRoutes);
-app.use('/api/transactions', transactionRoutes);
-console.log('✅ API routes configured');
-
-// Test route to verify server is working
-app.get('/api/test', (req, res) => {
-  res.json({
-    message: 'LedgerLink API is working!',
-    timestamp: new Date().toISOString(),
-    routes: {
-      users: '/api/users',
-      xero: '/api/xero',
-      transactions: '/api/transactions'
-    }
+// API routes placeholder
+app.use('/api', (req, res, next) => {
+  // Add API routes here as they're developed
+  res.status(404).json({
+    error: 'API endpoint not found',
+    message: `${req.method} ${req.path} is not implemented yet`
   });
-});
-
-// Health check endpoint
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'LedgerLink API is running',
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    sessionStore: 'MongoDB (MongoStore)',
-    routes: {
-      test: '/api/test',
-      users: '/api/users',
-      xero: '/api/xero',
-      transactions: '/api/transactions'
-    }
-  });
-});
-
-// Additional health check for monitoring
-app.get('/health', (req, res) => {
-  const health = {
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    sessionStore: 'MongoDB',
-    memory: process.memoryUsage(),
-    version: process.env.npm_package_version || '1.0.0'
-  };
-  
-  res.json(health);
 });
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-  console.error('Unhandled error:', {
-    message: error.message,
-    stack: error.stack,
-    url: req.url,
-    method: req.method,
-    timestamp: new Date().toISOString()
-  });
-  
-  const isDevelopment = process.env.NODE_ENV !== 'production';
-  
-  res.status(error.status || 500).json({ 
+  console.error('Server error:', error);
+  res.status(500).json({
     error: 'Internal server error',
-    message: isDevelopment ? error.message : 'Something went wrong',
-    ...(isDevelopment && { stack: error.stack })
+    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
   });
 });
 
-// Handle 404 errors
+// 404 handler
 app.use('*', (req, res) => {
-  console.log('❌ 404 - Route not found:', req.method, req.originalUrl);
-  res.status(404).json({ 
+  res.status(404).json({
     error: 'Route not found',
-    path: req.originalUrl,
-    method: req.method,
-    availableRoutes: {
-      root: '/',
-      health: '/health',
-      test: '/api/test',
-      users: '/api/users/*',
-      xero: '/api/xero/*',
-      transactions: '/api/transactions/*'
-    }
+    message: `${req.method} ${req.originalUrl} not found`
   });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`\n🚀 LedgerLink API Server running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔍 DB test: http://localhost:${PORT}/test/db\n`);
 });
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received. Shutting down gracefully...');
-  await mongoose.connection.close();
-  process.exit(0);
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  mongoose.connection.close(() => {
+    console.log('MongoDB connection closed');
+    process.exit(0);
+  });
 });
 
-process.on('SIGINT', async () => {
-  console.log('SIGINT received. Shutting down gracefully...');
-  await mongoose.connection.close();
-  process.exit(0);
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  mongoose.connection.close(() => {
+    console.log('MongoDB connection closed');
+    process.exit(0);
+  });
 });
-
-app.listen(PORT, () => {
-  console.log(`🚀 LedgerLink server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 API URL: http://localhost:${PORT}`);
-  console.log(`💾 Session Store: MongoDB (production-ready)`);
-  console.log(`🔗 Available routes:`);
-  console.log(`   GET  /              - API info`);
-  console.log(`   GET  /health        - Health check`);
-  console.log(`   GET  /api/test      - Test route`);
-  console.log(`   *    /api/users/*   - User authentication`);
-  console.log(`   *    /api/xero/*    - Xero integration`);
-  console.log(`   *    /api/transactions/* - Transaction processing`);
-});
-
-module.exports = app;
