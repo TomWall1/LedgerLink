@@ -1,94 +1,77 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
-import { Input } from '../components/ui/Input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
-import { mockCounterpartyLinks } from '../data/mockData';
-import { useToast } from '../hooks/useToast';
 
-export interface CounterpartiesProps {
-  isLoggedIn: boolean;
-  onLogin: () => void;
+interface Counterparty {
+  id: string;
+  name: string;
+  email: string;
+  type: 'customer' | 'vendor';
+  status: 'linked' | 'invited' | 'pending' | 'unlinked';
+  linkedSystem?: string;
+  lastActivity?: string;
+  matchingEnabled: boolean;
+  totalTransactions?: number;
+  matchRate?: number;
 }
 
-const Counterparties: React.FC<CounterpartiesProps> = ({ isLoggedIn, onLogin }) => {
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [counterparties, setCounterparties] = useState(mockCounterpartyLinks);
-  const [isInviting, setIsInviting] = useState(false);
-  const [inviteForm, setInviteForm] = useState({
-    customerName: '',
-    email: '',
-    message: '',
-  });
-  const { success, error } = useToast();
+export const Counterparties: React.FC = () => {
+  const [inviteModal, setInviteModal] = useState(false);
+  const [selectedCounterparty, setSelectedCounterparty] = useState<Counterparty | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteType, setInviteType] = useState<'customer' | 'vendor'>('customer');
+  const [inviteName, setInviteName] = useState('');
   
-  if (!isLoggedIn) {
-    return (
-      <div className="p-6">
-        <div className="max-w-2xl mx-auto text-center py-16">
-          <div className="w-16 h-16 bg-warning-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-8 h-8 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h2 className="text-h2 font-bold text-neutral-900 mb-4">
-            Account Required
-          </h2>
-          <p className="text-body-lg text-neutral-600 mb-8">
-            Please create an account to manage counterparty connections. 
-            This enables secure collaboration with your customers and vendors.
-          </p>
-          <Button variant="primary" onClick={onLogin}>
-            Create Account
-          </Button>
-        </div>
-      </div>
-    );
-  }
-  
-  const handleInvite = async () => {
-    if (!inviteForm.customerName || !inviteForm.email) {
-      error('Please fill in all required fields');
-      return;
+  // Mock data
+  const [counterparties, setCounterparties] = useState<Counterparty[]>([
+    {
+      id: '1',
+      name: 'Acme Corporation',
+      email: 'finance@acme.com',
+      type: 'customer',
+      status: 'linked',
+      linkedSystem: 'Xero',
+      lastActivity: '2 hours ago',
+      matchingEnabled: true,
+      totalTransactions: 145,
+      matchRate: 96.5
+    },
+    {
+      id: '2',
+      name: 'Beta Limited',
+      email: 'accounts@beta.com',
+      type: 'vendor',
+      status: 'invited',
+      lastActivity: '1 day ago',
+      matchingEnabled: false,
+      totalTransactions: 23
+    },
+    {
+      id: '3',
+      name: 'Gamma Industries',
+      email: 'billing@gamma.com',
+      type: 'customer',
+      status: 'pending',
+      lastActivity: '3 days ago',
+      matchingEnabled: false,
+      totalTransactions: 67
+    },
+    {
+      id: '4',
+      name: 'Delta Services',
+      email: 'finance@delta.com',
+      type: 'vendor',
+      status: 'unlinked',
+      matchingEnabled: false,
+      totalTransactions: 89
     }
-    
-    setIsInviting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      const newCounterparty = {
-        id: `cp-${Date.now()}`,
-        ourCustomer: inviteForm.customerName,
-        theirSystem: 'Unknown',
-        connectionStatus: 'invited' as const,
-        inviteDate: new Date().toISOString(),
-        email: inviteForm.email,
-      };
-      
-      setCounterparties(prev => [...prev, newCounterparty]);
-      setIsInviteModalOpen(false);
-      setInviteForm({ customerName: '', email: '', message: '' });
-      setIsInviting(false);
-      
-      success(`Invitation sent to ${inviteForm.email}`);
-    }, 1500);
-  };
+  ]);
   
-  const handleResendInvite = (id: string) => {
-    const counterparty = counterparties.find(cp => cp.id === id);
-    if (counterparty) {
-      success(`Invitation resent to ${counterparty.email}`);
-    }
-  };
-  
-  const handleRevokeInvite = (id: string) => {
-    setCounterparties(prev => prev.filter(cp => cp.id !== id));
-    success('Invitation revoked');
-  };
-  
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: Counterparty['status']) => {
     switch (status) {
       case 'linked':
         return <Badge variant="success">Linked</Badge>;
@@ -96,110 +79,106 @@ const Counterparties: React.FC<CounterpartiesProps> = ({ isLoggedIn, onLogin }) 
         return <Badge variant="warning">Invited</Badge>;
       case 'pending':
         return <Badge variant="default">Pending</Badge>;
-      case 'declined':
-        return <Badge variant="error">Declined</Badge>;
+      case 'unlinked':
+        return <Badge variant="error">Unlinked</Badge>;
       default:
-        return <Badge>Unknown</Badge>;
+        return <Badge variant="default">{status}</Badge>;
     }
   };
   
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+  const handleInvite = () => {
+    const newCounterparty: Counterparty = {
+      id: Date.now().toString(),
+      name: inviteName,
+      email: inviteEmail,
+      type: inviteType,
+      status: 'invited',
+      matchingEnabled: false,
+      lastActivity: 'Just now'
+    };
+    
+    setCounterparties(prev => [...prev, newCounterparty]);
+    setInviteModal(false);
+    setInviteEmail('');
+    setInviteName('');
   };
   
-  const linkedCount = counterparties.filter(cp => cp.connectionStatus === 'linked').length;
-  const invitedCount = counterparties.filter(cp => cp.connectionStatus === 'invited').length;
-  const pendingCount = counterparties.filter(cp => cp.connectionStatus === 'pending').length;
+  const handleResendInvite = (counterparty: Counterparty) => {
+    // Simulate resending invite
+    console.log('Resending invite to:', counterparty.email);
+    setCounterparties(prev => 
+      prev.map(cp => 
+        cp.id === counterparty.id 
+          ? { ...cp, lastActivity: 'Just now' }
+          : cp
+      )
+    );
+  };
+  
+  const handleRemoveCounterparty = (id: string) => {
+    setCounterparties(prev => prev.filter(cp => cp.id !== id));
+  };
+  
+  const linkedCount = counterparties.filter(cp => cp.status === 'linked').length;
+  const invitedCount = counterparties.filter(cp => cp.status === 'invited').length;
+  const pendingCount = counterparties.filter(cp => cp.status === 'pending').length;
   
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-h1 font-bold text-neutral-900">Counterparties</h1>
-          <p className="mt-1 text-body text-neutral-600">
-            Invite customers and vendors to connect their systems for automated reconciliation
-          </p>
+      <div className="mb-8">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-h1 text-neutral-900 mb-2">Counterparties</h1>
+            <p className="text-body-lg text-neutral-600">
+              Manage relationships with customers and vendors for automated reconciliation.
+            </p>
+          </div>
+          <Button 
+            variant="primary" 
+            onClick={() => setInviteModal(true)}
+            leftIcon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+            }
+          >
+            Invite Counterparty
+          </Button>
         </div>
-        <Button 
-          variant="primary" 
-          onClick={() => setIsInviteModalOpen(true)}
-        >
-          Invite counterparty
-        </Button>
       </div>
       
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-small font-medium text-neutral-600 uppercase tracking-wide">
-                  Linked
-                </p>
-                <p className="mt-2 text-h2 font-bold text-success-600">
-                  {linkedCount}
-                </p>
-                <p className="mt-1 text-small text-neutral-500">
-                  Active connections
-                </p>
-              </div>
-              <div className="p-3 bg-success-100 rounded-full">
-                <svg className="w-6 h-6 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-              </div>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <div className="text-h1 font-bold text-primary-600">{counterparties.length}</div>
+              <div className="text-small text-neutral-600">Total Counterparties</div>
             </div>
           </CardContent>
         </Card>
-        
         <Card>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-small font-medium text-neutral-600 uppercase tracking-wide">
-                  Invited
-                </p>
-                <p className="mt-2 text-h2 font-bold text-warning-600">
-                  {invitedCount}
-                </p>
-                <p className="mt-1 text-small text-neutral-500">
-                  Pending response
-                </p>
-              </div>
-              <div className="p-3 bg-warning-100 rounded-full">
-                <svg className="w-6 h-6 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <div className="text-h1 font-bold text-success">{linkedCount}</div>
+              <div className="text-small text-neutral-600">Linked</div>
             </div>
           </CardContent>
         </Card>
-        
         <Card>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-small font-medium text-neutral-600 uppercase tracking-wide">
-                  Pending
-                </p>
-                <p className="mt-2 text-h2 font-bold text-primary-600">
-                  {pendingCount}
-                </p>
-                <p className="mt-1 text-small text-neutral-500">
-                  Setting up connection
-                </p>
-              </div>
-              <div className="p-3 bg-primary-100 rounded-full">
-                <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                </svg>
-              </div>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <div className="text-h1 font-bold text-warning">{invitedCount}</div>
+              <div className="text-small text-neutral-600">Invited</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center">
+              <div className="text-h1 font-bold text-neutral-600">{pendingCount}</div>
+              <div className="text-small text-neutral-600">Pending</div>
             </div>
           </CardContent>
         </Card>
@@ -208,187 +187,314 @@ const Counterparties: React.FC<CounterpartiesProps> = ({ isLoggedIn, onLogin }) 
       {/* Counterparties Table */}
       <Card>
         <CardHeader>
-          <h2 className="text-h3 font-semibold text-neutral-900">
-            Counterparty Connections
-          </h2>
-          <p className="text-body text-neutral-600">
-            Manage your customer and vendor connections
-          </p>
-        </CardHeader>
-        <CardContent>
-          {counterparties.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <h3 className="text-h3 font-medium text-neutral-900 mb-2">
-                No counterparties yet
-              </h3>
-              <p className="text-body text-neutral-600 mb-6">
-                Invite your customers and vendors to connect their accounting systems for automated reconciliation.
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-h3 text-neutral-900">All Counterparties</h2>
+              <p className="text-body text-neutral-600 mt-1">
+                Manage your customer and vendor relationships
               </p>
-              <Button 
-                variant="primary" 
-                onClick={() => setIsInviteModalOpen(true)}
-              >
-                Send your first invite
-              </Button>
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer/Vendor</TableHead>
-                  <TableHead>Their System</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Actions</TableHead>
+            <div className="flex space-x-2">
+              <Input 
+                placeholder="Search counterparties..."
+                className="w-64"
+                leftIcon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                }
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>System</TableHead>
+                <TableHead>Transactions</TableHead>
+                <TableHead>Match Rate</TableHead>
+                <TableHead>Last Activity</TableHead>
+                <TableHead className="w-32">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {counterparties.map((counterparty) => (
+                <TableRow key={counterparty.id}>
+                  <TableCell>
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+                        counterparty.type === 'customer' 
+                          ? 'bg-primary-100 text-primary-700'
+                          : 'bg-warning-100 text-warning-700'
+                      }`}>
+                        {counterparty.type === 'customer' ? 'C' : 'V'}
+                      </div>
+                      <div>
+                        <p className="font-medium text-neutral-900">{counterparty.name}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-neutral-600">{counterparty.email}</TableCell>
+                  <TableCell>
+                    <span className="capitalize text-neutral-900">{counterparty.type}</span>
+                  </TableCell>
+                  <TableCell>{getStatusBadge(counterparty.status)}</TableCell>
+                  <TableCell>
+                    {counterparty.linkedSystem ? (
+                      <span className="text-neutral-900">{counterparty.linkedSystem}</span>
+                    ) : (
+                      <span className="text-neutral-400">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-neutral-900">
+                      {counterparty.totalTransactions?.toLocaleString() || 0}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {counterparty.matchRate ? (
+                      <Badge variant="confidence" score={counterparty.matchRate}>
+                        {counterparty.matchRate.toFixed(1)}%
+                      </Badge>
+                    ) : (
+                      <span className="text-neutral-400">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-neutral-600">
+                    {counterparty.lastActivity || '-'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-1">
+                      {counterparty.status === 'invited' && (
+                        <button
+                          onClick={() => handleResendInvite(counterparty)}
+                          className="p-1 hover:bg-neutral-100 rounded transition-colors duration-120"
+                          title="Resend invitation"
+                        >
+                          <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </button>
+                      )}
+                      
+                      <button
+                        onClick={() => setSelectedCounterparty(counterparty)}
+                        className="p-1 hover:bg-neutral-100 rounded transition-colors duration-120"
+                        title="View details"
+                      >
+                        <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                      
+                      <button
+                        onClick={() => handleRemoveCounterparty(counterparty.id)}
+                        className="p-1 hover:bg-error-100 rounded transition-colors duration-120"
+                        title="Remove counterparty"
+                      >
+                        <svg className="w-4 h-4 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {counterparties.map((counterparty) => (
-                  <TableRow key={counterparty.id}>
-                    <TableCell>
-                      <div className="font-medium text-neutral-900">
-                        {counterparty.ourCustomer}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-neutral-600">
-                        {counterparty.theirSystem}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(counterparty.connectionStatus)}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-neutral-600">
-                        {counterparty.linkDate 
-                          ? formatDate(counterparty.linkDate)
-                          : counterparty.inviteDate 
-                          ? formatDate(counterparty.inviteDate)
-                          : '-'
-                        }
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-neutral-600">
-                        {counterparty.email || '-'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        {counterparty.connectionStatus === 'invited' && (
-                          <>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleResendInvite(counterparty.id)}
-                            >
-                              Resend
-                            </Button>
-                            <Button 
-                              variant="destructive" 
-                              size="sm"
-                              onClick={() => handleRevokeInvite(counterparty.id)}
-                            >
-                              Revoke
-                            </Button>
-                          </>
-                        )}
-                        {counterparty.connectionStatus === 'linked' && (
-                          <Button 
-                            variant="secondary" 
-                            size="sm"
-                          >
-                            View matches
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
       
       {/* Invite Modal */}
       <Modal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
+        isOpen={inviteModal}
+        onClose={() => setInviteModal(false)}
         title="Invite Counterparty"
-        description="Send a secure invitation to connect accounting systems"
-        size="md"
+        description="Invite a customer or vendor to link their accounting system for automated reconciliation"
       >
         <div className="space-y-4">
           <Input
-            label="Customer/Vendor Name"
-            value={inviteForm.customerName}
-            onChange={(e) => setInviteForm(prev => ({ ...prev, customerName: e.target.value }))}
-            placeholder="e.g., Acme Corporation"
-            helperText="The name of the company you want to invite"
+            label="Company Name"
+            value={inviteName}
+            onChange={(e) => setInviteName(e.target.value)}
+            placeholder="Acme Corporation"
+            required
           />
           
           <Input
-            label="Contact Email"
+            label="Email Address"
             type="email"
-            value={inviteForm.email}
-            onChange={(e) => setInviteForm(prev => ({ ...prev, email: e.target.value }))}
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
             placeholder="finance@company.com"
-            helperText="Email of their finance/accounting contact"
+            helperText="They will receive an invitation to connect their accounting system"
+            required
           />
           
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Custom Message (Optional)
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Counterparty Type
             </label>
-            <textarea
-              className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500"
-              rows={3}
-              value={inviteForm.message}
-              onChange={(e) => setInviteForm(prev => ({ ...prev, message: e.target.value }))}
-              placeholder="Hi! We'd like to connect our accounting systems to streamline our reconciliation process..."
-            />
-            <p className="mt-1 text-xs text-neutral-400">
-              Add a personal message to explain why you're requesting this connection
-            </p>
+            <select
+              value={inviteType}
+              onChange={(e) => setInviteType(e.target.value as 'customer' | 'vendor')}
+              className="input w-full"
+            >
+              <option value="customer">Customer (they owe you money)</option>
+              <option value="vendor">Vendor (you owe them money)</option>
+            </select>
           </div>
           
-          <div className="flex items-center p-3 bg-primary-50 rounded-md">
-            <svg className="w-5 h-5 text-primary-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div>
-              <p className="text-small font-medium text-primary-800">Secure & Private</p>
-              <p className="text-xs text-primary-700">Only invited contacts can access specific customer/vendor data</p>
-            </div>
+          <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+            <h4 className="font-medium text-primary-900 mb-2">What happens next?</h4>
+            <ul className="text-small text-primary-700 space-y-1">
+              <li>• {inviteName || 'The counterparty'} receives a secure invitation email</li>
+              <li>• They can connect their accounting system in read-only mode</li>
+              <li>• Both parties can view reconciliation results</li>
+              <li>• No sensitive data is shared between systems</li>
+            </ul>
           </div>
           
-          <div className="flex justify-end space-x-3 pt-4">
-            <Button 
-              variant="secondary" 
-              onClick={() => setIsInviteModalOpen(false)}
-              disabled={isInviting}
+          <div className="flex space-x-3 pt-4">
+            <Button
+              variant="primary"
+              onClick={handleInvite}
+              disabled={!inviteEmail || !inviteName}
+              className="flex-1"
+            >
+              Send Invitation
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setInviteModal(false)}
+              className="flex-1"
             >
               Cancel
-            </Button>
-            <Button 
-              variant="primary" 
-              onClick={handleInvite}
-              isLoading={isInviting}
-            >
-              Send invitation
             </Button>
           </div>
         </div>
       </Modal>
+      
+      {/* Counterparty Details Modal */}
+      <Modal
+        isOpen={!!selectedCounterparty}
+        onClose={() => setSelectedCounterparty(null)}
+        title={selectedCounterparty?.name || ''}
+        description="Counterparty details and relationship history"
+        size="lg"
+      >
+        {selectedCounterparty && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium text-neutral-900 mb-2">Contact Information</h4>
+                <div className="space-y-2 text-small">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Email:</span>
+                    <span className="font-medium">{selectedCounterparty.email}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Type:</span>
+                    <span className="font-medium capitalize">{selectedCounterparty.type}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Status:</span>
+                    {getStatusBadge(selectedCounterparty.status)}
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-neutral-900 mb-2">Reconciliation Stats</h4>
+                <div className="space-y-2 text-small">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Total Transactions:</span>
+                    <span className="font-medium">{selectedCounterparty.totalTransactions?.toLocaleString() || 0}</span>
+                  </div>
+                  {selectedCounterparty.matchRate && (
+                    <div className="flex justify-between">
+                      <span className="text-neutral-600">Match Rate:</span>
+                      <Badge variant="confidence" score={selectedCounterparty.matchRate}>
+                        {selectedCounterparty.matchRate.toFixed(1)}%
+                      </Badge>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">System:</span>
+                    <span className="font-medium">{selectedCounterparty.linkedSystem || 'Not linked'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {selectedCounterparty.status === 'linked' && (
+              <div>
+                <h4 className="font-medium text-neutral-900 mb-3">Recent Activity</h4>
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 bg-success-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-neutral-900">System synchronized</p>
+                      <p className="text-xs text-neutral-600">2 hours ago</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-neutral-900">New invoices matched</p>
+                      <p className="text-xs text-neutral-600">5 hours ago</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex space-x-3 pt-4 border-t border-neutral-200">
+              {selectedCounterparty.status === 'linked' && (
+                <Button variant="primary" size="sm">
+                  View Matches
+                </Button>
+              )}
+              {selectedCounterparty.status === 'invited' && (
+                <Button 
+                  variant="primary" 
+                  size="sm"
+                  onClick={() => handleResendInvite(selectedCounterparty)}
+                >
+                  Resend Invitation
+                </Button>
+              )}
+              <Button variant="ghost" size="sm">
+                Edit Details
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={() => {
+                  handleRemoveCounterparty(selectedCounterparty.id);
+                  setSelectedCounterparty(null);
+                }}
+              >
+                Remove
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
-
-export { Counterparties };

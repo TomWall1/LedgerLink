@@ -1,330 +1,401 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
-import { Input } from '../components/ui/Input';
-import { mockERPConnections, supportedERPSystems, supportedBSMSystems } from '../data/mockData';
-import { useToast } from '../hooks/useToast';
 
-export interface ConnectionsProps {
-  isLoggedIn: boolean;
-  onLogin: () => void;
+interface Connection {
+  id: string;
+  name: string;
+  type: 'erp' | 'bsm';
+  platform: string;
+  status: 'connected' | 'disconnected' | 'error' | 'pending';
+  lastSync?: string;
+  accountsConnected?: number;
+  logo?: string;
+  description: string;
 }
 
-const Connections: React.FC<ConnectionsProps> = ({ isLoggedIn, onLogin }) => {
-  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
-  const [selectedSystem, setSelectedSystem] = useState<any>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [connections, setConnections] = useState(mockERPConnections);
-  const { success, error } = useToast();
+export const Connections: React.FC = () => {
+  const [connectionModal, setConnectionModal] = useState<{ open: boolean; connection?: Connection }>({ open: false });
+  const [authCode, setAuthCode] = useState('');
   
-  if (!isLoggedIn) {
-    return (
-      <div className="p-6">
-        <div className="max-w-2xl mx-auto text-center py-16">
-          <div className="w-16 h-16 bg-warning-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-8 h-8 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h2 className="text-h2 font-bold text-neutral-900 mb-4">
-            Account Required
-          </h2>
-          <p className="text-body-lg text-neutral-600 mb-8">
-            Please create an account to connect your ERP and BSM systems. 
-            This ensures secure authentication and data protection.
-          </p>
-          <Button variant="primary" onClick={onLogin}>
-            Create Account
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Mock connections data
+  const [connections, setConnections] = useState<Connection[]>([
+    {
+      id: 'xero-1',
+      name: 'Main Xero Account',
+      type: 'erp',
+      platform: 'Xero',
+      status: 'connected',
+      lastSync: '2 minutes ago',
+      accountsConnected: 3,
+      description: 'Primary accounting system with AR/AP ledgers'
+    },
+    {
+      id: 'quickbooks-1',
+      name: 'QuickBooks Online',
+      type: 'erp',
+      platform: 'QuickBooks',
+      status: 'disconnected',
+      description: 'Cloud-based accounting and bookkeeping software'
+    },
+    {
+      id: 'sage-1',
+      name: 'Sage 50cloud',
+      type: 'erp',
+      platform: 'Sage',
+      status: 'error',
+      lastSync: '2 days ago',
+      description: 'Desktop accounting software with cloud features'
+    }
+  ]);
   
-  const handleConnect = async (system: any) => {
-    setSelectedSystem(system);
-    setIsConnectModalOpen(true);
+  const availableIntegrations = [
+    {
+      platform: 'Xero',
+      type: 'erp' as const,
+      description: 'Connect your Xero accounting data for automatic reconciliation',
+      logo: '🔷',
+      popular: true
+    },
+    {
+      platform: 'QuickBooks',
+      type: 'erp' as const,
+      description: 'Sync with QuickBooks Online for seamless ledger matching',
+      logo: '🔵',
+      popular: true
+    },
+    {
+      platform: 'Sage',
+      type: 'erp' as const,
+      description: 'Integrate Sage accounting systems for comprehensive reconciliation',
+      logo: '🟢',
+      popular: false
+    },
+    {
+      platform: 'NetSuite',
+      type: 'erp' as const,
+      description: 'Enterprise resource planning with advanced financial management',
+      logo: '🔶',
+      popular: false
+    },
+    {
+      platform: 'SAP',
+      type: 'erp' as const,
+      description: 'Connect SAP systems for enterprise-level reconciliation',
+      logo: '🔸',
+      popular: false
+    },
+    {
+      platform: 'Microsoft Dynamics',
+      type: 'erp' as const,
+      description: 'Integrate with Dynamics 365 for comprehensive business management',
+      logo: '🔷',
+      popular: false
+    }
+  ];
+  
+  const getStatusBadge = (status: Connection['status']) => {
+    switch (status) {
+      case 'connected':
+        return <Badge variant="success">Connected</Badge>;
+      case 'disconnected':
+        return <Badge variant="default">Disconnected</Badge>;
+      case 'error':
+        return <Badge variant="error">Error</Badge>;
+      case 'pending':
+        return <Badge variant="warning">Pending</Badge>;
+      default:
+        return <Badge variant="default">{status}</Badge>;
+    }
   };
   
-  const handleConnectSubmit = async () => {
-    setIsConnecting(true);
+  const handleConnect = (platform: string) => {
+    const newConnection: Connection = {
+      id: `${platform.toLowerCase()}-${Date.now()}`,
+      name: `${platform} Connection`,
+      type: 'erp',
+      platform,
+      status: 'pending',
+      description: `${platform} integration`
+    };
     
-    // Simulate API call
-    setTimeout(() => {
-      const newConnection = {
-        id: `conn-${Date.now()}`,
-        name: `${selectedSystem.name} Production`,
-        type: selectedSystem.id,
-        status: 'connected' as const,
-        lastSync: new Date().toISOString(),
-        recordCount: Math.floor(Math.random() * 2000) + 500,
-      };
-      
-      setConnections(prev => [...prev, newConnection]);
-      setIsConnectModalOpen(false);
-      setSelectedSystem(null);
-      setIsConnecting(false);
-      
-      success(`Successfully connected to ${selectedSystem.name}!`);
-    }, 2000);
+    setConnectionModal({ open: true, connection: newConnection });
   };
   
   const handleDisconnect = (connectionId: string) => {
     setConnections(prev => 
       prev.map(conn => 
         conn.id === connectionId 
-          ? { ...conn, status: 'disconnected' as const }
+          ? { ...conn, status: 'disconnected' as const, lastSync: undefined, accountsConnected: undefined }
           : conn
       )
     );
-    success('Connection disconnected');
   };
   
-  const handleSync = (connectionId: string) => {
+  const handleReconnect = (connectionId: string) => {
     setConnections(prev => 
       prev.map(conn => 
         conn.id === connectionId 
-          ? { ...conn, lastSync: new Date().toISOString(), recordCount: Math.floor(Math.random() * 2000) + 500 }
+          ? { ...conn, status: 'connected' as const, lastSync: 'Just now', accountsConnected: 3 }
           : conn
       )
     );
-    success('Synchronization completed');
   };
   
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-  
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'connected':
-        return <Badge variant="success">Connected</Badge>;
-      case 'disconnected':
-        return <Badge variant="error">Disconnected</Badge>;
-      case 'error':
-        return <Badge variant="error">Error</Badge>;
-      default:
-        return <Badge>Unknown</Badge>;
+  const completeConnection = () => {
+    if (connectionModal.connection) {
+      const updatedConnection = {
+        ...connectionModal.connection,
+        status: 'connected' as const,
+        lastSync: 'Just now',
+        accountsConnected: 3
+      };
+      
+      setConnections(prev => [...prev, updatedConnection]);
+      setConnectionModal({ open: false });
+      setAuthCode('');
     }
   };
   
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-h1 font-bold text-neutral-900">Connections</h1>
-          <p className="mt-1 text-body text-neutral-600">
-            Connect your ERP and BSM systems to enable automatic data synchronization
-          </p>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-h1 text-neutral-900 mb-2">System Connections</h1>
+        <p className="text-body-lg text-neutral-600">
+          Connect your ERP and business systems to enable automatic reconciliation and real-time matching.
+        </p>
       </div>
       
       {/* Current Connections */}
-      {connections.length > 0 && (
-        <Card>
-          <CardHeader>
-            <h2 className="text-h3 font-semibold text-neutral-900">
-              Your Connections
-            </h2>
-            <p className="text-body text-neutral-600">
-              Manage your connected systems and synchronization settings
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {connections.map((connection) => (
-                <div key={connection.id} className="flex items-center justify-between p-4 border border-neutral-200 rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
-                      <span className="text-h3 font-bold text-primary-600">
-                        {supportedERPSystems.find(s => s.id === connection.type)?.logo || '🔗'}
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="text-body font-semibold text-neutral-900">
-                        {connection.name}
-                      </h3>
-                      <div className="flex items-center space-x-4 mt-1">
-                        {getStatusBadge(connection.status)}
-                        {connection.lastSync && (
-                          <span className="text-small text-neutral-500">
-                            Last sync: {formatDate(connection.lastSync)}
-                          </span>
-                        )}
-                        {connection.recordCount && (
-                          <span className="text-small text-neutral-500">
-                            {connection.recordCount.toLocaleString()} records
-                          </span>
-                        )}
+      <div className="mb-12">
+        <h2 className="text-h2 text-neutral-900 mb-6">Active Connections</h2>
+        
+        {connections.length === 0 ? (
+          <Card className="text-center py-12">
+            <CardContent>
+              <div className="w-16 h-16 bg-neutral-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              </div>
+              <h3 className="text-h3 text-neutral-900 mb-2">No connections yet</h3>
+              <p className="text-body text-neutral-600 max-w-md mx-auto">
+                Connect your first ERP or business system to start automatically reconciling your ledgers.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {connections.map((connection) => (
+              <Card key={connection.id} className="hover:shadow-lg transition-shadow duration-240">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                        <span className="text-2xl">🔷</span>
+                      </div>
+                      <div>
+                        <h3 className="text-h3 text-neutral-900">{connection.name}</h3>
+                        <p className="text-small text-neutral-600">{connection.platform}</p>
                       </div>
                     </div>
+                    {getStatusBadge(connection.status)}
                   </div>
-                  <div className="flex items-center space-x-2">
+                </CardHeader>
+                
+                <CardContent>
+                  <p className="text-body text-neutral-600 mb-4">{connection.description}</p>
+                  
+                  {connection.status === 'connected' && (
+                    <div className="space-y-2 text-small text-neutral-600">
+                      <div className="flex justify-between">
+                        <span>Last sync:</span>
+                        <span className="font-medium">{connection.lastSync}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Accounts:</span>
+                        <span className="font-medium">{connection.accountsConnected}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {connection.status === 'error' && (
+                    <div className="bg-error-50 border border-error-200 rounded-md p-3">
+                      <p className="text-small text-error-700">
+                        Connection error: Authentication expired. Please reconnect to resume sync.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+                
+                <CardFooter>
+                  <div className="flex space-x-2 w-full">
                     {connection.status === 'connected' && (
+                      <>
+                        <Button variant="ghost" size="sm" className="flex-1">
+                          Sync Now
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => handleDisconnect(connection.id)}
+                        >
+                          Disconnect
+                        </Button>
+                      </>
+                    )}
+                    
+                    {(connection.status === 'disconnected' || connection.status === 'error') && (
                       <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleSync(connection.id)}
+                        variant="primary" 
+                        size="sm" 
+                        className="w-full"
+                        onClick={() => handleReconnect(connection.id)}
                       >
-                        Sync now
+                        {connection.status === 'error' ? 'Reconnect' : 'Connect'}
                       </Button>
                     )}
-                    <Button 
-                      variant={connection.status === 'connected' ? 'destructive' : 'primary'} 
-                      size="sm"
-                      onClick={() => connection.status === 'connected' 
-                        ? handleDisconnect(connection.id)
-                        : handleConnect(supportedERPSystems.find(s => s.id === connection.type))
-                      }
-                    >
-                      {connection.status === 'connected' ? 'Disconnect' : 'Reconnect'}
-                    </Button>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* ERP Systems */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-h3 font-semibold text-neutral-900">
-            ERP Systems
-          </h2>
-          <p className="text-body text-neutral-600">
-            Connect your accounting and enterprise resource planning systems
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {supportedERPSystems.map((system) => {
-              const isConnected = connections.some(conn => conn.type === system.id && conn.status === 'connected');
-              
-              return (
-                <div key={system.id} className="border border-neutral-200 rounded-lg p-4 hover:border-primary-300 transition-colors duration-120">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                      <span className="text-lg">{system.logo}</span>
-                    </div>
-                    <div>
-                      <h3 className="text-body font-semibold text-neutral-900">{system.name}</h3>
-                      {isConnected && <Badge variant="success" className="mt-1">Connected</Badge>}
-                    </div>
-                  </div>
-                  <p className="text-small text-neutral-600 mb-4">{system.description}</p>
-                  <Button 
-                    variant={isConnected ? "secondary" : "primary"} 
-                    size="sm" 
-                    className="w-full"
-                    onClick={() => handleConnect(system)}
-                    disabled={isConnected}
-                  >
-                    {isConnected ? 'Connected' : 'Connect'}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* BSM Systems */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-h3 font-semibold text-neutral-900">
-            Business Systems (BSM)
-          </h2>
-          <p className="text-body text-neutral-600">
-            Connect your CRM and business management platforms
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {supportedBSMSystems.map((system) => (
-              <div key={system.id} className="border border-neutral-200 rounded-lg p-4 hover:border-primary-300 transition-colors duration-120">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                    <span className="text-lg">{system.logo}</span>
-                  </div>
-                  <div>
-                    <h3 className="text-body font-semibold text-neutral-900">{system.name}</h3>
-                  </div>
-                </div>
-                <p className="text-small text-neutral-600 mb-4">{system.description}</p>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  className="w-full"
-                  onClick={() => handleConnect(system)}
-                >
-                  Connect
-                </Button>
-              </div>
+                </CardFooter>
+              </Card>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
       
-      {/* Connect Modal */}
+      {/* Available Integrations */}
+      <div>
+        <h2 className="text-h2 text-neutral-900 mb-6">Available Integrations</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {availableIntegrations.map((integration) => {
+            const isConnected = connections.some(conn => 
+              conn.platform === integration.platform && conn.status === 'connected'
+            );
+            
+            return (
+              <Card key={integration.platform} className="hover:shadow-lg transition-shadow duration-240">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 bg-neutral-100 rounded-lg flex items-center justify-center">
+                        <span className="text-2xl">{integration.logo}</span>
+                      </div>
+                      <div>
+                        <h3 className="text-h3 text-neutral-900">{integration.platform}</h3>
+                        <p className="text-small text-neutral-600 capitalize">{integration.type} System</p>
+                      </div>
+                    </div>
+                    {integration.popular && (
+                      <Badge variant="default">Popular</Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                
+                <CardContent>
+                  <p className="text-body text-neutral-600">{integration.description}</p>
+                </CardContent>
+                
+                <CardFooter>
+                  <Button 
+                    variant={isConnected ? "ghost" : "primary"} 
+                    size="sm" 
+                    className="w-full"
+                    disabled={isConnected}
+                    onClick={() => handleConnect(integration.platform)}
+                  >
+                    {isConnected ? 'Already Connected' : 'Connect'}
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Connection Setup Modal */}
       <Modal
-        isOpen={isConnectModalOpen}
-        onClose={() => setIsConnectModalOpen(false)}
-        title={`Connect to ${selectedSystem?.name}`}
-        description="Enter your system credentials to establish a secure connection"
+        isOpen={connectionModal.open}
+        onClose={() => setConnectionModal({ open: false })}
+        title={`Connect ${connectionModal.connection?.platform}`}
+        description="Follow these steps to securely connect your accounting system"
         size="md"
       >
-        <div className="space-y-4">
-          <Input
-            label="Server URL"
-            placeholder={`https://your-${selectedSystem?.id}.com`}
-            helperText="Your system's base URL or domain"
-          />
-          <Input
-            label="API Key / Client ID"
-            placeholder="Enter your API key or client ID"
-            helperText="Found in your system's API settings"
-          />
-          <Input
-            label="Client Secret"
-            type="password"
-            placeholder="Enter your client secret"
-            helperText="Keep this secure and don't share"
-          />
-          
-          <div className="flex items-center p-3 bg-primary-50 rounded-md">
-            <svg className="w-5 h-5 text-primary-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <div>
-              <p className="text-small font-medium text-primary-800">Secure Connection</p>
-              <p className="text-xs text-primary-700">All credentials are encrypted and stored securely</p>
+        <div className="space-y-6">
+          <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="font-medium text-primary-900">Secure Connection</h4>
+                <p className="text-small text-primary-700 mt-1">
+                  LedgerLink uses OAuth 2.0 for secure authentication. Your login credentials are never stored by us.
+                </p>
+              </div>
             </div>
           </div>
           
-          <div className="flex justify-end space-x-3 pt-4">
-            <Button 
-              variant="secondary" 
-              onClick={() => setIsConnectModalOpen(false)}
-              disabled={isConnecting}
-            >
-              Cancel
-            </Button>
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-medium text-neutral-900 mb-3">Setup Steps:</h4>
+              <ol className="space-y-3">
+                <li className="flex items-start space-x-3">
+                  <span className="flex-shrink-0 w-6 h-6 bg-primary-500 text-white rounded-full flex items-center justify-center text-xs font-medium">1</span>
+                  <div>
+                    <p className="text-sm text-neutral-900 font-medium">Authorize Connection</p>
+                    <p className="text-xs text-neutral-600">Click the button below to open {connectionModal.connection?.platform} authorization</p>
+                  </div>
+                </li>
+                <li className="flex items-start space-x-3">
+                  <span className="flex-shrink-0 w-6 h-6 bg-neutral-300 text-neutral-600 rounded-full flex items-center justify-center text-xs font-medium">2</span>
+                  <div>
+                    <p className="text-sm text-neutral-900 font-medium">Grant Permissions</p>
+                    <p className="text-xs text-neutral-600">Allow LedgerLink to access your accounting data</p>
+                  </div>
+                </li>
+                <li className="flex items-start space-x-3">
+                  <span className="flex-shrink-0 w-6 h-6 bg-neutral-300 text-neutral-600 rounded-full flex items-center justify-center text-xs font-medium">3</span>
+                  <div>
+                    <p className="text-sm text-neutral-900 font-medium">Complete Setup</p>
+                    <p className="text-xs text-neutral-600">Return here to finish the connection process</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+            
+            <div className="border-t border-neutral-200 pt-4">
+              <Input 
+                label="Authorization Code (if required)"
+                value={authCode}
+                onChange={(e) => setAuthCode(e.target.value)}
+                placeholder="Enter code from authorization page..."
+                helperText="Some systems require you to copy an authorization code"
+              />
+            </div>
+          </div>
+          
+          <div className="flex space-x-3 pt-4">
             <Button 
               variant="primary" 
-              onClick={handleConnectSubmit}
-              isLoading={isConnecting}
+              onClick={completeConnection}
+              className="flex-1"
             >
-              Connect
+              Authorize & Connect
+            </Button>
+            <Button 
+              variant="ghost" 
+              onClick={() => setConnectionModal({ open: false })}
+              className="flex-1"
+            >
+              Cancel
             </Button>
           </div>
         </div>
@@ -332,5 +403,3 @@ const Connections: React.FC<ConnectionsProps> = ({ isLoggedIn, onLogin }) => {
     </div>
   );
 };
-
-export { Connections };
