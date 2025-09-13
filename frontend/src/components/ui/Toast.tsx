@@ -47,14 +47,14 @@ const ToastComponent: React.FC<ToastProps> = ({ toast, onDismiss }) => {
     }, 150);
   };
   
-  const variantClasses = {
+  const variantClasses: Record<string, string> = {
     default: 'bg-white border-neutral-200',
     success: 'bg-success-50 border-success-200',
     warning: 'bg-warning-50 border-warning-200',
     error: 'bg-error-50 border-error-200'
   };
   
-  const iconClasses = {
+  const iconClasses: Record<string, string> = {
     default: 'text-neutral-400',
     success: 'text-success-400',
     warning: 'text-warning-400',
@@ -90,18 +90,20 @@ const ToastComponent: React.FC<ToastProps> = ({ toast, onDismiss }) => {
     }
   };
   
+  const currentVariant = toast.variant || 'default';
+  
   return (
     <div
       className={clsx(
         'max-w-sm w-full bg-white shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 transition-all duration-240 ease-smooth',
-        variantClasses[toast.variant || 'default'],
+        variantClasses[currentVariant],
         isVisible && !isExiting ? 'transform translate-x-0 opacity-100' : 'transform translate-x-full opacity-0'
       )}
     >
       <div className="p-4">
         <div className="flex items-start">
-          <div className={clsx('flex-shrink-0', iconClasses[toast.variant || 'default'])}>
-            {getIcon(toast.variant || 'default')}
+          <div className={clsx('flex-shrink-0', iconClasses[currentVariant])}>
+            {getIcon(currentVariant)}
           </div>
           <div className="ml-3 w-0 flex-1 pt-0.5">
             {toast.title && (

@@ -18,7 +18,7 @@ export const Badge: React.FC<BadgeProps> = ({
 }) => {
   // Special handling for confidence scores
   if (variant === 'confidence' && typeof score === 'number') {
-    const getConfidenceVariant = (score: number) => {
+    const getConfidenceVariant = (score: number): 'success' | 'warning' | 'error' => {
       if (score >= 90) return 'success';
       if (score >= 70) return 'warning';
       return 'error';
@@ -29,12 +29,12 @@ export const Badge: React.FC<BadgeProps> = ({
   
   const baseClasses = 'inline-flex items-center font-medium rounded-full';
   
-  const sizeClasses = {
+  const sizeClasses: Record<string, string> = {
     sm: 'px-2.5 py-0.5 text-xs',
     md: 'px-3 py-1 text-sm'
   };
   
-  const variantClasses = {
+  const variantClasses: Record<string, string> = {
     default: 'bg-neutral-100 text-neutral-700',
     success: 'bg-success-100 text-success-700',
     warning: 'bg-warning-100 text-warning-700',

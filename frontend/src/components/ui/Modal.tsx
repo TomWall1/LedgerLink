@@ -48,7 +48,7 @@ export const Modal: React.FC<ModalProps> = ({
   
   if (!isOpen) return null;
   
-  const sizeClasses = {
+  const sizeClasses: Record<string, string> = {
     sm: 'max-w-md',
     md: 'max-w-lg',
     lg: 'max-w-2xl',
