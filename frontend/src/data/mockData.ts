@@ -1,122 +1,254 @@
-/**
- * Mock data for demonstrating LedgerLink functionality
- */
+import { MatchResult, InvoiceRecord, calculateMatchConfidence, generateMatchInsights } from '../utils/matchConfidence';
 
-import { InvoiceRecord } from '../utils/matchConfidence';
-
-export const mockARLedger: InvoiceRecord[] = [
-  {
-    id: 'ar-001',
-    invoiceNumber: 'INV-2024-001',
-    amount: 15000.00,
-    date: '2024-01-15',
-    dueDate: '2024-02-14',
-    reference: 'PO-ABC-123',
-    counterparty: 'Acme Corporation',
-    status: 'open',
-    transactionType: 'INVOICE',
-  },
-  {
-    id: 'ar-002',
-    invoiceNumber: 'INV-2024-002',
-    amount: 8750.50,
-    date: '2024-01-18',
-    dueDate: '2024-02-17',
-    reference: 'SO-456789',
-    counterparty: 'Beta Industries Ltd',
-    status: 'paid',
-    transactionType: 'INVOICE',
-  },
-  {
-    id: 'ar-003',
-    invoiceNumber: 'INV-2024-003',
-    amount: 23400.00,
-    date: '2024-01-22',
-    dueDate: '2024-02-21',
-    reference: 'PO-XYZ-789',
-    counterparty: 'Gamma Solutions Inc',
-    status: 'overdue',
-    transactionType: 'INVOICE',
-  },
-  {
-    id: 'ar-004',
-    invoiceNumber: 'INV-2024-004',
-    amount: 5200.00,
-    date: '2024-01-25',
-    dueDate: '2024-02-24',
-    reference: 'WO-2024-01',
-    counterparty: 'Delta Manufacturing',
-    status: 'open',
-    transactionType: 'INVOICE',
-  },
-  {
-    id: 'ar-005',
-    invoiceNumber: 'CNT-2024-001',
-    amount: -1200.00,
-    date: '2024-01-28',
-    reference: 'INV-2024-001',
-    counterparty: 'Acme Corporation',
-    status: 'open',
-    transactionType: 'CREDIT_NOTE',
-  },
-];
-
-export const mockAPLedger: InvoiceRecord[] = [
-  {
-    id: 'ap-001',
-    invoiceNumber: 'INV-2024-001',
-    amount: 15000.00,
-    date: '2024-01-16', // 1 day difference
-    dueDate: '2024-02-14',
-    reference: 'PO-ABC-123',
-    counterparty: 'Acme Corp', // Slight name difference
-    status: 'paid', // Status difference
-    transactionType: 'INVOICE',
-  },
-  {
-    id: 'ap-002',
-    invoiceNumber: 'INV-2024-002',
-    amount: 8750.50,
-    date: '2024-01-18',
-    dueDate: '2024-02-17',
-    reference: 'SO-456789',
-    counterparty: 'Beta Industries Ltd',
-    status: 'paid',
-    transactionType: 'INVOICE',
-  },
-  {
-    id: 'ap-003',
-    invoiceNumber: 'INV-2024-0O3', // OCR error: 0 instead of 0
-    amount: 23400.00,
-    date: '2024-01-22',
-    dueDate: '2024-02-21',
-    reference: 'PO-XYZ-789',
-    counterparty: 'Gamma Solutions Inc',
-    status: 'open',
-    transactionType: 'INVOICE',
-  },
-  // Missing INV-2024-004 (no match scenario)
-  {
-    id: 'ap-005',
-    invoiceNumber: 'INV-2024-999', // Extra invoice not in AR
-    amount: 3300.00,
-    date: '2024-01-30',
-    dueDate: '2024-02-28',
-    reference: 'MISC-001',
-    counterparty: 'Epsilon Services',
-    status: 'open',
-    transactionType: 'INVOICE',
-  },
-];
+export interface DashboardMetrics {
+  totalInvoices: number;
+  matchedInvoices: number;
+  pendingInvoices: number;
+  totalValue: number;
+  averageMatchConfidence: number;
+  connectionsActive: number;
+  recentActivity: Array<{
+    id: string;
+    type: 'match' | 'connection' | 'error';
+    message: string;
+    timestamp: string;
+    details?: string;
+  }>;
+}
 
 export interface ERPConnection {
   id: string;
   name: string;
-  type: 'xero' | 'quickbooks' | 'sap' | 'netsuite' | 'sage';
-  status: 'connected' | 'disconnected' | 'error';
-  lastSync?: string;
-  recordCount?: number;
+  type: 'xero' | 'quickbooks' | 'sage' | 'netsuite' | 'sap';
+  status: 'connected' | 'disconnected' | 'error' | 'syncing';
+  lastSync: string;
+  recordCount: number;
+  authUrl?: string;
+  errorMessage?: string;
 }
+
+export interface CounterpartyLink {
+  id: string;
+  ourCustomer: string;
+  theirCompany: string;
+  theirSystem: string;
+  connectionStatus: 'linked' | 'pending' | 'error';
+  inviteDate: string;
+  lastActivity?: string;
+  recordsShared: number;
+}
+
+// Sample invoice records
+const sampleOurRecords: InvoiceRecord[] = [
+  {
+    id: 'our-001',
+    invoiceNumber: 'INV-2024-001',
+    amount: 1250.00,
+    date: '2024-01-15',
+    counterparty: 'Acme Corporation',
+    reference: 'PO-4567',
+    status: 'outstanding',
+  },
+  {
+    id: 'our-002',
+    invoiceNumber: 'INV-2024-002',
+    amount: 3750.50,
+    date: '2024-01-18',
+    counterparty: 'Beta Industries',
+    reference: 'REF-8901',
+    status: 'paid',
+  },
+  {
+    id: 'our-003',
+    invoiceNumber: 'INV-2024-003',
+    amount: 987.25,
+    date: '2024-01-20',
+    counterparty: 'Gamma Solutions',
+    reference: 'ORD-2345',
+    status: 'outstanding',
+  },
+  {
+    id: 'our-004',
+    invoiceNumber: 'INV-2024-004',
+    amount: 2100.00,
+    date: '2024-01-22',
+    counterparty: 'Delta Corp',
+    reference: 'PO-6789',
+    status: 'paid',
+  },
+  {
+    id: 'our-005',
+    invoiceNumber: 'INV-2024-005',
+    amount: 1575.75,
+    date: '2024-01-25',
+    counterparty: 'Epsilon Ltd',
+    status: 'outstanding',
+  },
+];
+
+const sampleTheirRecords: InvoiceRecord[] = [
+  {
+    id: 'their-001',
+    invoiceNumber: 'INV-2024-001',
+    amount: 1250.00,
+    date: '2024-01-15',
+    counterparty: 'Your Company',
+    reference: 'PO-4567',
+    status: 'received',
+  },
+  {
+    id: 'their-002',
+    invoiceNumber: 'INV-2024-002',
+    amount: 3752.50, // Slight difference
+    date: '2024-01-19', // One day difference
+    counterparty: 'Your Company',
+    reference: 'REF-8901',
+    status: 'processed',
+  },
+  {
+    id: 'their-003',
+    invoiceNumber: 'INV-2024-004', // Different invoice number
+    amount: 2100.00,
+    date: '2024-01-22',
+    counterparty: 'Your Company',
+    reference: 'PO-6789',
+    status: 'processed',
+  },
+  // Note: No record for INV-2024-003 and INV-2024-005 (unmatched)
+];
+
+// Generate matching results
+const generateMatchingResults = (): MatchResult[] => {
+  const results: MatchResult[] = [];
+  
+  // Perfect match
+  const perfectMatch = calculateMatchConfidence(sampleOurRecords[0], sampleTheirRecords[0]);
+  results.push({
+    id: 'match-001',
+    ourRecord: sampleOurRecords[0],
+    theirRecord: sampleTheirRecords[0],
+    confidence: perfectMatch.confidence,
+    status: 'matched',
+    reasons: perfectMatch.reasons,
+    insights: generateMatchInsights({
+      id: 'match-001',
+      ourRecord: sampleOurRecords[0],
+      theirRecord: sampleTheirRecords[0],
+      confidence: perfectMatch.confidence,
+      status: 'matched',
+      reasons: perfectMatch.reasons,
+      insights: [],
+    }),
+  });
+  
+  // Mismatched (amount and date differences)
+  const mismatch = calculateMatchConfidence(sampleOurRecords[1], sampleTheirRecords[1]);
+  results.push({
+    id: 'match-002',
+    ourRecord: sampleOurRecords[1],
+    theirRecord: sampleTheirRecords[1],
+    confidence: mismatch.confidence,
+    status: 'mismatched',
+    reasons: mismatch.reasons,
+    insights: generateMatchInsights({
+      id: 'match-002',
+      ourRecord: sampleOurRecords[1],
+      theirRecord: sampleTheirRecords[1],
+      confidence: mismatch.confidence,
+      status: 'mismatched',
+      reasons: mismatch.reasons,
+      insights: [],
+    }),
+  });
+  
+  // Unmatched records
+  results.push({
+    id: 'match-003',
+    ourRecord: sampleOurRecords[2],
+    confidence: 0,
+    status: 'no-match',
+    reasons: ['No corresponding record found in counterparty system'],
+    insights: ['This invoice may not have been received or processed yet'],
+  });
+  
+  // Possible match with different invoice number
+  const possibleMatch = calculateMatchConfidence(sampleOurRecords[3], sampleTheirRecords[2]);
+  results.push({
+    id: 'match-004',
+    ourRecord: sampleOurRecords[3],
+    theirRecord: sampleTheirRecords[2],
+    confidence: possibleMatch.confidence,
+    status: 'mismatched',
+    reasons: possibleMatch.reasons,
+    insights: generateMatchInsights({
+      id: 'match-004',
+      ourRecord: sampleOurRecords[3],
+      theirRecord: sampleTheirRecords[2],
+      confidence: possibleMatch.confidence,
+      status: 'mismatched',
+      reasons: possibleMatch.reasons,
+      insights: [],
+    }),
+  });
+  
+  // Another unmatched
+  results.push({
+    id: 'match-005',
+    ourRecord: sampleOurRecords[4],
+    confidence: 0,
+    status: 'no-match',
+    reasons: ['No corresponding record found in counterparty system'],
+    insights: ['Recent invoice - may still be in processing'],
+  });
+  
+  return results;
+};
+
+export const mockDashboardMetrics: DashboardMetrics = {
+  totalInvoices: 1247,
+  matchedInvoices: 1089,
+  pendingInvoices: 158,
+  totalValue: 2847300,
+  averageMatchConfidence: 87,
+  connectionsActive: 3,
+  recentActivity: [
+    {
+      id: 'activity-001',
+      type: 'match',
+      message: 'Matched 23 invoices with Acme Corporation',
+      timestamp: '2024-01-28T10:30:00Z',
+      details: '23 invoices successfully matched with 95% average confidence',
+    },
+    {
+      id: 'activity-002',
+      type: 'connection',
+      message: 'Xero integration synchronized',
+      timestamp: '2024-01-28T09:15:00Z',
+      details: '1,247 records synchronized from Xero',
+    },
+    {
+      id: 'activity-003',
+      type: 'match',
+      message: 'Found 5 potential matches requiring review',
+      timestamp: '2024-01-28T08:45:00Z',
+      details: 'Low confidence matches detected with Beta Industries',
+    },
+    {
+      id: 'activity-004',
+      type: 'error',
+      message: 'QuickBooks sync failed',
+      timestamp: '2024-01-27T16:20:00Z',
+      details: 'Authentication token expired, re-authorization required',
+    },
+    {
+      id: 'activity-005',
+      type: 'connection',
+      message: 'New counterparty invitation sent',
+      timestamp: '2024-01-27T14:10:00Z',
+      details: 'Invitation sent to Gamma Solutions via email',
+    },
+  ],
+};
 
 export const mockERPConnections: ERPConnection[] = [
   {
@@ -124,137 +256,96 @@ export const mockERPConnections: ERPConnection[] = [
     name: 'Xero Production',
     type: 'xero',
     status: 'connected',
-    lastSync: '2024-01-30T10:30:00Z',
+    lastSync: '2024-01-28T10:30:00Z',
     recordCount: 1247,
   },
   {
     id: 'erp-002',
-    name: 'QuickBooks Enterprise',
+    name: 'QuickBooks Online',
     type: 'quickbooks',
+    status: 'error',
+    lastSync: '2024-01-27T16:20:00Z',
+    recordCount: 0,
+    errorMessage: 'Authentication token expired. Please re-authorize.',
+    authUrl: 'https://apps.intuit.com/oauth2/authorize...',
+  },
+  {
+    id: 'erp-003',
+    name: 'Sage Intacct',
+    type: 'sage',
     status: 'disconnected',
-    lastSync: '2024-01-28T15:45:00Z',
+    lastSync: '2024-01-20T08:00:00Z',
+    recordCount: 0,
+  },
+  {
+    id: 'erp-004',
+    name: 'NetSuite',
+    type: 'netsuite',
+    status: 'syncing',
+    lastSync: '2024-01-28T11:00:00Z',
     recordCount: 892,
   },
 ];
-
-export interface CounterpartyLink {
-  id: string;
-  ourCustomer: string;
-  theirSystem: string;
-  connectionStatus: 'linked' | 'invited' | 'pending' | 'declined';
-  inviteDate?: string;
-  linkDate?: string;
-  email?: string;
-}
 
 export const mockCounterpartyLinks: CounterpartyLink[] = [
   {
     id: 'cp-001',
     ourCustomer: 'Acme Corporation',
+    theirCompany: 'Acme Corp',
     theirSystem: 'Xero',
     connectionStatus: 'linked',
-    linkDate: '2024-01-20T09:00:00Z',
-    email: 'finance@acme-corp.com',
+    inviteDate: '2024-01-15T10:00:00Z',
+    lastActivity: '2024-01-28T10:30:00Z',
+    recordsShared: 89,
   },
   {
     id: 'cp-002',
-    ourCustomer: 'Beta Industries Ltd',
+    ourCustomer: 'Beta Industries',
+    theirCompany: 'Beta Industries Inc',
     theirSystem: 'QuickBooks',
-    connectionStatus: 'invited',
-    inviteDate: '2024-01-25T14:30:00Z',
-    email: 'accounts@betaindustries.com',
+    connectionStatus: 'linked',
+    inviteDate: '2024-01-10T14:30:00Z',
+    lastActivity: '2024-01-27T16:45:00Z',
+    recordsShared: 156,
   },
   {
     id: 'cp-003',
-    ourCustomer: 'Gamma Solutions Inc',
-    theirSystem: 'SAP',
+    ourCustomer: 'Gamma Solutions',
+    theirCompany: 'Gamma Solutions Ltd',
+    theirSystem: 'Sage',
     connectionStatus: 'pending',
-    inviteDate: '2024-01-28T11:15:00Z',
-    email: 'ap@gammasolutions.com',
+    inviteDate: '2024-01-27T14:10:00Z',
+    recordsShared: 0,
+  },
+  {
+    id: 'cp-004',
+    ourCustomer: 'Delta Corp',
+    theirCompany: 'Delta Corporation',
+    theirSystem: 'NetSuite',
+    connectionStatus: 'error',
+    inviteDate: '2024-01-20T09:15:00Z',
+    lastActivity: '2024-01-25T11:20:00Z',
+    recordsShared: 23,
   },
 ];
 
-export interface DashboardMetrics {
-  totalInvoices: number;
-  matchedInvoices: number;
-  mismatchedInvoices: number;
-  unmatchedInvoices: number;
-  totalValue: number;
-  matchedValue: number;
-  mismatchedValue: number;
-  unmatchedValue: number;
-  averageMatchConfidence: number;
-  lastSyncDate: string;
-  connectedSystems: number;
-  activeCounterparties: number;
-}
+export const mockMatchingResults: MatchResult[] = generateMatchingResults();
 
-export const mockDashboardMetrics: DashboardMetrics = {
-  totalInvoices: 156,
-  matchedInvoices: 89,
-  mismatchedInvoices: 23,
-  unmatchedInvoices: 44,
-  totalValue: 2847653.75,
-  matchedValue: 2156789.20,
-  mismatchedValue: 445234.15,
-  unmatchedValue: 245630.40,
-  averageMatchConfidence: 87.3,
-  lastSyncDate: '2024-01-30T10:30:00Z',
-  connectedSystems: 3,
-  activeCounterparties: 12,
+// Helper functions for mock data
+export const getERPConnectionByType = (type: string): ERPConnection | undefined => {
+  return mockERPConnections.find(conn => conn.type === type);
 };
 
-export const mockMatchingResults = [
-  {
-    id: 'match-001',
-    ourRecord: mockARLedger[0],
-    theirRecord: mockAPLedger[0],
-    confidence: 92,
-    status: 'matched' as const,
-    reasons: ['Status difference: open vs paid'],
-    insights: ['INV-2024-001 shows as open in our system but paid in counterparty ledger'],
-  },
-  {
-    id: 'match-002',
-    ourRecord: mockARLedger[1],
-    theirRecord: mockAPLedger[1],
-    confidence: 100,
-    status: 'matched' as const,
-    reasons: [],
-    insights: [],
-  },
-  {
-    id: 'match-003',
-    ourRecord: mockARLedger[2],
-    theirRecord: mockAPLedger[2],
-    confidence: 75,
-    status: 'mismatched' as const,
-    reasons: ['Invoice number mismatch: INV-2024-003 vs INV-2024-0O3'],
-    insights: ['OCR error likely caused invoice number discrepancy'],
-  },
-  {
-    id: 'match-004',
-    ourRecord: mockARLedger[3],
-    theirRecord: null,
-    confidence: 0,
-    status: 'no-match' as const,
-    reasons: ['Missing from counterparty ledger'],
-    insights: ['Invoice may not have been received or processed by counterparty'],
-  },
-];
+export const getCounterpartyByStatus = (status: string): CounterpartyLink[] => {
+  return mockCounterpartyLinks.filter(cp => cp.connectionStatus === status);
+};
 
-export const supportedERPSystems = [
-  { id: 'xero', name: 'Xero', logo: '🟢', description: 'Cloud accounting software' },
-  { id: 'quickbooks', name: 'QuickBooks', logo: '🔵', description: 'Popular small business accounting' },
-  { id: 'sap', name: 'SAP', logo: '🟡', description: 'Enterprise resource planning' },
-  { id: 'netsuite', name: 'NetSuite', logo: '🟠', description: 'Cloud business management suite' },
-  { id: 'sage', name: 'Sage', logo: '🟣', description: 'Business management software' },
-  { id: 'myob', name: 'MYOB', logo: '🔴', description: 'Australian accounting software' },
-];
+export const getTotalValueByStatus = (status: string): number => {
+  return mockMatchingResults
+    .filter(result => result.status === status)
+    .reduce((sum, result) => sum + result.ourRecord.amount, 0);
+};
 
-export const supportedBSMSystems = [
-  { id: 'salesforce', name: 'Salesforce', logo: '☁️', description: 'Customer relationship management' },
-  { id: 'hubspot', name: 'HubSpot', logo: '🧡', description: 'Inbound marketing and sales' },
-  { id: 'dynamics', name: 'Microsoft Dynamics', logo: '🔷', description: 'Business applications suite' },
-  { id: 'pipedrive', name: 'Pipedrive', logo: '🟢', description: 'Sales-focused CRM' },
-];
+export const getMatchingResultsByConfidence = (minConfidence: number): MatchResult[] => {
+  return mockMatchingResults.filter(result => result.confidence >= minConfidence);
+};

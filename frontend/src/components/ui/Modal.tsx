@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { cn } from '../../utils/cn';
+import { Button } from './Button';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -9,10 +9,16 @@ export interface ModalProps {
   description?: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
-  closeOnOverlayClick?: boolean;
-  closeOnEscape?: boolean;
+  showCloseButton?: boolean;
   className?: string;
 }
+
+const modalSizes = {
+  sm: 'max-w-md',
+  md: 'max-w-lg',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+};
 
 const Modal: React.FC<ModalProps> = ({
   isOpen,
@@ -21,110 +27,86 @@ const Modal: React.FC<ModalProps> = ({
   description,
   children,
   size = 'md',
-  closeOnOverlayClick = true,
-  closeOnEscape = true,
+  showCloseButton = true,
   className,
 }) => {
   // Handle escape key
   useEffect(() => {
-    if (!closeOnEscape || !isOpen) return;
-    
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
         onClose();
       }
     };
-    
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose, closeOnEscape]);
-  
-  // Handle body scroll lock
-  useEffect(() => {
+
     if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
     }
-    
+
     return () => {
+      document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen]);
-  
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
-  
-  const sizeClasses = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
-  };
-  
-  const modalContent = (
-    <div 
-      className="fixed inset-0 z-modal-overlay overflow-y-auto"
-      aria-labelledby={title ? 'modal-title' : undefined}
-      aria-describedby={description ? 'modal-description' : undefined}
-      role="dialog"
-      aria-modal="true"
-    >
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm transition-opacity duration-240"
-        onClick={closeOnOverlayClick ? onClose : undefined}
-        aria-hidden="true"
+        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity duration-300"
+        onClick={onClose}
       />
       
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
         <div 
           className={cn(
-            'relative bg-white rounded-lg shadow-lg transition-all duration-240',
-            'w-full',
-            sizeClasses[size],
+            'relative w-full bg-white rounded-lg shadow-xl transform transition-all duration-300',
+            modalSizes[size],
             className
           )}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          {(title || description) && (
-            <div className="px-6 py-4 border-b border-neutral-200">
-              {title && (
-                <h2 id="modal-title" className="text-h3 text-neutral-900">
-                  {title}
-                </h2>
-              )}
-              {description && (
-                <p id="modal-description" className="mt-1 text-body text-neutral-600">
-                  {description}
-                </p>
+          {(title || showCloseButton) && (
+            <div className="flex items-center justify-between p-6 border-b border-neutral-200">
+              <div>
+                {title && (
+                  <h3 className="text-h3 font-semibold text-neutral-900">
+                    {title}
+                  </h3>
+                )}
+                {description && (
+                  <p className="mt-1 text-body text-neutral-600">
+                    {description}
+                  </p>
+                )}
+              </div>
+              {showCloseButton && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                  className="!p-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </Button>
               )}
             </div>
           )}
           
-          {/* Close button */}
-          <button
-            type="button"
-            className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-600 transition-colors duration-120"
-            onClick={onClose}
-            aria-label="Close modal"
-          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          
           {/* Content */}
-          <div className="px-6 py-4">
+          <div className="p-6">
             {children}
           </div>
         </div>
       </div>
     </div>
   );
-  
-  return createPortal(modalContent, document.body);
 };
 
 export { Modal };

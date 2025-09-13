@@ -1,63 +1,141 @@
 import { useState, useCallback } from 'react';
-import { ToastProps } from '../components/ui/Toast';
 
-interface ToastOptions {
+export interface ToastMessage {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
   title?: string;
-  description?: string;
-  variant?: 'default' | 'success' | 'warning' | 'error';
+  message: string;
   duration?: number;
 }
 
-export const useToast = () => {
-  const [toasts, setToasts] = useState<ToastProps[]>([]);
+interface UseToastReturn {
+  success: (message: string, title?: string, duration?: number) => void;
+  error: (message: string, title?: string, duration?: number) => void;
+  info: (message: string, title?: string, duration?: number) => void;
+  warning: (message: string, title?: string, duration?: number) => void;
+  messages: ToastMessage[];
+  removeMessage: (id: string) => void;
+}
+
+// Global toast state (in a real app, this would be in a context or state management solution)
+let globalToastMessages: ToastMessage[] = [];
+let globalToastListeners: Array<(messages: ToastMessage[]) => void> = [];
+
+const addToastMessage = (message: ToastMessage) => {
+  globalToastMessages = [...globalToastMessages, message];
+  globalToastListeners.forEach(listener => listener(globalToastMessages));
   
-  const addToast = useCallback((options: ToastOptions) => {
-    const id = Math.random().toString(36).substr(2, 9);
-    const newToast: ToastProps = {
-      id,
-      ...options,
-      onDismiss: (toastId: string) => {
-        setToasts(prev => prev.filter(toast => toast.id !== toastId));
-      },
+  // Auto-remove after duration
+  if (message.duration !== 0) {
+    setTimeout(() => {
+      removeToastMessage(message.id);
+    }, message.duration || 5000);
+  }
+};
+
+const removeToastMessage = (id: string) => {
+  globalToastMessages = globalToastMessages.filter(msg => msg.id !== id);
+  globalToastListeners.forEach(listener => listener(globalToastMessages));
+};
+
+export const useToast = (): UseToastReturn => {
+  const [messages, setMessages] = useState<ToastMessage[]>(globalToastMessages);
+  
+  // Subscribe to global toast changes
+  const updateMessages = useCallback((newMessages: ToastMessage[]) => {
+    setMessages(newMessages);
+  }, []);
+  
+  // Register listener on mount, unregister on unmount
+  React.useEffect(() => {
+    globalToastListeners.push(updateMessages);
+    
+    return () => {
+      globalToastListeners = globalToastListeners.filter(listener => listener !== updateMessages);
     };
-    
-    setToasts(prev => [...prev, newToast]);
-    
-    return id;
-  }, []);
+  }, [updateMessages]);
   
-  const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
-  }, []);
-  
-  const removeAllToasts = useCallback(() => {
-    setToasts([]);
+  const createToast = useCallback((type: ToastMessage['type']) => {
+    return (message: string, title?: string, duration?: number) => {
+      const id = Math.random().toString(36).substr(2, 9);
+      addToastMessage({ id, type, message, title, duration });
+    };
   }, []);
   
   return {
-    toasts,
-    addToast,
-    removeToast,
-    removeAllToasts,
-    success: (message: string, title?: string) => addToast({ 
-      variant: 'success', 
-      description: message, 
-      title 
-    }),
-    error: (message: string, title?: string) => addToast({ 
-      variant: 'error', 
-      description: message, 
-      title 
-    }),
-    warning: (message: string, title?: string) => addToast({ 
-      variant: 'warning', 
-      description: message, 
-      title 
-    }),
-    info: (message: string, title?: string) => addToast({ 
-      variant: 'default', 
-      description: message, 
-      title 
-    }),
+    success: createToast('success'),
+    error: createToast('error'),
+    info: createToast('info'),
+    warning: createToast('warning'),
+    messages,
+    removeMessage: removeToastMessage,
   };
+};
+
+// Toast notification component that can be added to the app
+export const ToastContainer: React.FC = () => {
+  const { messages, removeMessage } = useToast();
+  
+  if (messages.length === 0) return null;
+  
+  return (
+    <div className="fixed top-4 right-4 z-50 space-y-2">
+      {messages.map((message) => (
+        <div
+          key={message.id}
+          className={`max-w-sm bg-white border border-l-4 rounded-md shadow-lg p-4 transform transition-all duration-300 ${
+            message.type === 'success' ? 'border-l-success-500' :
+            message.type === 'error' ? 'border-l-error-500' :
+            message.type === 'warning' ? 'border-l-warning-500' :
+            'border-l-primary-500'
+          }`}
+        >
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              {message.type === 'success' && (
+                <svg className="w-5 h-5 text-success-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              )}
+              {message.type === 'error' && (
+                <svg className="w-5 h-5 text-error-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              )}
+              {message.type === 'warning' && (
+                <svg className="w-5 h-5 text-warning-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              )}
+              {message.type === 'info' && (
+                <svg className="w-5 h-5 text-primary-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              )}
+            </div>
+            <div className="ml-3 flex-1">
+              {message.title && (
+                <p className="text-sm font-medium text-neutral-900">
+                  {message.title}
+                </p>
+              )}
+              <p className={`text-sm ${message.title ? 'text-neutral-500' : 'text-neutral-900'}`}>
+                {message.message}
+              </p>
+            </div>
+            <div className="ml-4 flex-shrink-0">
+              <button
+                className="inline-flex text-neutral-400 hover:text-neutral-600 focus:outline-none"
+                onClick={() => removeMessage(message.id)}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 };
