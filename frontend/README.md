@@ -1,30 +1,22 @@
 # LedgerLink Frontend
 
-A modern React application for AI-powered invoice reconciliation.
+A modern React application for AI-powered invoice reconciliation built with TypeScript, Vite, and Tailwind CSS.
 
 ## Features
 
-- **Modern UI**: Built with React, TypeScript, and Tailwind CSS
-- **Responsive Design**: Mobile-first approach with desktop optimization
-- **Component Library**: Reusable UI components with consistent design
-- **Mock Data**: Comprehensive demo data for testing and development
-- **Toast Notifications**: User-friendly feedback system
-- **Accessibility**: WCAG compliant design patterns
-
-## Tech Stack
-
-- **React 18** - UI library with hooks and modern patterns
-- **TypeScript** - Type safety and better developer experience
-- **Tailwind CSS** - Utility-first CSS framework
-- **Vite** - Fast build tool and development server
-- **ESLint** - Code linting and formatting
+- 🎯 **Modern Stack**: React 18, TypeScript, Vite
+- 🎨 **Beautiful UI**: Tailwind CSS with custom design system
+- 📱 **Responsive**: Mobile-first design approach
+- ♿ **Accessible**: WCAG 2.1 compliant components
+- 🚀 **Fast**: Optimized builds and code splitting
+- 🔒 **Type Safe**: Full TypeScript coverage
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+ 
-- npm 8+
+- npm or yarn
 
 ### Installation
 
@@ -40,96 +32,83 @@ npm run build
 
 # Preview production build
 npm run preview
-
-# Run linting
-npm run lint
-
-# Run tests
-npm run test
 ```
+
+### Development
+
+The app will be available at `http://localhost:3000`
 
 ## Project Structure
 
 ```
 src/
 ├── components/          # Reusable UI components
-│   ├── layout/         # Layout components (Header, Sidebar)
-│   └── ui/             # Basic UI components (Button, Card, etc.)
+│   ├── ui/             # Base UI components
+│   └── layout/         # Layout components
 ├── pages/              # Page components
 ├── hooks/              # Custom React hooks
+├── contexts/           # React contexts
 ├── utils/              # Utility functions
 ├── data/               # Mock data and types
-└── styles/             # Global styles and Tailwind config
+└── styles/             # Global styles
 ```
 
-## Key Components
+## Key Features
 
-### Pages
-- **Dashboard** - Overview of reconciliation metrics and recent activity
-- **Connections** - ERP system integrations and counterparty links
-- **Matches** - Invoice matching interface with CSV upload and results
-- **Reports** - Generate and download reconciliation reports
-- **Settings** - User preferences and system configuration
+### Dashboard
+- Real-time metrics and KPIs
+- Recent activity feed
+- Quick actions and shortcuts
 
-### UI Components
-- **Button** - Various button styles and states
-- **Card** - Content containers with headers
-- **Input** - Form inputs with validation states
-- **Table** - Data tables with sorting and expansion
-- **Badge** - Status indicators and labels
-- **Modal** - Dialog windows and overlays
+### Connections
+- ERP system integrations (Xero, QuickBooks, Sage, NetSuite)
+- OAuth 2.0 authentication flows
+- Counterparty link management
 
-### Features
-- **Authentication** - Login/logout with user state management
-- **Navigation** - Responsive sidebar with page routing
-- **Toast System** - Global notification system
-- **Mock Data** - Realistic demo data for all features
+### Matches
+- AI-powered invoice matching
+- CSV upload functionality
+- Detailed confidence scoring
+- Manual review workflows
+
+### Reports
+- Multiple report templates
+- PDF/CSV/Excel export
+- Scheduled reporting
+- Audit trails
+
+### Settings
+- User profile management
+- Matching rule configuration
+- Notification preferences
+- Security settings
 
 ## Design System
 
-The application uses a consistent design system based on:
+### Colors
+- **Primary**: Blue scale for main actions
+- **Neutral**: Gray scale for text and backgrounds
+- **Success**: Green for positive states
+- **Warning**: Yellow for attention states
+- **Error**: Red for error states
 
-- **Colors**: Primary (blue), Success (green), Warning (yellow), Error (red), Neutral (gray)
-- **Typography**: Hierarchical text styles (h1-h6, body, small)
-- **Spacing**: Consistent padding and margin using Tailwind's spacing scale
-- **Components**: Reusable patterns with prop-based customization
+### Typography
+- **Font**: Inter (Google Fonts)
+- **Scale**: Semantic sizing (h1-h6, body, small)
+- **Weight**: 400 (regular), 500 (medium), 600 (semibold), 700 (bold)
 
-## Development Guidelines
-
-### Code Style
-- Use TypeScript for all components and utilities
-- Follow React hooks patterns for state management
-- Use Tailwind classes for styling (avoid custom CSS when possible)
-- Implement proper prop types and interfaces
-- Add loading and error states for user interactions
-
-### Component Guidelines
-- Keep components small and focused on single responsibilities
-- Use composition over inheritance
-- Implement proper accessibility (ARIA labels, keyboard navigation)
-- Add prop documentation with TypeScript interfaces
-- Handle edge cases (empty states, errors, loading)
-
-### Testing
-- Write unit tests for utility functions
-- Test component rendering and user interactions
-- Mock external dependencies and API calls
-- Test accessibility requirements
-
-## Deployment
-
-The frontend is configured for deployment on Vercel:
-
-1. Build the application: `npm run build`
-2. Deploy to Vercel: Connect repository and auto-deploy on push
-3. Environment variables are configured in Vercel dashboard
+### Components
+- Consistent spacing and sizing
+- Focus states for accessibility
+- Loading and error states
+- Responsive behavior
 
 ## Performance
 
-- Uses Vite for fast development and optimized production builds
-- Components are designed for efficient re-rendering
-- Images and assets are optimized for web delivery
-- Bundle splitting for optimal loading performance
+- Code splitting by route and vendor packages
+- Image optimization and lazy loading
+- Tree shaking for minimal bundle size
+- Service worker ready for PWA
 
 ## Browser Support
 
@@ -140,11 +119,38 @@ The frontend is configured for deployment on Vercel:
 
 ## Contributing
 
-1. Follow the established code style and component patterns
-2. Add TypeScript types for all new interfaces
-3. Test components in different screen sizes
-4. Update documentation for new features
-5. Ensure accessibility compliance
+1. Follow the existing code style
+2. Add TypeScript types for all new code
+3. Include tests for new components
+4. Update documentation as needed
+
+## Environment Variables
+
+Create a `.env.local` file for local development:
+
+```
+VITE_API_URL=https://ledgerlink.onrender.com
+VITE_APP_NAME=LedgerLink
+VITE_APP_VERSION=1.0.0
+```
+
+## Build Configuration
+
+- **Vite**: Fast build tool with HMR
+- **TypeScript**: Type checking and compilation
+- **ESLint**: Code linting and formatting
+- **Tailwind CSS**: Utility-first styling
+- **PostCSS**: CSS processing and optimization
+
+## Deployment
+
+The app is configured for deployment on Vercel:
+
+```bash
+# Deploy to Vercel
+npm run build
+vercel --prod
+```
 
 ## License
 
