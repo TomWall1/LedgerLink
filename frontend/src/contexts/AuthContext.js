@@ -21,15 +21,15 @@ export function AuthProvider({ children }) {
 
   const checkAuthStatus = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       if (token) {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const response = await api.get('/api/auth/verify');
+        const response = await api.get('/api/users/profile');
         setUser(response.data.user);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      localStorage.removeItem('token');
+      localStorage.removeItem('authToken');
       delete api.defaults.headers.common['Authorization'];
     } finally {
       setLoading(false);
@@ -38,10 +38,10 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     try {
-      const response = await api.post('/api/auth/login', { email, password });
+      const response = await api.post('/api/users/login', { email, password });
       const { token, user } = response.data;
       
-      localStorage.setItem('token', token);
+      localStorage.setItem('authToken', token);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
       
@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
 
   const register = async (email, password, companyName) => {
     try {
-      const response = await api.post('/api/auth/register', { 
+      const response = await api.post('/api/users/register', { 
         email, 
         password, 
         companyName 
@@ -64,7 +64,7 @@ export function AuthProvider({ children }) {
       
       const { token, user } = response.data;
       
-      localStorage.setItem('token', token);
+      localStorage.setItem('authToken', token);
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
       
@@ -79,7 +79,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      localStorage.removeItem('token');
+      localStorage.removeItem('authToken');
       delete api.defaults.headers.common['Authorization'];
       setUser(null);
     } catch (error) {
