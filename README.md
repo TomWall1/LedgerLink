@@ -1,317 +1,292 @@
-# LedgerLink 🚀
+# LedgerLink - Automated Account Reconciliation
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/TomWall1/LedgerLink)
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/Led9er?referralCode=bonus)
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/TomWall1/LedgerLink)
+LedgerLink is a comprehensive solution for automating invoice matching and account reconciliation between businesses and their customers/vendors.
 
-[![Backend CI/CD](https://github.com/TomWall1/LedgerLink/actions/workflows/auto-setup.yml/badge.svg)](https://github.com/TomWall1/LedgerLink/actions/workflows/auto-setup.yml)
-[![Production Health](https://github.com/TomWall1/LedgerLink/actions/workflows/health-check.yml/badge.svg)](https://github.com/TomWall1/LedgerLink/actions/workflows/health-check.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/typescript-%5E5.1.6-blue)](https://www.typescriptlang.org/)
+## 🚀 Features
 
-**AI-powered invoice reconciliation platform** that streamlines financial operations by automatically matching invoices across multiple ERP systems and counterparties.
+- **Automated Matching**: AI-powered invoice matching with confidence scoring
+- **ERP Integration**: Connect with Xero, QuickBooks, Sage, and other accounting systems
+- **CSV Upload**: Manual data upload for immediate matching without system integration
+- **Counterparty Collaboration**: Invite customers/vendors to link their systems
+- **Comprehensive Reporting**: Export detailed reconciliation reports in PDF and CSV
+- **Real-time Dashboard**: Monitor matching progress and system health
 
----
+## 🏗️ Architecture
 
-## 🌐 **Live Application**
+### Frontend
+- **Framework**: React 18 with TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS with custom design system
+- **Routing**: React Router
+- **State Management**: React Hooks
+- **Deployment**: Vercel
 
-### **✅ Current Deployment:**
-- **🎨 Frontend**: [https://ledgerlink.vercel.app](https://ledgerlink.vercel.app) *(Vercel)*
-- **⚙️ Backend**: [https://ledgerlink.onrender.com](https://ledgerlink.onrender.com) *(Render)*
-- **🏥 Health Check**: [https://ledgerlink.onrender.com/api/health](https://ledgerlink.onrender.com/api/health)
-- **📚 API Docs**: [https://ledgerlink.onrender.com/api/docs](https://ledgerlink.onrender.com/api/docs)
+### Backend
+- **Runtime**: Node.js with Express
+- **Database**: MongoDB with Mongoose ODM
+- **Authentication**: JWT with OAuth 2.0 for ERP integrations
+- **Security**: Helmet, CORS, Rate limiting
+- **Deployment**: Render
 
-### **🧪 Try the CSV Demo (No Authentication Required):**
-```bash
-curl -X POST https://ledgerlink.onrender.com/api/v1/matching/csv-demo \
-  -F "file1=@your-invoices1.csv" \
-  -F "file2=@your-invoices2.csv"
+## 🚦 Getting Started
+
+### Prerequisites
+- Node.js 16+ 
+- MongoDB (local or Atlas)
+- Git
+
+### Local Development
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/TomWall1/LedgerLink.git
+   cd LedgerLink
+   ```
+
+2. **Backend Setup**
+   ```bash
+   cd backend
+   npm install
+   cp .env.example .env
+   # Edit .env with your configuration
+   npm run dev
+   ```
+
+3. **Frontend Setup**
+   ```bash
+   cd frontend
+   npm install
+   cp .env.example .env
+   # Edit .env with your configuration
+   npm run dev
+   ```
+
+4. **Access the application**
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:3002
+   - Health check: http://localhost:3002/health
+
+## 🌐 Deployment
+
+### Production URLs
+- **Frontend**: https://ledgerlink.vercel.app/
+- **Backend API**: https://ledgerlink.onrender.com
+
+### Environment Variables
+
+#### Backend (.env)
+```env
+# Database
+MONGODB_URI=mongodb://localhost:27017/ledgerlink
+
+# Server
+PORT=3002
+NODE_ENV=production
+FRONTEND_URL=https://ledgerlink.vercel.app
+
+# Security
+SESSION_SECRET=your-session-secret
+JWT_SECRET=your-jwt-secret
+
+# ERP Integrations
+XERO_CLIENT_ID=your-xero-client-id
+XERO_CLIENT_SECRET=your-xero-client-secret
 ```
 
-**Demo Accounts:**
-- **Admin**: `admin@ledgerlink.com` / `admin123`
-- **User**: `user@ledgerlink.com` / `user123`
+#### Frontend (.env)
+```env
+# API Configuration
+VITE_API_URL=https://ledgerlink.onrender.com
+VITE_API_BASE_URL=https://ledgerlink.onrender.com/api
 
----
+# App Configuration
+VITE_APP_NAME=LedgerLink
+VITE_APP_VERSION=1.0.0
+```
 
-## 🎯 **Additional Backend Deployments (Optional)**
-
-Deploy additional backend instances to other platforms:
-
-### **🟢 Render (Additional Instance)**
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/TomWall1/LedgerLink)
-
-### **🚄 Railway (Fast Deploy)**
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/Led9er?referralCode=bonus)
-
-### **🟣 Heroku (Classic)**
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/TomWall1/LedgerLink)
-
-*All deployments automatically configure CORS for the existing frontend at https://ledgerlink.vercel.app*
-
----
-
-## ✨ **Features**
-
-### 🔐 **Authentication & Security**
-- JWT-based authentication with refresh tokens
-- Role-based authorization (User, Admin, Super Admin)
-- Advanced rate limiting with Redis
-- Input validation and sanitization
-- API key management
-
-### 🔌 **ERP Integrations**
-- **Xero** - Complete OAuth 2.0 integration
-- **QuickBooks Online** - Full API support
-- **Sage** - Framework ready
-- **NetSuite** - Framework ready
-- Real-time webhooks for data sync
-
-### 🤖 **AI-Powered Matching**
-- Smart invoice matching algorithms
-- Confidence scoring and manual review
-- Bulk operations and automated workflows
-- CSV file processing and validation
-- **Demo endpoint** (no authentication required)
-
-### 📊 **Advanced Reporting**
-- PDF and CSV report generation
-- Scheduled reports with templates
-- Real-time analytics and dashboards
-- Audit trails and compliance reports
-
-### 🏢 **Multi-Tenant Architecture**
-- Company-based data isolation
-- Counterparty linking system
-- User management with granular permissions
-- Customizable settings and workflows
-
----
-
-## 🛠️ **Tech Stack**
-
-### **Frontend**
-- **Framework**: React/Next.js (deployed on Vercel)
-- **UI**: Modern responsive interface
-- **State Management**: Context API / Redux
-- **Authentication**: JWT integration
-
-### **Backend**
-- **Runtime**: Node.js 18+ with TypeScript
-- **Framework**: Express.js with comprehensive middleware
-- **Database**: PostgreSQL with Prisma ORM
-- **Cache**: Redis for performance optimization
-- **Authentication**: JWT with refresh token rotation
-- **File Processing**: Multer with CSV parsing
-- **PDF Generation**: PDFKit for reports
-- **Email**: Nodemailer with SMTP support
-- **Testing**: Jest with database setup
-- **Deployment**: Docker & Docker Compose
-
----
-
-## 🔗 **API Endpoints**
-
-### **Authentication** (`/api/v1/auth`)
-- `POST /register` - User registration
-- `POST /login` - User authentication  
-- `POST /refresh` - Refresh access token
-- `GET /verify-email/:token` - Email verification
-
-### **Integrations** (`/api/v1/integrations`)
-- `GET /erp-connections` - List ERP connections
-- `GET /xero/auth` - Initiate Xero OAuth flow
-- `GET /quickbooks/auth` - Initiate QuickBooks OAuth flow
-- `POST /counterparty-links` - Create counterparty links
-
-### **Matching** (`/api/v1/matching`)
-- `POST /csv-demo` - **Demo CSV matching (no auth required)**
-- `GET /sessions` - List matching sessions
-- `POST /sessions` - Create matching session
-- `POST /sessions/:id/start` - Start matching process
-
-### **Reports** (`/api/v1/reports`)
-- `GET /` - List generated reports
-- `POST /` - Generate new report  
-- `GET /:id/download` - Download report file
-- `GET /quick/reconciliation-summary` - Quick summary
-
-### **Webhooks** (`/api/webhooks`)
-- `POST /xero` - Xero webhook handler
-- `POST /quickbooks` - QuickBooks webhook handler
-- `POST /stripe` - Payment webhook handler
-
----
-
-## 📁 **Project Structure**
+## 📁 Project Structure
 
 ```
 LedgerLink/
-├── 🎯 One-click Deploy Buttons (Backend only)
-├── 🤖 GitHub Actions (Auto setup & deployment)
-├── 📁 backend/
-│   ├── 🔧 src/ (TypeScript source)
-│   ├── 🗃️ prisma/ (Database schema & migrations)
-│   ├── 📜 scripts/ (Automated setup scripts)
-│   ├── 🐳 Dockerfile (Production container)
-│   └── 📋 docker-compose.yml (Development)
-├── ⚙️ Platform configs (render.yaml, railway.json, etc.)
-├── 📚 Documentation (README, DEPLOYMENT guides)
-└── 🎨 frontend/ (Deployed separately on Vercel)
+├── backend/
+│   ├── index.js              # Express server setup
+│   ├── package.json          # Backend dependencies
+│   └── .env.example          # Environment variables template
+├── frontend/
+│   ├── src/
+│   │   ├── components/       # Reusable UI components
+│   │   │   ├── ui/          # Base UI components (Button, Input, etc.)
+│   │   │   └── layout/      # Layout components (TopNav, Sidebar)
+│   │   ├── pages/           # Page components
+│   │   │   ├── LandingPage.tsx
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Matches.tsx
+│   │   │   ├── Connections.tsx
+│   │   │   ├── Counterparties.tsx
+│   │   │   ├── Reports.tsx
+│   │   │   ├── Settings.tsx
+│   │   │   └── Login.tsx
+│   │   ├── styles/          # Global styles
+│   │   ├── App.tsx          # Main app component
+│   │   └── main.tsx         # App entry point
+│   ├── public/
+│   ├── index.html
+│   ├── package.json         # Frontend dependencies
+│   ├── tailwind.config.js   # Tailwind CSS configuration
+│   ├── tsconfig.json        # TypeScript configuration
+│   └── vite.config.ts       # Vite build configuration
+└── README.md
 ```
 
----
+## 🎨 Design System
 
-## 🧪 **Testing the API**
+### Color Palette
+- **Primary**: Blue (#2563eb) - Main brand color for CTAs and navigation
+- **Success**: Green (#16a34a) - Successful matches and positive states
+- **Warning**: Amber (#d97706) - Partial matches and caution states
+- **Error**: Red (#dc2626) - Unmatched items and error states
+- **Neutral**: Grays (#404040 to #fafafa) - Text and background colors
 
-### **1. Health Check**
-```bash
-curl https://ledgerlink.onrender.com/api/health
-```
+### Typography
+- **Font**: Inter (Google Fonts)
+- **Scale**: h1, h2, h3, body-lg, body, small, tiny
+- **Weights**: 400 (regular), 500 (medium), 600 (semibold), 700 (bold)
 
-### **2. API Documentation**
-Visit: [https://ledgerlink.onrender.com/api/docs](https://ledgerlink.onrender.com/api/docs)
+### Components
+All UI components follow a consistent design system with:
+- Consistent spacing (4px base unit)
+- Smooth transitions (120ms/240ms durations)
+- Focus states for accessibility
+- Hover states for interactive elements
+- Loading and error states
 
-### **3. Authentication Test**
-```bash
-curl -X POST https://ledgerlink.onrender.com/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@ledgerlink.com","password":"admin123"}'
-```
+## 🔧 Key Features
 
-### **4. CSV Matching Demo**
-No authentication required - perfect for testing!
-```bash
-curl -X POST https://ledgerlink.onrender.com/api/v1/matching/csv-demo \
-  -F "file1=@invoices1.csv" \
-  -F "file2=@invoices2.csv"
-```
+### 1. Invoice Matching Engine
+- Fuzzy matching algorithms for invoice numbers
+- Amount tolerance configuration
+- Date range matching
+- Confidence scoring (0-100%)
+- Manual review for partial matches
 
----
+### 2. ERP Integrations
+- OAuth 2.0 secure authentication
+- Real-time data synchronization
+- Support for multiple accounting systems:
+  - Xero
+  - QuickBooks Online
+  - Sage 50cloud
+  - NetSuite (planned)
+  - SAP (planned)
+  - Microsoft Dynamics (planned)
 
-## 🔧 **For Developers (Optional Local Setup)**
+### 3. Counterparty Management
+- Secure invitation system
+- Read-only data sharing
+- Real-time reconciliation status
+- Communication history tracking
 
-If you want to develop locally:
+### 4. Reporting & Analytics
+- Reconciliation summary reports
+- Detailed matching analysis
+- Discrepancy identification
+- Audit trail generation
+- Export to PDF and CSV
 
-```bash
-git clone https://github.com/TomWall1/LedgerLink.git
-cd LedgerLink/backend
-npm run setup:docker  # One command setup
-```
+## 🔒 Security
 
-Or use the Makefile:
-```bash
-make quick-start
-```
-
----
-
-## 🎛️ **Environment Variables (Auto-configured)**
-
-All deployment platforms automatically configure:
-- `DATABASE_URL` - PostgreSQL connection
-- `REDIS_URL` - Redis connection
-- `JWT_SECRET` - Authentication secret
-- `CORS_ORIGIN` - Set to https://ledgerlink.vercel.app
-- All other required variables
-
-No manual configuration needed! 🎉
-
----
-
-## 📊 **Monitoring & Health**
-
-### **Automatic Health Monitoring**
-GitHub Actions automatically monitors all deployments every 30 minutes:
-- ✅ Health endpoint checks
-- ⏱️ Performance monitoring  
-- 🚨 Automatic alerts if issues detected
-- 📈 Status badge updates
-
-### **Health Endpoints**
-- `/api/health` - Basic status
-- `/api/health/detailed` - Full system status
-- `/api/health/ready` - Kubernetes readiness
-- `/api/health/live` - Kubernetes liveness
-
----
-
-## 🔒 **Security Features**
-
-- **Authentication**: JWT with refresh token rotation
+- **Authentication**: JWT tokens with secure session management
 - **Authorization**: Role-based access control
-- **Rate Limiting**: Redis-based with customizable rules
-- **Input Validation**: Joi schema validation
-- **SQL Injection**: Prisma ORM protection
-- **XSS Protection**: Helmet security headers
-- **CORS**: Pre-configured for https://ledgerlink.vercel.app
-- **File Upload**: Type and size validation
-- **Password Security**: bcrypt with salt rounds
-- **API Keys**: Secure key generation and validation
+- **Data Encryption**: TLS 1.3 for data in transit
+- **API Security**: Rate limiting, CORS, Helmet.js
+- **Database Security**: MongoDB connection encryption
+- **Audit Trail**: Complete activity logging
+
+## 🧪 Testing
+
+### Frontend Testing
+```bash
+cd frontend
+npm run test        # Run Jest tests
+npm run test:watch  # Run tests in watch mode
+npm run test:coverage # Generate coverage report
+```
+
+### Backend Testing
+```bash
+cd backend
+npm test           # Run test suite
+npm run test:watch # Watch mode
+npm run test:integration # Integration tests
+```
+
+## 🚀 Deployment
+
+### Frontend (Vercel)
+1. Connect GitHub repository to Vercel
+2. Set environment variables in Vercel dashboard
+3. Deploy automatically on push to main branch
+
+### Backend (Render)
+1. Connect GitHub repository to Render
+2. Configure environment variables
+3. Set build command: `npm install`
+4. Set start command: `npm start`
+
+## 📊 Monitoring
+
+- **Health Checks**: `/health` and `/test/db` endpoints
+- **Error Logging**: Console and file-based logging
+- **Performance**: Response time monitoring
+- **Uptime**: Service availability tracking
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the ISC License - see the LICENSE file for details.
+
+## 🆘 Support
+
+- **Documentation**: [Coming Soon]
+- **Email**: support@ledgerlink.com
+- **Issues**: GitHub Issues tab
+
+## 🗺️ Roadmap
+
+### Phase 1 (Current)
+- ✅ Core matching engine
+- ✅ Basic ERP integrations (Xero)
+- ✅ CSV upload functionality
+- ✅ User management
+- ✅ Basic reporting
+
+### Phase 2 (Q2 2024)
+- 🔄 Additional ERP integrations (QuickBooks, Sage)
+- 🔄 Advanced matching algorithms
+- 🔄 Mobile application
+- 🔄 API for third-party integrations
+
+### Phase 3 (Q3 2024)
+- 📋 Machine learning for matching improvement
+- 📋 Automated reconciliation workflows
+- 📋 Multi-currency support
+- 📋 Advanced analytics dashboard
+
+### Phase 4 (Q4 2024)
+- 📋 Enterprise features
+- 📋 White-label solution
+- 📋 Advanced audit and compliance tools
+- 📋 Integration marketplace
 
 ---
 
-## 🎯 **Roadmap**
+**Built with ❤️ by the LedgerLink team**
 
-- [ ] **Frontend Enhancements** (React/Next.js improvements)
-- [ ] **Advanced AI Matching** (ML models)
-- [ ] **Mobile App** (React Native)
-- [ ] **Additional ERP Integrations** (SAP, Oracle)
-- [ ] **Advanced Analytics** (Dashboards & Insights)
-- [ ] **API Rate Limiting Tiers** (Usage-based pricing)
-- [ ] **Webhook Management UI** (Visual webhook builder)
-- [ ] **Advanced Reporting** (Custom report builder)
-
----
-
-## 🤝 **Contributing**
-
-1. **Fork** the repository
-2. **Deploy** your own backend instance using the buttons above
-3. **Make** your changes
-4. **Test** with the deployed API
-5. **Submit** a Pull Request
-
-### **Development Guidelines**
-- All changes are automatically tested via GitHub Actions
-- Use the deployed API for testing integrations
-- Follow TypeScript best practices
-- Write tests for new features
-- Update documentation as needed
-
----
-
-## 📞 **Support**
-
-- **Quick Deploy Issues**: [Deployment Help Template](.github/ISSUE_TEMPLATE/deployment-help.md)
-- **General Issues**: [GitHub Issues](https://github.com/TomWall1/LedgerLink/issues)
-- **Documentation**: [Deployment Guide](DEPLOYMENT.md)
-- **Live API**: Use https://ledgerlink.onrender.com for testing
-
----
-
-## 📄 **License**
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## ⭐ **Star This Repository**
-
-If LedgerLink helps you streamline your invoice reconciliation, please give it a star! ⭐
-
----
-
-## 🔗 **Quick Links**
-
-- 🎨 **Frontend**: https://ledgerlink.vercel.app
-- ⚙️ **Backend API**: https://ledgerlink.onrender.com
-- 🏥 **Health**: https://ledgerlink.onrender.com/api/health
-- 📚 **Docs**: https://ledgerlink.onrender.com/api/docs
-- 🧪 **CSV Demo**: https://ledgerlink.onrender.com/api/v1/matching/csv-demo
-
----
-
-**🚀 Click any deploy button above to create additional backend instances!**
-
-*Built with ❤️ for the future of financial operations.*
+For questions or support, reach out to us at [support@ledgerlink.com](mailto:support@ledgerlink.com)
