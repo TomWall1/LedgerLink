@@ -23,5 +23,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      onwarn: (warning, warn) => {
+        // Skip TypeScript warnings during build
+        if (warning.code === 'TS6031' || warning.code === 'TS1259' || warning.code === 'TS7031') {
+          return;
+        }
+        warn(warning);
+      },
+    },
   },
 })
