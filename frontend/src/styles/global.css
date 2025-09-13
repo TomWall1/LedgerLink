@@ -1,0 +1,283 @@
+/* LedgerLink Global Styles */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* CSS Variables for runtime theming */
+:root {
+  --color-primary-900: #0b3a66;
+  --color-primary-700: #1464a6;
+  --color-primary-500: #2a8fe6;
+  --color-primary-300: #7fc0ff;
+  --color-neutral-900: #0f1724;
+  --color-neutral-700: #334155;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-200: #e6eef9;
+  --color-white: #ffffff;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-muted-bg: #f8fafc;
+  --color-border: #e6eef9;
+  
+  /* Layout */
+  --nav-height-desktop: 64px;
+  --nav-height-mobile: 56px;
+  --sidebar-width-expanded: 280px;
+  --sidebar-width-collapsed: 72px;
+  
+  /* Motion */
+  --duration-short: 120ms;
+  --duration-medium: 240ms;
+  --duration-long: 420ms;
+  --easing-smooth: cubic-bezier(.2,.8,.2,1);
+}
+
+/* Base typography and styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  font-variation-settings: 'opsz' 32;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-white);
+  color: var(--color-neutral-900);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus styles for accessibility */
+*:focus {
+  outline: 3px solid var(--color-primary-300);
+  outline-offset: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 3px solid var(--color-primary-300);
+  outline-offset: 2px;
+}
+
+/* Remove default button/input focus styles */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+/* Custom focus for form elements */
+.input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(42, 143, 230, 0.12);
+  border-color: var(--color-primary-500);
+}
+
+/* Typography scale classes */
+.text-h1 {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 700;
+}
+
+.text-h2 {
+  font-size: 22px;
+  line-height: 30px;
+  font-weight: 600;
+}
+
+.text-h3 {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+
+.text-body-lg {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+
+.text-body {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.text-small {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+.text-mono {
+  font-family: ui-monospace, 'Fira Code', Consolas, monospace;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+/* Component base classes */
+.btn {
+  @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-all duration-120 ease-smooth;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-primary-500);
+  color: var(--color-white);
+  box-shadow: 0 6px 18px rgba(42, 143, 230, 0.12);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-700);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:focus {
+  @apply ring-primary-300;
+}
+
+.btn-secondary {
+  background: var(--color-white);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-neutral-200);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-neutral-700);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--color-neutral-200);
+}
+
+.btn-destructive {
+  background: var(--color-error);
+  color: var(--color-white);
+}
+
+.btn-destructive:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.input {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all var(--duration-short) var(--easing-smooth);
+  height: 40px;
+}
+
+.input.error {
+  border-color: var(--color-error);
+}
+
+.card {
+  background: var(--color-white);
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(14, 25, 40, 0.08);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-neutral-200);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-400);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-700);
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .btn {
+    border: 2px solid currentColor;
+  }
+  
+  .input {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Loading state */
+.loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid var(--color-neutral-400);
+  border-top-color: var(--color-primary-500);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
