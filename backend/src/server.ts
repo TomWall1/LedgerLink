@@ -1,167 +1,126 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import compression from 'compression';
+import { app } from './app';
 import { config } from './config/config';
 import { logger } from './utils/logger';
-import { errorHandler } from './middleware/errorHandler';
-import { rateLimiter } from './middleware/rateLimiter';
-import { requestLogger } from './middleware/requestLogger';
-import { authRoutes } from './routes/authRoutes';
-import { userRoutes } from './routes/userRoutes';
-import { integrationRoutes } from './routes/integrationRoutes';
-import { matchingRoutes } from './routes/matchingRoutes';
-import { reportRoutes } from './routes/reportRoutes';
-import { webhookRoutes } from './routes/webhookRoutes';
-import { healthRoutes } from './routes/healthRoutes';
-import { connectDatabase } from './config/database';
-import { connectRedis } from './config/redis';
-import path from 'path';
+import { prisma } from './config/database';
+import { redis, checkRedisHealth } from './config/redis';
+import { cleanupOldFiles } from './middleware/upload';
+import cron from 'node-cron';
 
-const app = express();
+const PORT = config.server.port || 3001;
 
-// Security middleware
-app.use(helmet({
-  crossOriginEmbedderPolicy: false,
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      scriptSrc: ["'self'"],
-    },
-  },
-}));
-
-// CORS configuration
-app.use(cors({
-  origin: config.cors.origin,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-}));
-
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Compression
-app.use(compression());
-
-// Request logging
-app.use(requestLogger);
-
-// Rate limiting
-app.use('/api', rateLimiter);
-
-// Static files
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-// Health check (before rate limiting)
-app.use('/health', healthRoutes);
-
-// API routes
-const apiVersion = `/api/${config.api.version}`;
-app.use(`${apiVersion}/auth`, authRoutes);
-app.use(`${apiVersion}/users`, userRoutes);
-app.use(`${apiVersion}/integrations`, integrationRoutes);
-app.use(`${apiVersion}/matching`, matchingRoutes);
-app.use(`${apiVersion}/reports`, reportRoutes);
-app.use(`${apiVersion}/webhooks`, webhookRoutes);
-
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'LedgerLink API',
-    version: config.api.version,
-    status: 'active',
-    timestamp: new Date().toISOString(),
-    endpoints: {
-      auth: `${apiVersion}/auth`,
-      users: `${apiVersion}/users`,
-      integrations: `${apiVersion}/integrations`,
-      matching: `${apiVersion}/matching`,
-      reports: `${apiVersion}/reports`,
-      health: '/health',
-    },
+// Graceful shutdown handler
+const gracefulShutdown = async (signal: string) => {
+  logger.info(`Received ${signal}, starting graceful shutdown...`);
+  
+  // Close server
+  server.close(async () => {
+    logger.info('HTTP server closed');
+    
+    try {
+      // Close database connections
+      await prisma.$disconnect();
+      logger.info('Database connection closed');
+      
+      // Close Redis connection
+      if (redis) {
+        redis.disconnect();
+        logger.info('Redis connection closed');
+      }
+      
+      logger.info('Graceful shutdown completed');
+      process.exit(0);
+    } catch (error) {
+      logger.error('Error during graceful shutdown:', error);
+      process.exit(1);
+    }
   });
+  
+  // Force exit after timeout
+  setTimeout(() => {
+    logger.error('Graceful shutdown timed out, forcing exit');
+    process.exit(1);
+  }, 10000);
+};
+
+// Start server
+const server = app.listen(PORT, async () => {
+  logger.info(`🚀 Server running on port ${PORT}`);
+  logger.info(`🌍 Environment: ${config.server.env}`);
+  logger.info(`📊 Health check: http://localhost:${PORT}/api/health`);
+  
+  // Test database connection
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    logger.info('✅ Database connection successful');
+  } catch (error) {
+    logger.error('❌ Database connection failed:', error);
+    process.exit(1);
+  }
+  
+  // Test Redis connection
+  if (await checkRedisHealth()) {
+    logger.info('✅ Redis connection successful');
+  } else {
+    logger.warn('⚠️  Redis connection failed - caching disabled');
+  }
+  
+  // Schedule cleanup jobs (only in production)
+  if (!config.server.isTest) {
+    // Clean up old uploaded files every day at 2 AM
+    cron.schedule('0 2 * * *', () => {
+      logger.info('Running scheduled file cleanup');
+      cleanupOldFiles(24); // Delete files older than 24 hours
+    });
+    
+    // Clean up old reports every week
+    cron.schedule('0 3 * * 0', async () => {
+      logger.info('Running scheduled report cleanup');
+      try {
+        const expiredReports = await prisma.report.findMany({
+          where: {
+            expiresAt: {
+              lt: new Date(),
+            },
+          },
+        });
+        
+        for (const report of expiredReports) {
+          if (report.filePath && require('fs').existsSync(report.filePath)) {
+            require('fs').unlinkSync(report.filePath);
+          }
+        }
+        
+        await prisma.report.deleteMany({
+          where: {
+            expiresAt: {
+              lt: new Date(),
+            },
+          },
+        });
+        
+        logger.info(`Cleaned up ${expiredReports.length} expired reports`);
+      } catch (error) {
+        logger.error('Error during report cleanup:', error);
+      }
+    });
+  }
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Endpoint not found',
-    message: `The requested endpoint ${req.originalUrl} does not exist`,
-    availableEndpoints: {
-      auth: `${apiVersion}/auth`,
-      users: `${apiVersion}/users`,
-      integrations: `${apiVersion}/integrations`,
-      matching: `${apiVersion}/matching`,
-      reports: `${apiVersion}/reports`,
-      health: '/health',
-    },
-  });
-});
-
-// Error handling middleware (must be last)
-app.use(errorHandler);
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
-});
-
-// Unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
-});
-
-// Uncaught exceptions
+// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   logger.error('Uncaught Exception:', error);
   process.exit(1);
 });
 
-// Start server
-const startServer = async () => {
-  try {
-    // Connect to database
-    await connectDatabase();
-    logger.info('Database connected successfully');
+// Handle unhandled rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
 
-    // Connect to Redis
-    await connectRedis();
-    logger.info('Redis connected successfully');
+// Handle process signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-    // Start listening
-    const server = app.listen(config.server.port, () => {
-      logger.info(`Server running on port ${config.server.port} in ${config.server.env} mode`);
-      logger.info(`API documentation available at http://localhost:${config.server.port}/api-docs`);
-    });
-
-    // Graceful shutdown
-    process.on('SIGTERM', () => {
-      logger.info('SIGTERM received, closing server...');
-      server.close(() => {
-        logger.info('Server closed');
-        process.exit(0);
-      });
-    });
-
-  } catch (error) {
-    logger.error('Failed to start server:', error);
-    process.exit(1);
-  }
-};
-
-startServer();
-
-export { app };
+// Export server for testing
+export { server };
