@@ -1,31 +1,30 @@
 import React from 'react';
-import { cn } from '../../utils/cn';
+import { clsx } from 'clsx';
 
-export interface TableProps {
+interface TableProps {
   children: React.ReactNode;
   className?: string;
 }
 
-export interface TableHeaderProps {
+interface TableHeaderProps {
   children: React.ReactNode;
   className?: string;
 }
 
-export interface TableBodyProps {
+interface TableBodyProps {
   children: React.ReactNode;
   className?: string;
 }
 
-export interface TableRowProps {
+interface TableRowProps {
   children: React.ReactNode;
   className?: string;
   expandable?: boolean;
   expanded?: boolean;
   onToggleExpand?: () => void;
-  onClick?: () => void;
 }
 
-export interface TableHeadProps {
+interface TableHeadProps {
   children: React.ReactNode;
   className?: string;
   sortable?: boolean;
@@ -33,96 +32,70 @@ export interface TableHeadProps {
   onSort?: () => void;
 }
 
-export interface TableCellProps {
+interface TableCellProps {
   children: React.ReactNode;
   className?: string;
   colSpan?: number;
 }
 
-const Table: React.FC<TableProps> = ({ children, className }) => {
+export const Table: React.FC<TableProps> = ({ children, className }) => {
   return (
-    <div className="overflow-x-auto">
-      <table className={cn('min-w-full divide-y divide-neutral-200', className)}>
+    <div className="overflow-hidden">
+      <table className={clsx('min-w-full divide-y divide-neutral-200', className)}>
         {children}
       </table>
     </div>
   );
 };
 
-const TableHeader: React.FC<TableHeaderProps> = ({ children, className }) => {
+export const TableHeader: React.FC<TableHeaderProps> = ({ children, className }) => {
   return (
-    <thead className={cn('bg-neutral-50', className)}>
+    <thead className={clsx('bg-neutral-50', className)}>
       {children}
     </thead>
   );
 };
 
-const TableBody: React.FC<TableBodyProps> = ({ children, className }) => {
+export const TableBody: React.FC<TableBodyProps> = ({ children, className }) => {
   return (
-    <tbody className={cn('bg-white divide-y divide-neutral-200', className)}>
+    <tbody className={clsx('bg-white divide-y divide-neutral-200', className)}>
       {children}
     </tbody>
   );
 };
 
-const TableRow: React.FC<TableRowProps> = ({ 
+export const TableRow: React.FC<TableRowProps> = ({ 
   children, 
   className, 
   expandable, 
   expanded, 
-  onToggleExpand,
-  onClick 
+  onToggleExpand 
 }) => {
-  const handleClick = () => {
-    if (expandable && onToggleExpand) {
-      onToggleExpand();
-    }
-    if (onClick) {
-      onClick();
-    }
-  };
-
   return (
     <tr 
-      className={cn(
-        'hover:bg-neutral-50 transition-colors duration-120',
-        expandable && 'cursor-pointer',
+      className={clsx(
+        expandable && 'cursor-pointer hover:bg-neutral-50 transition-colors duration-120',
         className
       )}
-      onClick={handleClick}
+      onClick={expandable ? onToggleExpand : undefined}
     >
-      {expandable && (
-        <td className="px-3 py-4 whitespace-nowrap text-sm text-neutral-500 w-8">
-          <svg 
-            className={cn(
-              'w-4 h-4 transition-transform duration-120',
-              expanded && 'rotate-90'
-            )} 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </td>
-      )}
       {children}
     </tr>
   );
 };
 
-const TableHead: React.FC<TableHeadProps> = ({ 
+export const TableHead: React.FC<TableHeadProps> = ({ 
   children, 
   className, 
-  sortable,
-  sortDirection,
+  sortable, 
+  sortDirection, 
   onSort 
 }) => {
   return (
     <th 
-      className={cn(
+      className={clsx(
         'px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider',
-        sortable && 'cursor-pointer hover:text-neutral-700 select-none',
+        sortable && 'cursor-pointer hover:bg-neutral-100 select-none',
         className
       )}
       onClick={sortable ? onSort : undefined}
@@ -132,24 +105,24 @@ const TableHead: React.FC<TableHeadProps> = ({
         {sortable && (
           <div className="flex flex-col">
             <svg 
-              className={cn(
-                'w-3 h-3',
-                sortDirection === 'asc' ? 'text-primary-600' : 'text-neutral-300'
+              className={clsx(
+                'w-3 h-3 -mb-1 transition-colors duration-120',
+                sortDirection === 'asc' ? 'text-primary-600' : 'text-neutral-400'
               )} 
               fill="currentColor" 
               viewBox="0 0 20 20"
             >
-              <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+              <path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" />
             </svg>
             <svg 
-              className={cn(
-                'w-3 h-3 -mt-1',
-                sortDirection === 'desc' ? 'text-primary-600' : 'text-neutral-300'
+              className={clsx(
+                'w-3 h-3 transition-colors duration-120',
+                sortDirection === 'desc' ? 'text-primary-600' : 'text-neutral-400'
               )} 
               fill="currentColor" 
               viewBox="0 0 20 20"
             >
-              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
             </svg>
           </div>
         )}
@@ -158,15 +131,16 @@ const TableHead: React.FC<TableHeadProps> = ({
   );
 };
 
-const TableCell: React.FC<TableCellProps> = ({ children, className, colSpan }) => {
+export const TableCell: React.FC<TableCellProps> = ({ children, className, colSpan }) => {
   return (
     <td 
-      className={cn('px-6 py-4 whitespace-nowrap text-sm text-neutral-900', className)}
+      className={clsx(
+        'px-6 py-4 whitespace-nowrap text-sm text-neutral-900',
+        className
+      )}
       colSpan={colSpan}
     >
       {children}
     </td>
   );
 };
-
-export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell };
