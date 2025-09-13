@@ -2,7 +2,6 @@
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/TomWall1/LedgerLink)
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/Led9er?referralCode=bonus)
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/TomWall1/LedgerLink)
 [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/TomWall1/LedgerLink)
 
 [![Backend CI/CD](https://github.com/TomWall1/LedgerLink/actions/workflows/auto-setup.yml/badge.svg)](https://github.com/TomWall1/LedgerLink/actions/workflows/auto-setup.yml)
@@ -12,49 +11,43 @@
 
 **AI-powered invoice reconciliation platform** that streamlines financial operations by automatically matching invoices across multiple ERP systems and counterparties.
 
-## 🎯 **Instant Deployment (No Local Setup Required!)**
+---
 
-### **🟢 Option 1: Render (Recommended - Free Tier)**
-**Click this button for instant deployment with database included:**
+## 🌐 **Live Application**
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/TomWall1/LedgerLink)
+### **✅ Current Deployment:**
+- **🎨 Frontend**: [https://ledgerlink.vercel.app](https://ledgerlink.vercel.app) *(Vercel)*
+- **⚙️ Backend**: [https://ledgerlink.onrender.com](https://ledgerlink.onrender.com) *(Render)*
+- **🏥 Health Check**: [https://ledgerlink.onrender.com/api/health](https://ledgerlink.onrender.com/api/health)
+- **📚 API Docs**: [https://ledgerlink.onrender.com/api/docs](https://ledgerlink.onrender.com/api/docs)
 
-✅ **Automatically includes:**
-- Backend API server
-- PostgreSQL database  
-- Redis cache
-- SSL certificate
-- Demo data & accounts
-- All steps (1, 2, 3) handled automatically!
+### **🧪 Try the CSV Demo (No Authentication Required):**
+```bash
+curl -X POST https://ledgerlink.onrender.com/api/v1/matching/csv-demo \
+  -F "file1=@your-invoices1.csv" \
+  -F "file2=@your-invoices2.csv"
+```
 
-### **🚄 Option 2: Railway (Fast Deploy)**
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/Led9er?referralCode=bonus)
-
-### **▲ Option 3: Vercel (Serverless)**
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/TomWall1/LedgerLink)
-
-### **🟣 Option 4: Heroku (Classic)**
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/TomWall1/LedgerLink)
+**Demo Accounts:**
+- **Admin**: `admin@ledgerlink.com` / `admin123`
+- **User**: `user@ledgerlink.com` / `user123`
 
 ---
 
-## 🎉 **What Happens After You Click Deploy**
+## 🎯 **Additional Backend Deployments (Optional)**
 
-**GitHub Actions automatically:**
-1. ✅ **Sets up** all dependencies and environment
-2. ✅ **Deploys** with Docker containers (PostgreSQL + Redis + Backend)  
-3. ✅ **Configures** database with migrations and demo data
-4. ✅ **Provides** you with a live API immediately!
+Deploy additional backend instances to other platforms:
 
-**Within 2-3 minutes, you'll have:**
-- 🌐 **Live API**: `https://your-app.onrender.com`
-- 🏥 **Health Check**: `https://your-app.onrender.com/api/health`
-- 📚 **API Docs**: `https://your-app.onrender.com/api/docs`
-- 🧪 **CSV Demo**: `https://your-app.onrender.com/api/v1/matching/csv-demo`
+### **🟢 Render (Additional Instance)**
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/TomWall1/LedgerLink)
 
-**Demo accounts ready to use:**
-- **Admin**: `admin@ledgerlink.com` / `admin123`
-- **User**: `user@ledgerlink.com` / `user123`
+### **🚄 Railway (Fast Deploy)**
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/Led9er?referralCode=bonus)
+
+### **🟣 Heroku (Classic)**
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/TomWall1/LedgerLink)
+
+*All deployments automatically configure CORS for the existing frontend at https://ledgerlink.vercel.app*
 
 ---
 
@@ -96,6 +89,12 @@
 ---
 
 ## 🛠️ **Tech Stack**
+
+### **Frontend**
+- **Framework**: React/Next.js (deployed on Vercel)
+- **UI**: Modern responsive interface
+- **State Management**: Context API / Redux
+- **Authentication**: JWT integration
 
 ### **Backend**
 - **Runtime**: Node.js 18+ with TypeScript
@@ -144,54 +143,38 @@
 
 ---
 
-## 🌐 **Live Demo**
-
-- **Backend API**: https://ledgerlink.onrender.com
-- **Frontend**: https://lledgerlink.vercel.app *(Coming Soon)*
-- **Health Check**: https://ledgerlink.onrender.com/api/health
-- **API Docs**: https://ledgerlink.onrender.com/api/docs
-
-**Try the CSV Demo (no authentication required):**
-```bash
-curl -X POST https://ledgerlink.onrender.com/api/v1/matching/csv-demo \
-  -F "file1=@your-invoices1.csv" \
-  -F "file2=@your-invoices2.csv"
-```
-
----
-
-## 📊 **Project Structure**
+## 📁 **Project Structure**
 
 ```
 LedgerLink/
-├── 🎯 One-click Deploy Buttons (All platforms)
+├── 🎯 One-click Deploy Buttons (Backend only)
 ├── 🤖 GitHub Actions (Auto setup & deployment)
 ├── 📁 backend/
 │   ├── 🔧 src/ (TypeScript source)
-│   ├── 🗄️ prisma/ (Database schema & migrations)
+│   ├── 🗃️ prisma/ (Database schema & migrations)
 │   ├── 📜 scripts/ (Automated setup scripts)
 │   ├── 🐳 Dockerfile (Production container)
 │   └── 📋 docker-compose.yml (Development)
 ├── ⚙️ Platform configs (render.yaml, railway.json, etc.)
 ├── 📚 Documentation (README, DEPLOYMENT guides)
-└── 🎨 frontend/ (Coming Soon)
+└── 🎨 frontend/ (Deployed separately on Vercel)
 ```
 
 ---
 
-## 🧪 **Testing After Deployment**
+## 🧪 **Testing the API**
 
 ### **1. Health Check**
 ```bash
-curl https://your-app.onrender.com/api/health
+curl https://ledgerlink.onrender.com/api/health
 ```
 
 ### **2. API Documentation**
-Visit: `https://your-app.onrender.com/api/docs`
+Visit: [https://ledgerlink.onrender.com/api/docs](https://ledgerlink.onrender.com/api/docs)
 
 ### **3. Authentication Test**
 ```bash
-curl -X POST https://your-app.onrender.com/api/v1/auth/login \
+curl -X POST https://ledgerlink.onrender.com/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@ledgerlink.com","password":"admin123"}'
 ```
@@ -199,7 +182,7 @@ curl -X POST https://your-app.onrender.com/api/v1/auth/login \
 ### **4. CSV Matching Demo**
 No authentication required - perfect for testing!
 ```bash
-curl -X POST https://your-app.onrender.com/api/v1/matching/csv-demo \
+curl -X POST https://ledgerlink.onrender.com/api/v1/matching/csv-demo \
   -F "file1=@invoices1.csv" \
   -F "file2=@invoices2.csv"
 ```
@@ -223,13 +206,13 @@ make quick-start
 
 ---
 
-## 🎯 **Environment Variables (Auto-configured)**
+## 🎛️ **Environment Variables (Auto-configured)**
 
 All deployment platforms automatically configure:
 - `DATABASE_URL` - PostgreSQL connection
 - `REDIS_URL` - Redis connection
 - `JWT_SECRET` - Authentication secret
-- `CORS_ORIGIN` - Frontend domain
+- `CORS_ORIGIN` - Set to https://ledgerlink.vercel.app
 - All other required variables
 
 No manual configuration needed! 🎉
@@ -261,7 +244,7 @@ GitHub Actions automatically monitors all deployments every 30 minutes:
 - **Input Validation**: Joi schema validation
 - **SQL Injection**: Prisma ORM protection
 - **XSS Protection**: Helmet security headers
-- **CORS**: Configurable cross-origin policies
+- **CORS**: Pre-configured for https://ledgerlink.vercel.app
 - **File Upload**: Type and size validation
 - **Password Security**: bcrypt with salt rounds
 - **API Keys**: Secure key generation and validation
@@ -270,7 +253,7 @@ GitHub Actions automatically monitors all deployments every 30 minutes:
 
 ## 🎯 **Roadmap**
 
-- [ ] **Frontend Implementation** (React/Next.js)
+- [ ] **Frontend Enhancements** (React/Next.js improvements)
 - [ ] **Advanced AI Matching** (ML models)
 - [ ] **Mobile App** (React Native)
 - [ ] **Additional ERP Integrations** (SAP, Oracle)
@@ -284,7 +267,7 @@ GitHub Actions automatically monitors all deployments every 30 minutes:
 ## 🤝 **Contributing**
 
 1. **Fork** the repository
-2. **Deploy** your own instance using the buttons above
+2. **Deploy** your own backend instance using the buttons above
 3. **Make** your changes
 4. **Test** with the deployed API
 5. **Submit** a Pull Request
@@ -303,7 +286,7 @@ GitHub Actions automatically monitors all deployments every 30 minutes:
 - **Quick Deploy Issues**: [Deployment Help Template](.github/ISSUE_TEMPLATE/deployment-help.md)
 - **General Issues**: [GitHub Issues](https://github.com/TomWall1/LedgerLink/issues)
 - **Documentation**: [Deployment Guide](DEPLOYMENT.md)
-- **API Testing**: Use the live demo API above
+- **Live API**: Use https://ledgerlink.onrender.com for testing
 
 ---
 
@@ -319,6 +302,16 @@ If LedgerLink helps you streamline your invoice reconciliation, please give it a
 
 ---
 
-**🚀 Click any deploy button above and have your API running in under 3 minutes!**
+## 🔗 **Quick Links**
+
+- 🎨 **Frontend**: https://ledgerlink.vercel.app
+- ⚙️ **Backend API**: https://ledgerlink.onrender.com
+- 🏥 **Health**: https://ledgerlink.onrender.com/api/health
+- 📚 **Docs**: https://ledgerlink.onrender.com/api/docs
+- 🧪 **CSV Demo**: https://ledgerlink.onrender.com/api/v1/matching/csv-demo
+
+---
+
+**🚀 Click any deploy button above to create additional backend instances!**
 
 *Built with ❤️ for the future of financial operations.*

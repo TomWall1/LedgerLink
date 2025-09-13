@@ -71,7 +71,7 @@ jobs:
         REDIS_URL=redis://localhost:6379
         JWT_SECRET=github-actions-secret-key-12345678901234567890
         JWT_REFRESH_SECRET=github-actions-refresh-secret-12345678901234567890
-        CORS_ORIGIN=https://lledgerlink.vercel.app,http://localhost:3000
+        CORS_ORIGIN=https://ledgerlink.vercel.app,http://localhost:3000
         SMTP_HOST=
         SMTP_PORT=587
         SMTP_USER=
@@ -84,7 +84,7 @@ jobs:
         echo "✅ Environment configured"
         
     # Step 2: Database Setup  
-    - name: 🗄️ Setup Database
+    - name: 🗃️ Setup Database
       working-directory: backend
       run: |
         echo "🔄 Generating Prisma client..."
@@ -138,15 +138,19 @@ jobs:
         echo "### ✅ Completed Steps:" >> $GITHUB_STEP_SUMMARY
         echo "- 📦 Dependencies installed" >> $GITHUB_STEP_SUMMARY
         echo "- 🔧 Environment configured" >> $GITHUB_STEP_SUMMARY
-        echo "- 🗄️ Database setup completed" >> $GITHUB_STEP_SUMMARY
+        echo "- 🗃️ Database setup completed" >> $GITHUB_STEP_SUMMARY
         echo "- 🧪 Tests passed" >> $GITHUB_STEP_SUMMARY
         echo "- 🏗️ Application built" >> $GITHUB_STEP_SUMMARY
         echo "- 🐳 Docker image created" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🌐 Ready for Deployment to:" >> $GITHUB_STEP_SUMMARY
-        echo "- [Render](https://render.com) - Click deploy button below" >> $GITHUB_STEP_SUMMARY
-        echo "- [Railway](https://railway.app) - Click deploy button below" >> $GITHUB_STEP_SUMMARY
-        echo "- [Vercel](https://vercel.com) - Click deploy button below" >> $GITHUB_STEP_SUMMARY
+        echo "### 🌐 Current Setup:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Frontend**: [https://ledgerlink.vercel.app](https://ledgerlink.vercel.app)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Backend**: [https://ledgerlink.onrender.com](https://ledgerlink.onrender.com)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Ready for Deployment to:" >> $GITHUB_STEP_SUMMARY
+        echo "- [Render](https://render.com) - Click deploy button in README" >> $GITHUB_STEP_SUMMARY
+        echo "- [Railway](https://railway.app) - Click deploy button in README" >> $GITHUB_STEP_SUMMARY
+        echo "- [Heroku](https://heroku.com) - Click deploy button in README" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📊 Demo Accounts Created:" >> $GITHUB_STEP_SUMMARY
         echo "- **Admin**: admin@ledgerlink.com / admin123" >> $GITHUB_STEP_SUMMARY
@@ -164,7 +168,8 @@ jobs:
     - name: 📢 Deployment Complete
       run: |
         echo "🎉 Complete setup and deployment finished!"
-        echo "🔗 Your API endpoints:"
-        echo "   - Health: https://ledgerlink.onrender.com/api/health"
-        echo "   - Docs: https://ledgerlink.onrender.com/api/docs"
+        echo "🔗 Your endpoints:"
+        echo "   - Frontend: https://ledgerlink.vercel.app"
+        echo "   - Backend Health: https://ledgerlink.onrender.com/api/health"
+        echo "   - Backend Docs: https://ledgerlink.onrender.com/api/docs"
         echo "   - CSV Demo: https://ledgerlink.onrender.com/api/v1/matching/csv-demo"

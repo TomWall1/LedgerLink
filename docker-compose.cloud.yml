@@ -15,7 +15,7 @@ services:
       REDIS_URL: ${REDIS_URL}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      CORS_ORIGIN: ${CORS_ORIGIN:-https://lledgerlink.vercel.app}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://ledgerlink.vercel.app}
       EMAIL_FROM_NAME: LedgerLink
       EMAIL_FROM_EMAIL: noreply@ledgerlink.com
       UPLOAD_PATH: ./uploads

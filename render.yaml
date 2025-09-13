@@ -19,7 +19,7 @@ services:
       - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: CORS_ORIGIN
-        value: https://lledgerlink.vercel.app
+        value: https://ledgerlink.vercel.app
       - key: EMAIL_FROM_NAME
         value: LedgerLink
       - key: EMAIL_FROM_EMAIL

@@ -38,7 +38,7 @@
       "generator": "secret"
     },
     "CORS_ORIGIN": {
-      "value": "https://lledgerlink.vercel.app"
+      "value": "https://ledgerlink.vercel.app"
     },
     "EMAIL_FROM_NAME": {
       "value": "LedgerLink"

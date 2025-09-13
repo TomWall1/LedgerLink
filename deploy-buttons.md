@@ -1,10 +1,17 @@
 # 🚀 One-Click Deploy Buttons
 
-## Quick Deployment Options
+## Current Setup
 
-Deploy LedgerLink backend to your preferred cloud platform with a single click:
+✅ **Frontend**: https://ledgerlink.vercel.app (Already deployed on Vercel)  
+✅ **Backend**: https://ledgerlink.onrender.com (Already deployed on Render)
 
-### **🟢 Render (Recommended - Free Tier Available)**
+---
+
+## Additional Backend Deployment Options
+
+Deploy additional backend instances to other platforms:
+
+### **🟢 Render (Current Production)**
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/TomWall1/LedgerLink)
 
@@ -34,14 +41,6 @@ Deploy LedgerLink backend to your preferred cloud platform with a single click:
 - ✅ Redis for caching
 - ✅ Custom domain support
 - ✅ Environment auto-configuration
-
----
-
-### **▲ Vercel (Serverless)**
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/TomWall1/LedgerLink&project-name=ledgerlink-backend&repository-name=ledgerlink-backend)
-
-**Note:** You'll need to add external database (Supabase, PlanetScale, etc.)
 
 ---
 
@@ -117,6 +116,10 @@ Once deployed, you can immediately:
 4. **View API documentation:**
    `https://your-app.onrender.com/api/docs`
 
+5. **Connect to existing frontend:**
+   - Frontend at: https://ledgerlink.vercel.app
+   - Update frontend API URL to point to your new backend instance
+
 ---
 
 ## 📊 What's Included in Every Deployment
@@ -131,6 +134,7 @@ Once deployed, you can immediately:
 ✅ **Report Generation** - PDF and CSV reports  
 ✅ **Webhook Support** - Real-time ERP updates  
 ✅ **Health Monitoring** - Comprehensive health checks  
+✅ **CORS Configuration** - Pre-configured for https://ledgerlink.vercel.app
 
 ---
 
@@ -140,7 +144,7 @@ All platforms automatically configure:
 - `DATABASE_URL` - PostgreSQL connection
 - `REDIS_URL` - Redis connection  
 - `JWT_SECRET` - Authentication secret
-- `CORS_ORIGIN` - Frontend domain
+- `CORS_ORIGIN` - Set to https://ledgerlink.vercel.app
 - All other required variables
 
 ---

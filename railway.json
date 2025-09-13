@@ -14,7 +14,7 @@
       "variables": {
         "NODE_ENV": "production",
         "PORT": "$PORT",
-        "CORS_ORIGIN": "https://lledgerlink.vercel.app",
+        "CORS_ORIGIN": "https://ledgerlink.vercel.app",
         "EMAIL_FROM_NAME": "LedgerLink", 
         "EMAIL_FROM_EMAIL": "noreply@ledgerlink.com",
         "UPLOAD_PATH": "./uploads",
