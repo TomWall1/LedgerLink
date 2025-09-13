@@ -1,97 +1,101 @@
 import dotenv from 'dotenv';
-import { z } from 'zod';
+import Joi from 'joi';
 
 // Load environment variables
 dotenv.config();
 
 // Environment schema validation
-const envSchema = z.object({
+const envSchema = Joi.object({
   // Server
-  PORT: z.string().transform(Number).default('3001'),
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  API_VERSION: z.string().default('v1'),
+  PORT: Joi.number().default(3001),
+  NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
+  API_VERSION: Joi.string().default('v1'),
   
   // Database
-  DATABASE_URL: z.string(),
-  REDIS_URL: z.string().optional(),
+  DATABASE_URL: Joi.string().required(),
+  REDIS_URL: Joi.string().optional(),
   
   // JWT
-  JWT_SECRET: z.string().min(32),
-  JWT_EXPIRES_IN: z.string().default('7d'),
-  JWT_REFRESH_SECRET: z.string().min(32),
-  JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
+  JWT_SECRET: Joi.string().min(32).required(),
+  JWT_EXPIRES_IN: Joi.string().default('7d'),
+  JWT_REFRESH_SECRET: Joi.string().min(32).required(),
+  JWT_REFRESH_EXPIRES_IN: Joi.string().default('30d'),
   
   // CORS
-  CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  CORS_ORIGIN: Joi.string().default('http://localhost:3000'),
   
   // Rate Limiting
-  RATE_LIMIT_WINDOW: z.string().transform(Number).default('15'),
-  RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
+  RATE_LIMIT_WINDOW: Joi.number().default(15),
+  RATE_LIMIT_MAX_REQUESTS: Joi.number().default(100),
   
   // Email
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.string().transform(Number).optional(),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
-  FROM_EMAIL: z.string().email().optional(),
-  FROM_NAME: z.string().optional(),
+  SMTP_HOST: Joi.string().optional(),
+  SMTP_PORT: Joi.number().optional(),
+  SMTP_USER: Joi.string().optional(),
+  SMTP_PASS: Joi.string().optional(),
+  FROM_EMAIL: Joi.string().email().optional(),
+  FROM_NAME: Joi.string().optional(),
   
   // File Upload
-  MAX_FILE_SIZE: z.string().transform(Number).default('10485760'), // 10MB
-  UPLOAD_PATH: z.string().default('./uploads'),
+  MAX_FILE_SIZE: Joi.number().default(10485760), // 10MB
+  UPLOAD_PATH: Joi.string().default('./uploads'),
   
   // ERP Integrations
-  XERO_CLIENT_ID: z.string().optional(),
-  XERO_CLIENT_SECRET: z.string().optional(),
-  XERO_REDIRECT_URI: z.string().optional(),
+  XERO_CLIENT_ID: Joi.string().optional(),
+  XERO_CLIENT_SECRET: Joi.string().optional(),
+  XERO_REDIRECT_URI: Joi.string().optional(),
   
-  QB_CLIENT_ID: z.string().optional(),
-  QB_CLIENT_SECRET: z.string().optional(),
-  QB_REDIRECT_URI: z.string().optional(),
-  QB_SANDBOX: z.string().transform(Boolean).default('true'),
+  QB_CLIENT_ID: Joi.string().optional(),
+  QB_CLIENT_SECRET: Joi.string().optional(),
+  QB_REDIRECT_URI: Joi.string().optional(),
+  QB_SANDBOX: Joi.boolean().default(true),
   
-  SAGE_CLIENT_ID: z.string().optional(),
-  SAGE_CLIENT_SECRET: z.string().optional(),
-  SAGE_REDIRECT_URI: z.string().optional(),
+  SAGE_CLIENT_ID: Joi.string().optional(),
+  SAGE_CLIENT_SECRET: Joi.string().optional(),
+  SAGE_REDIRECT_URI: Joi.string().optional(),
   
-  NETSUITE_ACCOUNT_ID: z.string().optional(),
-  NETSUITE_CLIENT_ID: z.string().optional(),
-  NETSUITE_CLIENT_SECRET: z.string().optional(),
+  NETSUITE_ACCOUNT_ID: Joi.string().optional(),
+  NETSUITE_CLIENT_ID: Joi.string().optional(),
+  NETSUITE_CLIENT_SECRET: Joi.string().optional(),
   
   // AI/ML
-  OPENAI_API_KEY: z.string().optional(),
-  HUGGINGFACE_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: Joi.string().optional(),
+  HUGGINGFACE_API_KEY: Joi.string().optional(),
   
   // Monitoring
-  SENTRY_DSN: z.string().optional(),
-  NEW_RELIC_LICENSE_KEY: z.string().optional(),
+  SENTRY_DSN: Joi.string().optional(),
+  NEW_RELIC_LICENSE_KEY: Joi.string().optional(),
   
   // Payment Processing
-  STRIPE_SECRET_KEY: z.string().optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_SECRET_KEY: Joi.string().optional(),
+  STRIPE_WEBHOOK_SECRET: Joi.string().optional(),
+  STRIPE_PUBLISHABLE_KEY: Joi.string().optional(),
   
   // Feature Flags
-  ENABLE_AI_MATCHING: z.string().transform(Boolean).default('true'),
-  ENABLE_REAL_TIME_SYNC: z.string().transform(Boolean).default('true'),
-  ENABLE_AUDIT_LOGGING: z.string().transform(Boolean).default('true'),
-  ENABLE_ANALYTICS: z.string().transform(Boolean).default('true'),
+  ENABLE_AI_MATCHING: Joi.boolean().default(true),
+  ENABLE_REAL_TIME_SYNC: Joi.boolean().default(true),
+  ENABLE_AUDIT_LOGGING: Joi.boolean().default(true),
+  ENABLE_ANALYTICS: Joi.boolean().default(true),
   
   // Security
-  ENCRYPTION_KEY: z.string().min(32).optional(),
-  SESSION_SECRET: z.string().min(32).optional(),
-  PASSWORD_MIN_LENGTH: z.string().transform(Number).default('8'),
-  PASSWORD_REQUIRE_SPECIAL: z.string().transform(Boolean).default('true'),
+  ENCRYPTION_KEY: Joi.string().min(32).optional(),
+  SESSION_SECRET: Joi.string().min(32).optional(),
+  PASSWORD_MIN_LENGTH: Joi.number().default(8),
+  PASSWORD_REQUIRE_SPECIAL: Joi.boolean().default(true),
   
   // Logging
-  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
-  LOG_FORMAT: z.enum(['json', 'simple']).default('json'),
-  LOG_MAX_SIZE: z.string().default('100m'),
-  LOG_MAX_FILES: z.string().transform(Number).default('10'),
-});
+  LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
+  LOG_FORMAT: Joi.string().valid('json', 'simple').default('json'),
+  LOG_MAX_SIZE: Joi.string().default('100m'),
+  LOG_MAX_FILES: Joi.number().default(10),
+}).unknown();
 
 // Validate environment variables
-const env = envSchema.parse(process.env);
+const { error, value: env } = envSchema.validate(process.env);
+
+if (error) {
+  throw new Error(`Config validation error: ${error.message}`);
+}
 
 // Export configuration object
 export const config = {
@@ -118,7 +122,7 @@ export const config = {
     refreshExpiresIn: env.JWT_REFRESH_EXPIRES_IN,
   },
   cors: {
-    origin: env.CORS_ORIGIN.split(',').map(origin => origin.trim()),
+    origin: env.CORS_ORIGIN.split(',').map((origin: string) => origin.trim()),
   },
   rateLimit: {
     windowMs: env.RATE_LIMIT_WINDOW * 60 * 1000, // Convert minutes to milliseconds

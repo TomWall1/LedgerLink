@@ -1,0 +1,574 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  firstName         String
+  lastName          String
+  role              UserRole  @default(USER)
+  isActive          Boolean   @default(true)
+  isEmailVerified   Boolean   @default(false)
+  emailVerificationToken String?
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Company relationship
+  companyId         String?
+  company           Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  
+  // Relationships
+  permissions       UserPermission[]
+  apiKeys           ApiKey[]
+  erpConnections    ERPConnection[]
+  matchingSessions  MatchingSession[]
+  reports           Report[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  
+  @@map("users")
+}
+
+model Company {
+  id              String    @id @default(cuid())
+  name            String
+  slug            String    @unique
+  industry        String?
+  size            CompanySize?
+  country         String?
+  timezone        String    @default("UTC")
+  settings        Json      @default("{}")
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  subscriptionPlan String?  @default("free")
+  trialEndsAt     DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relationships
+  users           User[]
+  erpConnections  ERPConnection[]
+  counterpartyLinks CounterpartyLink[]
+  matchingSessions MatchingSession[]
+  reports         Report[]
+  invoices        Invoice[]
+  
+  @@map("companies")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  category    String?
+  createdAt   DateTime @default(now())
+  
+  // Relationships
+  users       UserPermission[]
+  
+  @@map("permissions")
+}
+
+model UserPermission {
+  id           String   @id @default(cuid())
+  userId       String
+  permissionId String
+  grantedAt    DateTime @default(now())
+  grantedBy    String?
+  
+  // Relationships
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  key         String    @unique
+  userId      String
+  permissions String[]  @default([])
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  
+  // Relationships
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("api_keys")
+}
+
+// ERP Integration
+model ERPConnection {
+  id              String            @id @default(cuid())
+  name            String
+  type            ERPType
+  status          ConnectionStatus  @default(DISCONNECTED)
+  userId          String
+  companyId       String
+  
+  // OAuth tokens
+  accessToken     String?
+  refreshToken    String?
+  tokenExpiresAt  DateTime?
+  
+  // ERP specific data
+  externalId      String?           // Company ID in the ERP system
+  settings        Json              @default("{}")
+  metadata        Json              @default("{}")
+  
+  // Sync information
+  lastSyncAt      DateTime?
+  nextSyncAt      DateTime?
+  syncStatus      SyncStatus        @default(IDLE)
+  syncError       String?
+  totalRecords    Int               @default(0)
+  
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  // Relationships
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company         Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices        Invoice[]
+  syncLogs        SyncLog[]
+  
+  @@unique([userId, companyId, type])
+  @@map("erp_connections")
+}
+
+model SyncLog {
+  id              String        @id @default(cuid())
+  erpConnectionId String
+  status          SyncStatus
+  type            SyncType      @default(FULL)
+  recordsProcessed Int          @default(0)
+  recordsCreated  Int           @default(0)
+  recordsUpdated  Int           @default(0)
+  recordsSkipped  Int           @default(0)
+  errorMessage    String?
+  metadata        Json          @default("{}")
+  startedAt       DateTime      @default(now())
+  completedAt     DateTime?
+  
+  // Relationships
+  erpConnection   ERPConnection @relation(fields: [erpConnectionId], references: [id], onDelete: Cascade)
+  
+  @@map("sync_logs")
+}
+
+// Counterparty Management
+model CounterpartyLink {
+  id                String            @id @default(cuid())
+  companyId         String
+  ourCustomerName   String
+  theirCompanyName  String
+  theirSystemType   ERPType?
+  theirContactEmail String?
+  theirContactName  String?
+  
+  connectionStatus  CounterpartyStatus @default(PENDING)
+  linkToken         String?            @unique
+  linkExpiresAt     DateTime?
+  
+  // Matching settings
+  matchingRules     Json               @default("{}")
+  autoApproveThreshold Float?          @default(0.95)
+  
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  
+  // Relationships
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  matchingSessions  MatchingSession[]
+  
+  @@map("counterparty_links")
+}
+
+// Invoice Management
+model Invoice {
+  id              String        @id @default(cuid())
+  companyId       String
+  erpConnectionId String?
+  
+  // Invoice details
+  invoiceNumber   String
+  amount          Decimal       @db.Decimal(15, 2)
+  currency        String        @default("USD")
+  issueDate       DateTime
+  dueDate         DateTime?
+  paidDate        DateTime?
+  status          InvoiceStatus @default(OUTSTANDING)
+  
+  // Counterparty information
+  counterpartyName String
+  counterpartyId  String?
+  
+  // Additional fields
+  reference       String?
+  description     String?
+  lineItems       Json?         @default("[]")
+  attachments     Json?         @default("[]")
+  
+  // Matching information
+  isMatched       Boolean       @default(false)
+  matchedWith     String?       // ID of the matched invoice
+  matchConfidence Float?
+  matchedAt       DateTime?
+  matchedBy       String?
+  
+  // Metadata
+  metadata        Json          @default("{}")
+  tags            String[]      @default([])
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relationships
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  erpConnection   ERPConnection? @relation(fields: [erpConnectionId], references: [id], onDelete: SetNull)
+  matchResults    MatchResult[]
+  
+  @@unique([companyId, erpConnectionId, invoiceNumber])
+  @@index([companyId, counterpartyName])
+  @@index([companyId, status])
+  @@index([issueDate])
+  @@map("invoices")
+}
+
+// Matching System
+model MatchingSession {
+  id                String              @id @default(cuid())
+  companyId         String
+  userId            String
+  counterpartyLinkId String?
+  
+  name              String
+  type              MatchingType
+  status            MatchingSessionStatus @default(PENDING)
+  
+  // Configuration
+  sourceType        SourceType
+  sourceConfig      Json                @default("{}")
+  targetType        SourceType
+  targetConfig      Json                @default("{}")
+  
+  // Matching rules
+  matchingRules     Json                @default("{}")
+  confidenceThreshold Float             @default(0.8)
+  autoApprove       Boolean             @default(false)
+  
+  // Progress tracking
+  totalRecords      Int                 @default(0)
+  processedRecords  Int                 @default(0)
+  matchedRecords    Int                 @default(0)
+  unmatchedRecords  Int                 @default(0)
+  
+  // Timing
+  startedAt         DateTime?
+  completedAt       DateTime?
+  
+  // Results
+  results           Json?               @default("{}")
+  errorMessage      String?
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  // Relationships
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  counterpartyLink  CounterpartyLink?   @relation(fields: [counterpartyLinkId], references: [id], onDelete: SetNull)
+  matchResults      MatchResult[]
+  
+  @@map("matching_sessions")
+}
+
+model MatchResult {
+  id                String          @id @default(cuid())
+  matchingSessionId String
+  sourceInvoiceId   String
+  targetInvoiceId   String?
+  
+  confidence        Float
+  status            MatchStatus     @default(PENDING)
+  matchType         MatchType       @default(AUTOMATIC)
+  
+  // Detailed matching information
+  matchFactors      Json            @default("{}")
+  discrepancies     Json            @default("[]")
+  notes             String?
+  
+  // Review information
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  approvedBy        String?
+  approvedAt        DateTime?
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  // Relationships
+  matchingSession   MatchingSession @relation(fields: [matchingSessionId], references: [id], onDelete: Cascade)
+  sourceInvoice     Invoice         @relation(fields: [sourceInvoiceId], references: [id], onDelete: Cascade)
+  
+  @@unique([matchingSessionId, sourceInvoiceId])
+  @@map("match_results")
+}
+
+// Reporting
+model Report {
+  id          String       @id @default(cuid())
+  companyId   String
+  userId      String
+  
+  name        String
+  type        ReportType
+  status      ReportStatus @default(PENDING)
+  format      ReportFormat @default(PDF)
+  
+  // Configuration
+  parameters  Json         @default("{}")
+  filters     Json         @default("{}")
+  
+  // Schedule
+  isScheduled Boolean      @default(false)
+  schedule    String?      // Cron expression
+  nextRun     DateTime?
+  
+  // Output
+  filePath    String?
+  fileSize    Int?
+  downloadUrl String?
+  
+  // Timing
+  generatedAt DateTime?
+  expiresAt   DateTime?
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  // Relationships
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("reports")
+}
+
+// Audit & Notifications
+model AuditLog {
+  id          String    @id @default(cuid())
+  userId      String?
+  companyId   String?
+  
+  action      String
+  entityType  String
+  entityId    String?
+  changes     Json?     @default("{}")
+  metadata    Json?     @default("{}")
+  
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime  @default(now())
+  
+  // Relationships
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([userId])
+  @@index([companyId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id          String            @id @default(cuid())
+  userId      String
+  
+  type        NotificationType
+  title       String
+  message     String
+  data        Json?             @default("{}")
+  
+  isRead      Boolean           @default(false)
+  readAt      DateTime?
+  
+  // Delivery
+  channels    String[]          @default([])
+  deliveredAt DateTime?
+  
+  createdAt   DateTime          @default(now())
+  
+  // Relationships
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// Enums
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  USER
+  VIEWER
+}
+
+enum CompanySize {
+  STARTUP
+  SMALL
+  MEDIUM
+  LARGE
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum ERPType {
+  XERO
+  QUICKBOOKS
+  SAGE
+  NETSUITE
+  SAP
+  ORACLE
+  DYNAMICS
+  CUSTOM
+}
+
+enum ConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+  EXPIRED
+}
+
+enum SyncStatus {
+  IDLE
+  RUNNING
+  COMPLETED
+  FAILED
+  PAUSED
+}
+
+enum SyncType {
+  FULL
+  INCREMENTAL
+  MANUAL
+}
+
+enum CounterpartyStatus {
+  PENDING
+  LINKED
+  EXPIRED
+  REJECTED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  OUTSTANDING
+  OVERDUE
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum MatchingType {
+  ERP_TO_ERP
+  CSV_TO_CSV
+  ERP_TO_CSV
+  MANUAL
+}
+
+enum MatchingSessionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum SourceType {
+  ERP_CONNECTION
+  CSV_UPLOAD
+  MANUAL_ENTRY
+  API_IMPORT
+}
+
+enum MatchStatus {
+  PENDING
+  MATCHED
+  MISMATCHED
+  REJECTED
+  MANUAL_REVIEW
+}
+
+enum MatchType {
+  AUTOMATIC
+  MANUAL
+  RULE_BASED
+  AI_ASSISTED
+}
+
+enum ReportType {
+  RECONCILIATION_SUMMARY
+  DETAILED_MATCHES
+  AUDIT_TRAIL
+  COUNTERPARTY_ANALYSIS
+  DISCREPANCY_REPORT
+  MONTHLY_TRENDING
+  CUSTOM
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+enum ReportFormat {
+  PDF
+  CSV
+  XLSX
+  JSON
+}
+
+enum NotificationType {
+  MATCH_COMPLETED
+  SYNC_FAILED
+  REPORT_READY
+  CONNECTION_EXPIRED
+  COUNTERPARTY_INVITED
+  SYSTEM_ALERT
+  SECURITY_ALERT
+}
