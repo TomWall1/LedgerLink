@@ -2,8 +2,13 @@ import React from 'react';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 
+interface User {
+  name: string;
+  email: string;
+}
+
 interface DashboardProps {
-  user: { name: string; email: string } | null;
+  user: User | null;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
