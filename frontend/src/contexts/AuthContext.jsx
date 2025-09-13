@@ -24,6 +24,7 @@ export function AuthProvider({ children }) {
       const token = localStorage.getItem('authToken');
       if (token) {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        // FIXED: Changed from /api/auth/verify to /api/users/profile
         const response = await api.get('/api/users/profile');
         setUser(response.data.user);
       }
@@ -38,6 +39,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     try {
+      // FIXED: Changed from /api/auth/login to /api/users/login
       const response = await api.post('/api/users/login', { email, password });
       const { token, user } = response.data;
       
@@ -56,6 +58,7 @@ export function AuthProvider({ children }) {
 
   const register = async (email, password, companyName) => {
     try {
+      // FIXED: Changed from /api/auth/register to /api/users/register
       const response = await api.post('/api/users/register', { 
         email, 
         password, 
