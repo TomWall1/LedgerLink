@@ -243,3 +243,8 @@ ExportedObj/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Remove any old JS files from src
+frontend/src/**/*.js
+!frontend/src/**/*.test.js
+!frontend/src/**/*.spec.js
