@@ -28,5 +28,6 @@
     "VITE_ENABLE_ANALYTICS": "false",
     "VITE_ENABLE_DEBUG": "false",
     "VITE_SUPPORT_EMAIL": "support@ledgerlink.com"
-  }
+  },
+  "buildCommand": "cd frontend && tsc --noEmit && vite build"
 }
