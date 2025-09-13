@@ -1,0 +1,67 @@
+{
+  "name": "LedgerLink Backend",
+  "description": "AI-powered invoice reconciliation platform backend",
+  "repository": "https://github.com/TomWall1/LedgerLink",
+  "logo": "https://avatars.githubusercontent.com/u/yourusername?v=4",
+  "keywords": ["invoice", "reconciliation", "accounting", "erp", "ai", "fintech"],
+  "stack": "container",
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:mini"
+    },
+    {
+      "plan": "heroku-redis:mini"
+    }
+  ],
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "env": {
+    "NODE_ENV": {
+      "value": "production"
+    },
+    "NPM_CONFIG_PRODUCTION": {
+      "value": "false"
+    },
+    "JWT_SECRET": {
+      "generator": "secret"
+    },
+    "JWT_REFRESH_SECRET": {
+      "generator": "secret"
+    },
+    "CORS_ORIGIN": {
+      "value": "https://lledgerlink.vercel.app"
+    },
+    "EMAIL_FROM_NAME": {
+      "value": "LedgerLink"
+    },
+    "EMAIL_FROM_EMAIL": {
+      "value": "noreply@ledgerlink.com"
+    },
+    "UPLOAD_PATH": {
+      "value": "./uploads"
+    },
+    "MAX_FILE_SIZE": {
+      "value": "10485760"
+    }
+  },
+  "scripts": {
+    "postdeploy": "cd backend && npx prisma migrate deploy && npx prisma db seed"
+  },
+  "environments": {
+    "test": {
+      "addons": [
+        "heroku-postgresql:mini",
+        "heroku-redis:mini"
+      ]
+    }
+  }
+}

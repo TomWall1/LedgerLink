@@ -1,0 +1,39 @@
+name: Deploy to Render
+
+# Automatically deploy when code is pushed to main
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Allow manual deployment
+
+jobs:
+  deploy:
+    name: Deploy Backend to Render
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy to Render
+      uses: johnbeynon/render-deploy-action@v0.0.8
+      with:
+        service-id: ${{ secrets.RENDER_SERVICE_ID }}
+        api-key: ${{ secrets.RENDER_API_KEY }}
+        
+    - name: Wait for deployment
+      run: |
+        echo "Waiting for deployment to complete..."
+        sleep 60
+        
+    - name: Health check
+      run: |
+        echo "Checking deployment health..."
+        curl -f https://ledgerlink.onrender.com/api/health || exit 1
+        echo "✅ Deployment successful!"
+        
+    - name: Run database migrations
+      run: |
+        echo "Running database migrations..."
+        curl -X POST "https://ledgerlink.onrender.com/api/internal/migrate" \
+          -H "Authorization: Bearer ${{ secrets.ADMIN_API_KEY }}" || echo "Migration endpoint not available yet"

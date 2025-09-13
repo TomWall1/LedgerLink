@@ -1,29 +1,71 @@
+# Render.com deployment configuration
+# This file enables one-click deployment to Render
+
 services:
+  # Backend API Service
   - type: web
     name: ledgerlink-backend
-    runtime: node
-    rootDir: backend
-    buildCommand: npm install
-    startCommand: npm start
+    env: node
+    region: oregon
+    plan: starter # Free tier
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000
-  
-  - type: web
-    name: ledgerlink-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./build
-    envVars:
-      - key: REACT_APP_API_URL
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://lledgerlink.vercel.app
+      - key: EMAIL_FROM_NAME
+        value: LedgerLink
+      - key: EMAIL_FROM_EMAIL
+        value: noreply@ledgerlink.com
+      - key: UPLOAD_PATH
+        value: ./uploads
+      - key: MAX_FILE_SIZE
+        value: 10485760
+      # Database and Redis URLs will be auto-populated by Render
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ledgerlink-db
+          property: connectionString
+      - key: REDIS_URL
         fromService:
-          type: web
-          name: ledgerlink-backend
-          envVarKey: RENDER_EXTERNAL_URL
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+          type: redis
+          name: ledgerlink-redis
+          property: connectionString
+    
+    # Auto-deploy from main branch
+    autoDeploy: true
+    branch: main
+    
+    # Health check configuration
+    healthCheck:
+      path: /api/health
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      
+# Database
+databases:
+  - name: ledgerlink-db
+    databaseName: ledgerlink
+    user: ledgerlink
+    plan: starter # Free tier
+    region: oregon
+    
+    # Automatic daily backups
+    backup:
+      enabled: true
+      
+# Redis Cache  
+services:
+  - type: redis
+    name: ledgerlink-redis
+    plan: starter # Free tier
+    region: oregon
+    maxmemoryPolicy: allkeys-lru

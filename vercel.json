@@ -1,22 +1,38 @@
 {
   "version": 2,
+  "name": "ledgerlink-backend",
   "builds": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build"
+      "src": "backend/src/server.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "backend/prisma/**",
+          "backend/dist/**",
+          "backend/node_modules/.prisma/**"
+        ]
+      }
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "https://ledgerlink.onrender.com/api/$1"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/backend/src/server.ts"
     }
   ],
-  "buildCommand": "npm run build",
-  "outputDirectory": "build",
-  "framework": "create-react-app"
+  "env": {
+    "NODE_ENV": "production",
+    "CORS_ORIGIN": "https://lledgerlink.vercel.app",
+    "EMAIL_FROM_NAME": "LedgerLink",
+    "EMAIL_FROM_EMAIL": "noreply@ledgerlink.com",
+    "UPLOAD_PATH": "/tmp/uploads",
+    "MAX_FILE_SIZE": "10485760"
+  },
+  "functions": {
+    "backend/src/server.ts": {
+      "maxDuration": 30
+    }
+  },
+  "installCommand": "cd backend && npm install",
+  "buildCommand": "cd backend && npm run build"
 }

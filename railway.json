@@ -1,0 +1,43 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd backend && npm install && npm run build",
+    "startCommand": "cd backend && npm start"
+  },
+  "deploy": {
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  },
+  "environments": {
+    "production": {
+      "variables": {
+        "NODE_ENV": "production",
+        "PORT": "$PORT",
+        "CORS_ORIGIN": "https://lledgerlink.vercel.app",
+        "EMAIL_FROM_NAME": "LedgerLink", 
+        "EMAIL_FROM_EMAIL": "noreply@ledgerlink.com",
+        "UPLOAD_PATH": "./uploads",
+        "MAX_FILE_SIZE": "10485760"
+      },
+      "plugins": [
+        {
+          "name": "postgresql",
+          "config": {
+            "version": "15"
+          }
+        },
+        {
+          "name": "redis",
+          "config": {
+            "version": "7"
+          }
+        }
+      ]
+    }
+  },
+  "healthcheck": {
+    "path": "/api/health",
+    "timeout": 30
+  }
+}
