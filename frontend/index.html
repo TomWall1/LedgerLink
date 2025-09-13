@@ -4,105 +4,19 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="LedgerLink - AI-powered invoice reconciliation platform" />
-    <meta name="theme-color" content="#3b82f6" />
-    <title>LedgerLink - AI Invoice Reconciliation</title>
+    <meta name="description" content="LedgerLink - Automated account reconciliation and ledger matching for businesses" />
+    <meta name="keywords" content="accounting, reconciliation, ledger, accounts payable, accounts receivable, automation" />
+    <title>LedgerLink - Automated Ledger Reconciliation</title>
     
-    <!-- Preload critical fonts -->
+    <!-- Preconnect to external domains -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Inter font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- PWA meta tags -->
-    <link rel="manifest" href="/manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="LedgerLink">
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://lledgerlink.vercel.app/">
-    <meta property="og:title" content="LedgerLink - AI Invoice Reconciliation">
-    <meta property="og:description" content="Streamline your invoice reconciliation with AI-powered matching and automated workflows.">
-    <meta property="og:image" content="/og-image.png">
-    
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://lledgerlink.vercel.app/">
-    <meta property="twitter:title" content="LedgerLink - AI Invoice Reconciliation">
-    <meta property="twitter:description" content="Streamline your invoice reconciliation with AI-powered matching and automated workflows.">
-    <meta property="twitter:image" content="/twitter-image.png">
-    
-    <style>
-      /* Loading screen styles */
-      #loading-screen {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        transition: opacity 0.3s ease-out;
-      }
-      
-      .loading-logo {
-        width: 64px;
-        height: 64px;
-        margin-bottom: 24px;
-        animation: pulse 2s infinite;
-      }
-      
-      .loading-text {
-        color: white;
-        font-family: 'Inter', sans-serif;
-        font-size: 24px;
-        font-weight: 600;
-        margin-bottom: 8px;
-      }
-      
-      .loading-subtitle {
-        color: rgba(255, 255, 255, 0.8);
-        font-family: 'Inter', sans-serif;
-        font-size: 14px;
-      }
-      
-      @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-      }
-      
-      /* Hide loading screen when app loads */
-      .loaded #loading-screen {
-        opacity: 0;
-        pointer-events: none;
-      }
-    </style>
   </head>
   <body>
-    <div id="loading-screen">
-      <svg class="loading-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <div class="loading-text">LedgerLink</div>
-      <div class="loading-subtitle">Loading your dashboard...</div>
-    </div>
-    
     <div id="root"></div>
-    
     <script type="module" src="/src/main.tsx"></script>
-    
-    <script>
-      // Hide loading screen when app is ready
-      window.addEventListener('load', () => {
-        setTimeout(() => {
-          document.body.classList.add('loaded');
-        }, 500);
-      });
-    </script>
   </body>
 </html>
