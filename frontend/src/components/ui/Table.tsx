@@ -1,146 +1,113 @@
 import React from 'react';
-import { clsx } from 'clsx';
+import { cn } from '../../utils/cn';
 
-interface TableProps {
-  children: React.ReactNode;
-  className?: string;
-}
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {}
 
-interface TableHeaderProps {
-  children: React.ReactNode;
-  className?: string;
-}
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, ...props }, ref) => (
+    <table
+      ref={ref}
+      className={cn('table', className)}
+      {...props}
+    />
+  )
+);
+Table.displayName = 'Table';
 
-interface TableBodyProps {
-  children: React.ReactNode;
-  className?: string;
-}
+const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
+  ({ className, ...props }, ref) => (
+    <thead
+      ref={ref}
+      className={cn('table-header', className)}
+      {...props}
+    />
+  )
+);
+TableHeader.displayName = 'TableHeader';
 
-interface TableRowProps {
-  children: React.ReactNode;
-  className?: string;
-  expandable?: boolean;
-  expanded?: boolean;
-  onToggleExpand?: () => void;
-}
+const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
+  ({ className, ...props }, ref) => (
+    <tbody
+      ref={ref}
+      className={cn('table-body', className)}
+      {...props}
+    />
+  )
+);
+TableBody.displayName = 'TableBody';
 
-interface TableHeadProps {
-  children: React.ReactNode;
-  className?: string;
+const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
+  ({ className, ...props }, ref) => (
+    <tr
+      ref={ref}
+      className={cn('table-row', className)}
+      {...props}
+    />
+  )
+);
+TableRow.displayName = 'TableRow';
+
+export interface TableHeadProps extends React.HTMLAttributes<HTMLTableCellElement> {
   sortable?: boolean;
   sortDirection?: 'asc' | 'desc' | null;
   onSort?: () => void;
 }
 
-interface TableCellProps {
-  children: React.ReactNode;
-  className?: string;
-  colSpan?: number;
-}
-
-export const Table: React.FC<TableProps> = ({ children, className }) => {
-  return (
-    <div className="overflow-hidden">
-      <table className={clsx('min-w-full divide-y divide-neutral-200', className)}>
-        {children}
-      </table>
-    </div>
-  );
-};
-
-export const TableHeader: React.FC<TableHeaderProps> = ({ children, className }) => {
-  return (
-    <thead className={clsx('bg-neutral-50', className)}>
-      {children}
-    </thead>
-  );
-};
-
-export const TableBody: React.FC<TableBodyProps> = ({ children, className }) => {
-  return (
-    <tbody className={clsx('bg-white divide-y divide-neutral-200', className)}>
-      {children}
-    </tbody>
-  );
-};
-
-export const TableRow: React.FC<TableRowProps> = ({ 
-  children, 
-  className, 
-  expandable, 
-  expanded, 
-  onToggleExpand 
-}) => {
-  return (
-    <tr 
-      className={clsx(
-        expandable && 'cursor-pointer hover:bg-neutral-50 transition-colors duration-120',
-        className
-      )}
-      onClick={expandable ? onToggleExpand : undefined}
-    >
-      {children}
-    </tr>
-  );
-};
-
-export const TableHead: React.FC<TableHeadProps> = ({ 
-  children, 
-  className, 
-  sortable, 
-  sortDirection, 
-  onSort 
-}) => {
-  return (
-    <th 
-      className={clsx(
-        'px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider',
-        sortable && 'cursor-pointer hover:bg-neutral-100 select-none',
+const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
+  ({ className, sortable, sortDirection, onSort, children, ...props }, ref) => (
+    <th
+      ref={ref}
+      className={cn(
+        'table-head',
+        {
+          'table-head-sortable': sortable
+        },
         className
       )}
       onClick={sortable ? onSort : undefined}
+      {...props}
     >
       <div className="flex items-center space-x-1">
         <span>{children}</span>
         {sortable && (
           <div className="flex flex-col">
-            <svg 
-              className={clsx(
-                'w-3 h-3 -mb-1 transition-colors duration-120',
-                sortDirection === 'asc' ? 'text-primary-600' : 'text-neutral-400'
-              )} 
-              fill="currentColor" 
+            <svg
+              className={cn(
+                'w-3 h-3',
+                sortDirection === 'asc' ? 'text-neutral-900' : 'text-neutral-400'
+              )}
+              fill="currentColor"
               viewBox="0 0 20 20"
             >
-              <path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" />
+              <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
             </svg>
-            <svg 
-              className={clsx(
-                'w-3 h-3 transition-colors duration-120',
-                sortDirection === 'desc' ? 'text-primary-600' : 'text-neutral-400'
-              )} 
-              fill="currentColor" 
+            <svg
+              className={cn(
+                'w-3 h-3 -mt-1',
+                sortDirection === 'desc' ? 'text-neutral-900' : 'text-neutral-400'
+              )}
+              fill="currentColor"
               viewBox="0 0 20 20"
             >
-              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
           </div>
         )}
       </div>
     </th>
-  );
-};
+  )
+);
+TableHead.displayName = 'TableHead';
 
-export const TableCell: React.FC<TableCellProps> = ({ children, className, colSpan }) => {
-  return (
-    <td 
-      className={clsx(
-        'px-6 py-4 whitespace-nowrap text-sm text-neutral-900',
-        className
-      )}
-      colSpan={colSpan}
-    >
-      {children}
-    </td>
-  );
-};
+const TableCell = React.forwardRef<HTMLTableCellElement, React.HTMLAttributes<HTMLTableCellElement>>(
+  ({ className, ...props }, ref) => (
+    <td
+      ref={ref}
+      className={cn('table-cell', className)}
+      {...props}
+    />
+  )
+);
+TableCell.displayName = 'TableCell';
+
+export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell };
