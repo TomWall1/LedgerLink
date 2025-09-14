@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
+import LedgerLinkLogo from '../components/ui/LedgerLinkLogo';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -16,12 +17,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onTryForFree 
         <nav className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             {/* Logo */}
-            <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">LL</span>
-              </div>
-              <span className="text-h2 font-bold text-neutral-900">LedgerLink</span>
-            </div>
+            <LedgerLinkLogo size={40} withText={true} color="#6366f1" />
             
             {/* CTA Buttons */}
             <div className="flex items-center space-x-4">
@@ -268,12 +264,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onTryForFree 
       <footer className="bg-neutral-900 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-2 mb-4 md:mb-0">
-              <div className="w-8 h-8 bg-primary-500 rounded-md flex items-center justify-center">
-                <span className="text-white font-bold text-sm">LL</span>
-              </div>
-              <span className="text-h3 font-bold text-white">LedgerLink</span>
-            </div>
+            <LedgerLinkLogo size={32} withText={true} color="#6366f1" className="mb-4 md:mb-0" />
             
             <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-8">
               <p className="text-neutral-400 text-sm text-center md:text-left">

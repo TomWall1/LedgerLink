@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import LedgerLinkLogo from '../components/ui/LedgerLinkLogo';
 
 interface LoginProps {
   onLogin: () => void;
@@ -46,12 +47,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onTryForFree }) => {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* Logo */}
         <div className="flex justify-center mb-6">
-          <div className="flex items-center space-x-2">
-            <div className="w-12 h-12 bg-primary-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">LL</span>
-            </div>
-            <span className="text-h2 font-bold text-neutral-900">LedgerLink</span>
-          </div>
+          <LedgerLinkLogo size={48} withText={true} color="#6366f1" />
         </div>
 
         <h2 className="text-center text-h2 font-bold text-neutral-900 mb-2">

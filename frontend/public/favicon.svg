@@ -1,0 +1,23 @@
+<svg width="32" height="32" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="llGrad" x1="0" x2="1">
+      <stop offset="0" stop-color="#2a8fe6"/>
+      <stop offset="1" stop-color="#1464a6"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(120,120)">
+    <circle cx="0" cy="0" r="22" fill="url(#llGrad)"/>
+    <g transform="rotate(30)">
+      <line x1="14" y1="-12" x2="72" y2="-48" stroke="#0f1724" stroke-opacity="0.06" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="72" cy="-48" r="12" fill="#2a8fe6"/>
+    </g>
+    <g transform="rotate(-30)">
+      <line x1="14" y1="12" x2="72" y2="48" stroke="#0f1724" stroke-opacity="0.06" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="72" cy="48" r="12" fill="#2a8fe6"/>
+    </g>
+    <g transform="rotate(180)">
+      <line x1="14" y1="0" x2="72" y2="0" stroke="#0f1724" stroke-opacity="0.06" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="72" cy="0" r="10" fill="#2a8fe6"/>
+    </g>
+  </g>
+</svg>
