@@ -1,0 +1,15 @@
+{
+  "note": "Add these dependencies to your existing frontend package.json",
+  "newDependencies": {
+    "axios": "^1.6.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.0.0",
+    "lucide-react": "^0.263.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.6",
+    "@tailwindcss/typography": "^0.5.10"
+  },
+  "installCommand": "npm install axios clsx tailwind-merge lucide-react @tailwindcss/forms @tailwindcss/typography",
+  "note2": "Make sure to update your main App.tsx to use the new ToastProvider and include the Connections page routing"
+}
