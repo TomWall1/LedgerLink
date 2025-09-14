@@ -1,25 +1,14 @@
 {
   "name": "ledgerlink",
   "version": "1.0.0",
-  "description": "Automated account reconciliation and ledger matching platform",
-  "main": "backend/index.js",
+  "description": "Automated ledger reconciliation and invoice matching system",
+  "main": "cleanup.js",
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npm run dev",
+    "cleanup": "node cleanup.js",
+    "build": "npm run cleanup && cd frontend && npm run build",
     "dev:frontend": "cd frontend && npm run dev",
-    "build": "npm run build:frontend && npm run build:backend",
-    "build:backend": "cd backend && npm install",
-    "build:frontend": "cd frontend && npm run build",
-    "start": "cd backend && npm start",
-    "test": "npm run test:backend && npm run test:frontend",
-    "test:backend": "cd backend && npm test",
-    "test:frontend": "cd frontend && npm test",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
-    "clean": "rm -rf node_modules backend/node_modules frontend/node_modules frontend/dist backend/dist",
-    "lint": "npm run lint:backend && npm run lint:frontend",
-    "lint:backend": "cd backend && npm run lint",
-    "lint:frontend": "cd frontend && npm run lint",
-    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\""
+    "dev:backend": "cd backend && npm run dev",
+    "install:all": "cd frontend && npm install && cd ../backend && npm install"
   },
   "repository": {
     "type": "git",
@@ -28,32 +17,13 @@
   "keywords": [
     "accounting",
     "reconciliation",
-    "invoice-matching",
     "ledger",
-    "accounts-payable",
-    "accounts-receivable",
-    "erp-integration",
-    "xero",
-    "quickbooks",
-    "sage"
+    "invoice-matching",
+    "automation"
   ],
-  "author": {
-    "name": "LedgerLink Team",
-    "email": "support@ledgerlink.com",
-    "url": "https://ledgerlink.com"
-  },
-  "license": "ISC",
+  "author": "TomWall1",
+  "license": "MIT",
   "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.0",
-    "prettier": "^3.0.0"
-  },
-  "workspaces": [
-    "backend",
-    "frontend"
-  ],
-  "private": true
+    "node": ">=18.0.0"
+  }
 }
