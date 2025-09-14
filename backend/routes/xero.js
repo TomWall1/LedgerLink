@@ -1,232 +1,347 @@
+/**
+ * Xero API Routes
+ * Handles all Xero-related HTTP endpoints
+ */
+
 const express = require('express');
 const router = express.Router();
-const { XeroClient } = require('xero-node');
+const xeroService = require('../services/xeroService');
+const auth = require('../middleware/auth'); // Assuming auth middleware exists
+const XeroConnection = require('../models/XeroConnection');
 
-// Xero client configuration
-const client_id = process.env.XERO_CLIENT_ID;
-const client_secret = process.env.XERO_CLIENT_SECRET;
-const redirectUris = [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/api/xero/callback'];
-const scopes = 'offline_access accounting.contacts.read accounting.transactions.read accounting.settings.read';
-
-let xero;
-
-// Initialize Xero client only if credentials are available
-if (client_id && client_secret) {
-  xero = new XeroClient({
-    clientId: client_id,
-    clientSecret: client_secret,
-    redirectUris,
-    scopes: scopes.split(' ')
-  });
-} else {
-  console.warn('Xero credentials not configured. Some features may not work.');
-}
-
-// Helper function to get Xero client with token
-const getXeroClient = async (req) => {
-  if (!xero) {
-    throw new Error('Xero client not configured. Please set XERO_CLIENT_ID and XERO_CLIENT_SECRET.');
-  }
-  
-  if (!req.session.xeroTokenSet) {
-    throw new Error('No Xero token found in session');
-  }
-  
-  await xero.setTokenSet(req.session.xeroTokenSet);
-  
-  // Check if token needs refresh
-  if (xero.tokenSet.expired()) {
-    const tokenSet = await xero.refreshToken();
-    req.session.xeroTokenSet = tokenSet;
-  }
-  
-  return xero;
-};
-
-// Route to initiate Xero connection
-router.get('/connect', async (req, res) => {
+/**
+ * @route   GET /api/xero/auth
+ * @desc    Initiate Xero OAuth flow
+ * @access  Private
+ */
+router.get('/auth', auth, async (req, res) => {
   try {
-    if (!xero) {
-      return res.status(500).json({ error: 'Xero client not configured' });
+    const { companyId } = req.query;
+    const userId = req.user.id;
+    
+    if (!companyId) {
+      return res.status(400).json({ message: 'Company ID is required' });
     }
     
-    const consentUrl = await xero.buildConsentUrl();
-    res.json({ authUrl: consentUrl });
-  } catch (error) {
-    console.error('Error building consent URL:', error);
-    res.status(500).json({ error: 'Failed to generate Xero connection URL' });
-  }
-});
-
-// Xero OAuth callback
-router.get('/callback', async (req, res) => {
-  try {
-    if (!xero) {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://ledgerlink.vercel.app';  // ✅ FIXED
-      return res.redirect(`${frontendUrl}/xero-auth?error=xero_not_configured`);
-    }
-    
-    const { code, state } = req.query;
-    
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code not provided' });
-    }
-    
-    // Exchange code for tokens
-    const tokenSet = await xero.apiCallback(req.url);
-    req.session.xeroTokenSet = tokenSet;
-    
-    // Get tenant info
-    await xero.setTokenSet(tokenSet);
-    const tenants = await xero.updateTenants(false);
-    
-    if (tenants && tenants.length > 0) {
-      req.session.tenantId = tenants[0].tenantId;
-    }
-    
-    // Redirect to frontend with success
-    const frontendUrl = process.env.FRONTEND_URL || 'https://ledgerlink.vercel.app';  // ✅ FIXED
-    res.redirect(`${frontendUrl}/xero-auth?success=true`);
-    
-  } catch (error) {
-    console.error('Error in Xero callback:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 'https://ledgerlink.vercel.app';  // ✅ FIXED
-    res.redirect(`${frontendUrl}/xero-auth?error=auth_failed`);
-  }
-});
-
-// Check authentication status
-router.get('/auth-status', (req, res) => {
-  try {
-    console.log('Checking Xero auth status...');
-    
-    if (!xero) {
-      console.log('Xero client not configured');
-      return res.json({ authenticated: false, tenantId: null, error: 'Xero not configured' });
-    }
-    
-    const isAuthenticated = !!(req.session.xeroTokenSet && req.session.tenantId);
-    console.log('Xero auth status:', { isAuthenticated, tenantId: req.session.tenantId });
+    const authData = xeroService.generateAuthUrl(userId, companyId);
     
     res.json({
-      authenticated: isAuthenticated,
-      tenantId: req.session.tenantId || null
+      success: true,
+      data: {
+        authUrl: authData.url,
+        state: authData.state
+      }
     });
   } catch (error) {
-    console.error('Error checking auth status:', error);
-    res.json({ authenticated: false, tenantId: null, error: error.message });
+    console.error('Xero auth initiation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to initiate Xero connection'
+    });
   }
 });
 
-// Disconnect from Xero
-router.post('/disconnect', (req, res) => {
+/**
+ * @route   GET /api/xero/callback
+ * @desc    Handle Xero OAuth callback
+ * @access  Public (but state-protected)
+ */
+router.get('/callback', async (req, res) => {
   try {
-    // Clear Xero session data
-    delete req.session.xeroTokenSet;
-    delete req.session.tenantId;
+    const { code, state, error, error_description } = req.query;
     
-    res.json({ success: true, message: 'Disconnected from Xero successfully' });
-  } catch (error) {
-    console.error('Error disconnecting from Xero:', error);
-    res.status(500).json({ error: 'Failed to disconnect from Xero' });
-  }
-});
-
-// Get customers/contacts from Xero
-router.get('/customers', async (req, res) => {
-  try {
-    const xeroClient = await getXeroClient(req);
+    if (error) {
+      console.error('OAuth error:', error, error_description);
+      return res.redirect(`${process.env.FRONTEND_URL}/connections?error=oauth_error&message=${encodeURIComponent(error_description || error)}`);
+    }
     
-    const response = await xeroClient.accountingApi.getContacts(
-      req.session.tenantId,
-      undefined, // ifModifiedSince
-      'ContactStatus=="ACTIVE"', // where
-      'Name', // order
-      undefined, // ids
-      undefined, // page
-      false, // includeArchived
-      false, // summaryOnly
-      undefined // searchTerm
-    );
+    if (!code || !state) {
+      return res.redirect(`${process.env.FRONTEND_URL}/connections?error=invalid_callback`);
+    }
     
-    const customers = response.body.contacts || [];
+    const connections = await xeroService.handleCallback(code, state);
     
-    // Filter to only include customers (not suppliers)
-    const customerContacts = customers.filter(contact => 
-      contact.isCustomer === true || 
-      (contact.isCustomer === undefined && contact.isSupplier !== true)
-    );
-    
-    res.json(customerContacts);
+    // Redirect to frontend with success message
+    const connectionNames = connections.map(c => c.tenantName).join(', ');
+    res.redirect(`${process.env.FRONTEND_URL}/connections?success=true&connected=${encodeURIComponent(connectionNames)}`);
     
   } catch (error) {
-    console.error('Error fetching customers from Xero:', error);
-    res.status(500).json({ error: 'Failed to fetch customers from Xero' });
+    console.error('OAuth callback error:', error);
+    res.redirect(`${process.env.FRONTEND_URL}/connections?error=connection_failed&message=${encodeURIComponent(error.message)}`);
   }
 });
 
-// Get invoices for a specific customer
-router.get('/customers/:customerId/invoices', async (req, res) => {
+/**
+ * @route   GET /api/xero/connections
+ * @desc    Get user's Xero connections
+ * @access  Private
+ */
+router.get('/connections', auth, async (req, res) => {
   try {
-    const { customerId } = req.params;
-    const xeroClient = await getXeroClient(req);
+    const { companyId } = req.query;
+    const userId = req.user.id;
     
-    const response = await xeroClient.accountingApi.getInvoices(
-      req.session.tenantId,
-      undefined, // ifModifiedSince
-      `Contact.ContactID=guid"${customerId}"`, // where
-      'Date DESC', // order
-      undefined, // ids
-      undefined, // invoiceNumbers
-      undefined, // contactIDs
-      ['AUTHORISED', 'PAID', 'SUBMITTED'], // statuses
-      undefined, // page
-      false, // includeArchived
-      false, // createdByMyApp
-      undefined, // unitdp
-      undefined // summaryOnly
-    );
+    const connections = await xeroService.getUserConnections(userId, companyId);
     
-    const invoices = response.body.invoices || [];
+    res.json({
+      success: true,
+      data: connections
+    });
+  } catch (error) {
+    console.error('Get connections error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch Xero connections'
+    });
+  }
+});
+
+/**
+ * @route   DELETE /api/xero/connections/:id
+ * @desc    Disconnect Xero connection
+ * @access  Private
+ */
+router.delete('/connections/:id', auth, async (req, res) => {
+  try {
+    const connectionId = req.params.id;
+    const userId = req.user.id;
     
-    // Filter for outstanding invoices (not fully paid)
-    const outstandingInvoices = invoices.filter(invoice => 
-      invoice.status !== 'PAID' && 
-      parseFloat(invoice.amountDue) > 0
-    );
+    await xeroService.disconnectXero(connectionId, userId);
     
-    res.json(outstandingInvoices);
+    res.json({
+      success: true,
+      message: 'Xero connection disconnected successfully'
+    });
+  } catch (error) {
+    console.error('Disconnect error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to disconnect Xero'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/xero/invoices
+ * @desc    Get invoices from Xero
+ * @access  Private
+ */
+router.get('/invoices', auth, async (req, res) => {
+  try {
+    const { connectionId, page = 1, limit = 100, dateFrom, dateTo, status } = req.query;
+    const userId = req.user.id;
+    
+    if (!connectionId) {
+      return res.status(400).json({ message: 'Connection ID is required' });
+    }
+    
+    // Get connection and verify ownership
+    const connection = await XeroConnection.findOne({
+      _id: connectionId,
+      userId
+    }).select('+accessToken +refreshToken');
+    
+    if (!connection) {
+      return res.status(404).json({ message: 'Xero connection not found' });
+    }
+    
+    if (connection.status !== 'active') {
+      return res.status(400).json({ message: 'Xero connection is not active' });
+    }
+    
+    const filters = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      dateFrom,
+      dateTo,
+      status
+    };
+    
+    const invoices = await xeroService.getInvoices(connection, filters);
+    
+    res.json({
+      success: true,
+      data: {
+        invoices,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: invoices.length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get invoices error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch invoices from Xero'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/xero/contacts
+ * @desc    Get contacts from Xero
+ * @access  Private
+ */
+router.get('/contacts', auth, async (req, res) => {
+  try {
+    const { connectionId, page = 1, limit = 100 } = req.query;
+    const userId = req.user.id;
+    
+    if (!connectionId) {
+      return res.status(400).json({ message: 'Connection ID is required' });
+    }
+    
+    // Get connection and verify ownership
+    const connection = await XeroConnection.findOne({
+      _id: connectionId,
+      userId
+    }).select('+accessToken +refreshToken');
+    
+    if (!connection) {
+      return res.status(404).json({ message: 'Xero connection not found' });
+    }
+    
+    if (connection.status !== 'active') {
+      return res.status(400).json({ message: 'Xero connection is not active' });
+    }
+    
+    const filters = {
+      page: parseInt(page),
+      limit: parseInt(limit)
+    };
+    
+    const contacts = await xeroService.getContacts(connection, filters);
+    
+    res.json({
+      success: true,
+      data: {
+        contacts,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: contacts.length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get contacts error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch contacts from Xero'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/xero/sync
+ * @desc    Trigger manual sync with Xero
+ * @access  Private
+ */
+router.post('/sync', auth, async (req, res) => {
+  try {
+    const { connectionId } = req.body;
+    const userId = req.user.id;
+    
+    if (!connectionId) {
+      return res.status(400).json({ message: 'Connection ID is required' });
+    }
+    
+    // Get connection and verify ownership
+    const connection = await XeroConnection.findOne({
+      _id: connectionId,
+      userId
+    }).select('+accessToken +refreshToken');
+    
+    if (!connection) {
+      return res.status(404).json({ message: 'Xero connection not found' });
+    }
+    
+    if (connection.status !== 'active') {
+      return res.status(400).json({ message: 'Xero connection is not active' });
+    }
+    
+    // Trigger sync (this could be moved to a background job)
+    try {
+      await xeroService.syncOrganizationSettings(connection);
+      
+      // Update sync timestamp
+      connection.lastSyncAt = new Date();
+      connection.lastSyncStatus = 'success';
+      await connection.save();
+      
+      res.json({
+        success: true,
+        message: 'Sync completed successfully',
+        data: {
+          lastSyncAt: connection.lastSyncAt,
+          status: connection.lastSyncStatus
+        }
+      });
+    } catch (syncError) {
+      await connection.markAsError(syncError.message);
+      throw syncError;
+    }
     
   } catch (error) {
-    console.error('Error fetching customer invoices from Xero:', error);
-    res.status(500).json({ error: 'Failed to fetch customer invoices from Xero' });
+    console.error('Sync error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to sync with Xero'
+    });
   }
 });
 
-// Get organization details
-router.get('/organization', async (req, res) => {
+/**
+ * @route   GET /api/xero/health
+ * @desc    Check Xero connection health
+ * @access  Private
+ */
+router.get('/health/:id', auth, async (req, res) => {
   try {
-    const xeroClient = await getXeroClient(req);
+    const connectionId = req.params.id;
+    const userId = req.user.id;
     
-    const response = await xeroClient.accountingApi.getOrganisations(
-      req.session.tenantId
-    );
+    const connection = await XeroConnection.findOne({
+      _id: connectionId,
+      userId
+    }).select('+accessToken +refreshToken');
     
-    const organizations = response.body.organisations || [];
-    const organization = organizations[0];
+    if (!connection) {
+      return res.status(404).json({ message: 'Xero connection not found' });
+    }
     
-    res.json(organization);
+    const health = {
+      connectionId: connection._id,
+      tenantName: connection.tenantName,
+      status: connection.status,
+      isExpired: connection.isTokenExpired(),
+      lastSyncAt: connection.lastSyncAt,
+      lastSyncStatus: connection.lastSyncStatus,
+      recentErrors: connection.syncErrors.slice(-3) // Last 3 errors
+    };
     
+    // Try to make a simple API call to test connectivity
+    try {
+      await xeroService.makeApiRequest(connection, '/Organisation');
+      health.apiConnectivity = 'ok';
+    } catch (apiError) {
+      health.apiConnectivity = 'error';
+      health.apiError = apiError.message;
+    }
+    
+    res.json({
+      success: true,
+      data: health
+    });
   } catch (error) {
-    console.error('Error fetching organization from Xero:', error);
-    res.status(500).json({ error: 'Failed to fetch organization from Xero' });
+    console.error('Health check error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check connection health'
+    });
   }
 });
 
-// Test route to verify the router is working
-router.get('/test', (req, res) => {
-  res.json({ message: 'Xero routes are working!', timestamp: new Date().toISOString() });
-});
-
-// Export the router (fixed export)
 module.exports = router;
