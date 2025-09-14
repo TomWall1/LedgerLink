@@ -1,13 +1,19 @@
 {
-  "buildCommand": "cd frontend && find src -name '*.js' -not -name '*.test.js' -not -name '*.spec.js' -delete && npm ci --legacy-peer-deps && vite build",
-  "outputDirectory": "frontend/dist",
-  "installCommand": "cd frontend && npm ci --legacy-peer-deps",
-  "framework": null,
-  "public": false,
-  "rewrites": [
+  "version": 2,
+  "name": "ledgerlink",
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ],
   "headers": [
