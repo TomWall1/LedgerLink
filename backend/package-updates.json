@@ -1,0 +1,16 @@
+{
+  "note": "Add these dependencies to your existing package.json",
+  "newDependencies": {
+    "axios": "^1.6.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^9.0.1",
+    "crypto": "Built-in Node.js module"
+  },
+  "existingDependencies": {
+    "mongoose": "Should already be installed",
+    "express": "Should already be installed",
+    "dotenv": "Should already be installed"
+  },
+  "installCommand": "npm install axios node-cron uuid",
+  "note2": "Make sure your main server file imports and uses the Xero routes and starts the sync jobs"
+}
