@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { TopNav } from './components/layout/TopNav';
-import { Sidebar } from './components/layout/Sidebar';
-import { ToastContainer } from './components/ui/Toast';
+import { ToastProvider } from './hooks/useToast';
+import { AppLayout } from './components/layout/AppLayout';
+import ConnectionsPage from './pages/ConnectionsPage';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 
-// Page components
-import { LandingPage } from './pages/LandingPage';
-import { Dashboard } from './pages/Dashboard';
-import { Connections } from './pages/Connections';
-import { Counterparties } from './pages/Counterparties';
-import { Matches } from './pages/Matches';
-import { Reports } from './pages/Reports';
-import { Settings } from './pages/Settings';
-import { Login } from './pages/Login';
+// Import your existing components here
+// import DashboardPage from './pages/DashboardPage';
+// import MatchesPage from './pages/MatchesPage';
+// import CounterpartiesPage from './pages/CounterpartiesPage';
+// import ReportsPage from './pages/ReportsPage';
+// import SettingsPage from './pages/SettingsPage';
 
-// Types
+import './styles/global.css';
+
 interface User {
   id: string;
   name: string;
@@ -22,187 +20,189 @@ interface User {
   avatar?: string;
 }
 
-interface Toast {
+interface Company {
   id: string;
-  title?: string;
-  description?: string;
-  variant?: 'default' | 'success' | 'warning' | 'error';
-  duration?: number;
+  name: string;
+  ownerId: string;
 }
 
 function App() {
+  const [activeTab, setActiveTab] = useState('connections');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [isMobile, setIsMobile] = useState(false);
+  const [company, setCompany] = useState<Company | null>(null);
+  const [loading, setLoading] = useState(true);
   
-  const location = useLocation();
-  const navigate = useNavigate();
-  const isLoggedIn = !!user;
-  const isLandingPage = location.pathname === '/';
-  
-  // Check for mobile screen size
+  // Initialize authentication state
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024);
-      if (window.innerWidth >= 1024) {
-        setSidebarOpen(false);
+    const initializeAuth = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          // TODO: Verify token with your backend and get user info
+          // const response = await fetch('/api/auth/me', {
+          //   headers: { Authorization: `Bearer ${token}` }
+          // });
+          // const userData = await response.json();
+          
+          // Mock user data for development - replace with actual API call
+          setIsLoggedIn(true);
+          setUser({
+            id: 'user_123',
+            name: 'Demo User',
+            email: 'demo@ledgerlink.com'
+          });
+          
+          setCompany({
+            id: 'company_123',
+            name: 'Demo Company',
+            ownerId: 'user_123'
+          });
+        }
+      } catch (error) {
+        console.error('Authentication initialization error:', error);
+        localStorage.removeItem('authToken');
+      } finally {
+        setLoading(false);
       }
     };
     
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    initializeAuth();
   }, []);
   
-  // Handle authentication (placeholder - integrate with your auth system)
   const handleLogin = () => {
-    // For demo purposes, set a mock user
+    // TODO: Implement your login logic
+    // This could redirect to a login page or open a login modal
+    console.log('Login clicked');
+    
+    // For demo purposes, simulate login
+    localStorage.setItem('authToken', 'demo_token_123');
+    setIsLoggedIn(true);
     setUser({
-      id: '1',
-      name: 'John Doe',
-      email: 'john@example.com',
+      id: 'user_123',
+      name: 'Demo User',
+      email: 'demo@ledgerlink.com'
     });
-    navigate('/dashboard');
-    addToast({
-      id: Date.now().toString(),
-      title: 'Welcome back!',
-      description: 'You have been successfully logged in.',
-      variant: 'success',
+    setCompany({
+      id: 'company_123',
+      name: 'Demo Company',
+      ownerId: 'user_123'
     });
   };
   
   const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    setIsLoggedIn(false);
     setUser(null);
-    navigate('/');
-    addToast({
-      id: Date.now().toString(),
-      title: 'Logged out',
-      description: 'You have been successfully logged out.',
-      variant: 'default',
-    });
-  };
-  
-  const handleTryForFree = () => {
-    navigate('/matches');
+    setCompany(null);
+    setActiveTab('matches'); // Redirect to a public page
   };
   
   const handleInvite = () => {
-    addToast({
-      id: Date.now().toString(),
-      title: 'Invite feature',
-      description: 'Counterparty invitation feature will be implemented here.',
-      variant: 'default',
-    });
+    // TODO: Implement invite counterparty logic
+    console.log('Invite clicked');
   };
   
-  // Toast management
-  const addToast = (toast: Omit<Toast, 'id'> & { id?: string }) => {
-    const newToast = {
-      ...toast,
-      id: toast.id || Date.now().toString(),
-    };
-    setToasts(prev => [...prev, newToast]);
-  };
-  
-  const removeToast = (id: string) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
-  };
-  
-  // Get current tab based on route
-  const getCurrentTab = () => {
-    const path = location.pathname.slice(1);
-    return path || 'dashboard';
-  };
-  
-  const handleTabChange = (tab: string) => {
-    if (tab === 'login') {
-      navigate('/login');
-      return;
+  const renderPage = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        // TODO: Replace with your actual DashboardPage component
+        // return <DashboardPage user={user} company={company} />;
+        return (
+          <div className="p-8">
+            <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+            <p className="text-gray-600">Dashboard functionality - Replace this with your DashboardPage component</p>
+          </div>
+        );
+      
+      case 'connections':
+        return (
+          <ErrorBoundary>
+            <ConnectionsPage companyId={company?.id || 'demo-company'} />
+          </ErrorBoundary>
+        );
+      
+      case 'counterparties':
+        // TODO: Replace with your actual CounterpartiesPage component
+        // return <CounterpartiesPage user={user} company={company} />;
+        return (
+          <div className="p-8">
+            <h1 className="text-2xl font-bold mb-4">Counterparties</h1>
+            <p className="text-gray-600">Counterparty management - Replace this with your CounterpartiesPage component</p>
+          </div>
+        );
+      
+      case 'matches':
+        // TODO: Replace with your actual MatchesPage component
+        // This should be available for all users (logged in or not)
+        // return <MatchesPage />;
+        return (
+          <div className="p-8">
+            <h1 className="text-2xl font-bold mb-4">Transaction Matches</h1>
+            <p className="text-gray-600">Transaction matching functionality - Available for all users</p>
+            <p className="text-sm text-gray-500 mt-2">Replace this with your MatchesPage component</p>
+          </div>
+        );
+      
+      case 'reports':
+        // TODO: Replace with your actual ReportsPage component
+        // return <ReportsPage user={user} company={company} />;
+        return (
+          <div className="p-8">
+            <h1 className="text-2xl font-bold mb-4">Reports</h1>
+            <p className="text-gray-600">Reporting and analytics - Replace this with your ReportsPage component</p>
+          </div>
+        );
+      
+      case 'settings':
+        // TODO: Replace with your actual SettingsPage component
+        // return <SettingsPage user={user} company={company} />;
+        return (
+          <div className="p-8">
+            <h1 className="text-2xl font-bold mb-4">Settings</h1>
+            <p className="text-gray-600">Application settings - Replace this with your SettingsPage component</p>
+          </div>
+        );
+      
+      default:
+        return (
+          <div className="p-8">
+            <h1 className="text-2xl font-bold mb-4">Page Not Found</h1>
+            <p className="text-gray-600">The requested page could not be found.</p>
+          </div>
+        );
     }
-    
-    // Check if user needs to be logged in for this tab
-    const authRequiredTabs = ['dashboard', 'connections', 'counterparties', 'reports', 'settings'];
-    if (authRequiredTabs.includes(tab) && !isLoggedIn) {
-      navigate('/login');
-      addToast({
-        id: Date.now().toString(),
-        title: 'Login required',
-        description: 'Please log in to access this feature.',
-        variant: 'warning',
-      });
-      return;
-    }
-    
-    navigate(`/${tab}`);
-    if (isMobile) {
-      setSidebarOpen(false);
-    }
   };
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading LedgerLink...</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
-    <div className="min-h-screen bg-neutral-50">
-      {!isLandingPage && (
-        <>
-          <TopNav 
+    <ErrorBoundary>
+      <ToastProvider>
+        <div className="App">
+          <AppLayout
             user={user || undefined}
-            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-            isMobile={isMobile}
             isLoggedIn={isLoggedIn}
-            onLogin={() => navigate('/login')}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onLogin={handleLogin}
             onLogout={handleLogout}
             onInvite={handleInvite}
-          />
-          
-          <Sidebar 
-            isOpen={sidebarOpen}
-            isCollapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-            activeTab={getCurrentTab()}
-            onTabChange={handleTabChange}
-            isLoggedIn={isLoggedIn}
-            isMobile={isMobile}
-          />
-        </>
-      )}
-      
-      <main className={!isLandingPage ? (
-        `transition-all duration-240 ease-smooth pt-14 md:pt-16 ${
-          isMobile ? 'ml-0' : sidebarCollapsed ? 'ml-18' : 'ml-70'
-        }`
-      ) : ''}>
-        <Routes>
-          <Route 
-            path="/" 
-            element={
-              <LandingPage 
-                onLogin={() => navigate('/login')}
-                onTryForFree={handleTryForFree}
-              />
-            } 
-          />
-          <Route 
-            path="/login" 
-            element={
-              <Login 
-                onLogin={handleLogin}
-                onTryForFree={handleTryForFree}
-              />
-            } 
-          />
-          <Route path="/dashboard" element={<Dashboard user={user} />} />
-          <Route path="/connections" element={<Connections />} />
-          <Route path="/counterparties" element={<Counterparties />} />
-          <Route path="/matches" element={<Matches isLoggedIn={isLoggedIn} />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
-      </main>
-      
-      {/* Toast notifications */}
-      <ToastContainer toasts={toasts} onDismiss={removeToast} />
-    </div>
+          >
+            {renderPage()}
+          </AppLayout>
+        </div>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 

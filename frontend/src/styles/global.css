@@ -2,224 +2,281 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-/* Inter font from Google Fonts is loaded in index.html */
+/* Inter font import */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* Base styles */
 @layer base {
-  * {
-    @apply box-border;
-  }
-  
   html {
-    @apply h-full;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: 'opsz' 32;
+    scroll-behavior: smooth;
   }
   
   body {
-    @apply h-full bg-neutral-50 text-neutral-900 font-sans antialiased;
+    @apply font-sans antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
   }
   
-  #root {
-    @apply h-full;
+  /* Focus styles */
+  *:focus {
+    @apply outline-none;
   }
   
-  /* Typography scale */
-  .text-h1 {
-    @apply text-3xl font-bold tracking-tight;
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary-500;
   }
   
-  .text-h2 {
-    @apply text-2xl font-bold tracking-tight;
+  /* Selection styles */
+  ::selection {
+    @apply bg-primary-100 text-primary-900;
   }
   
-  .text-h3 {
-    @apply text-xl font-semibold tracking-tight;
+  /* Scrollbar styles */
+  ::-webkit-scrollbar {
+    @apply w-2;
   }
   
-  .text-body-lg {
-    @apply text-lg;
+  ::-webkit-scrollbar-track {
+    @apply bg-neutral-100;
   }
   
-  .text-body {
-    @apply text-base;
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300 rounded-full;
   }
   
-  .text-small {
-    @apply text-sm;
-  }
-  
-  .text-tiny {
-    @apply text-xs;
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400;
   }
 }
 
+/* Component styles */
 @layer components {
-  /* Form elements */
+  /* Form input base styles */
   .input {
-    @apply block w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm placeholder-neutral-500 transition-all duration-120 ease-smooth focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 hover:border-neutral-400 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed;
+    @apply block w-full rounded-md border-0 py-2 px-3 text-neutral-900 shadow-sm ring-1 ring-inset ring-neutral-300 placeholder:text-neutral-400 focus:ring-2 focus:ring-inset focus:ring-primary-600 sm:text-sm sm:leading-6 transition-colors duration-200;
+  }
+  
+  .input:disabled {
+    @apply bg-neutral-50 text-neutral-500 cursor-not-allowed;
   }
   
   .input-error {
-    @apply border-error text-error focus:border-error focus:ring-error;
+    @apply ring-error-300 focus:ring-error-500;
   }
   
-  /* Button base styles are in Button component */
+  /* Button base styles */
   .btn {
-    @apply inline-flex items-center justify-center font-medium rounded-lg transition-all duration-240 ease-smooth focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
   }
   
+  .btn-sm {
+    @apply px-3 py-2 text-xs;
+  }
+  
+  .btn-md {
+    @apply px-4 py-2.5 text-sm;
+  }
+  
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+  
+  /* Button variants */
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 active:bg-primary-800;
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
   }
   
   .btn-secondary {
-    @apply bg-white text-neutral-700 border border-neutral-300 hover:bg-neutral-50 focus:ring-primary-500 active:bg-neutral-100;
+    @apply bg-white text-neutral-900 border border-neutral-300 hover:bg-neutral-50 focus:ring-neutral-500;
+  }
+  
+  .btn-destructive {
+    @apply bg-error-600 text-white hover:bg-error-700 focus:ring-error-500;
   }
   
   .btn-ghost {
-    @apply text-neutral-700 hover:bg-neutral-100 focus:ring-primary-500 active:bg-neutral-200;
+    @apply text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-500;
   }
   
-  /* Custom utilities */
-  .transition-smooth {
-    @apply transition-all duration-240 ease-smooth;
+  /* Card styles */
+  .card {
+    @apply bg-white rounded-lg border border-neutral-200 shadow-sm;
   }
   
-  .shadow-smooth {
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  .card-header {
+    @apply px-6 py-4 border-b border-neutral-200;
   }
   
-  .shadow-smooth-lg {
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  .card-content {
+    @apply px-6 py-4;
+  }
+  
+  .card-footer {
+    @apply px-6 py-4 border-t border-neutral-200 bg-neutral-50;
+  }
+  
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  
+  .badge-success {
+    @apply bg-success-100 text-success-800;
+  }
+  
+  .badge-warning {
+    @apply bg-warning-100 text-warning-800;
+  }
+  
+  .badge-error {
+    @apply bg-error-100 text-error-800;
+  }
+  
+  .badge-default {
+    @apply bg-neutral-100 text-neutral-800;
+  }
+  
+  /* Table styles */
+  .table {
+    @apply min-w-full divide-y divide-neutral-200;
+  }
+  
+  .table-header {
+    @apply bg-neutral-50;
+  }
+  
+  .table-head {
+    @apply px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider;
+  }
+  
+  .table-head-sortable {
+    @apply cursor-pointer hover:text-neutral-700 select-none;
+  }
+  
+  .table-body {
+    @apply bg-white divide-y divide-neutral-200;
+  }
+  
+  .table-row {
+    @apply hover:bg-neutral-50 transition-colors duration-150;
+  }
+  
+  .table-cell {
+    @apply px-6 py-4 whitespace-nowrap text-sm text-neutral-900;
+  }
+  
+  /* Modal styles */
+  .modal-overlay {
+    @apply fixed inset-0 bg-neutral-600 bg-opacity-50 transition-opacity;
+  }
+  
+  .modal-content {
+    @apply fixed inset-0 z-10 overflow-y-auto;
+  }
+  
+  .modal-panel {
+    @apply relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full;
+  }
+  
+  /* Animation utilities */
+  .animate-fade-in {
+    @apply animate-fade-in;
+  }
+  
+  .animate-slide-up {
+    @apply animate-slide-up;
+  }
+  
+  .animate-slide-down {
+    @apply animate-slide-down;
+  }
+  
+  /* Loading spinner */
+  .spinner {
+    @apply animate-spin rounded-full border-2 border-neutral-200 border-t-primary-600;
   }
 }
 
+/* Utility styles */
 @layer utilities {
-  /* Spacing utilities for consistent layout */
-  .w-18 {
-    width: 4.5rem; /* 72px */
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
   
-  .w-70 {
-    width: 17.5rem; /* 280px */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
   
-  .ml-18 {
-    margin-left: 4.5rem; /* 72px */
-  }
-  
-  .ml-70 {
-    margin-left: 17.5rem; /* 280px */
-  }
-  
-  /* Animation duration utilities */
-  .duration-120 {
-    transition-duration: 120ms;
-  }
-  
-  .duration-240 {
-    transition-duration: 240ms;
-  }
-  
-  /* Smooth easing */
-  .ease-smooth {
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  
-  /* Scrollbar styling */
+  /* Custom scrollbar */
   .scrollbar-thin {
     scrollbar-width: thin;
   }
   
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
   }
   
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: rgb(248 250 252);
+  /* Safe area utilities for mobile */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
   }
   
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgb(203 213 225);
-    border-radius: 3px;
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
   }
   
-  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: rgb(148 163 184);
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
   }
   
-  /* Print styles */
-  @media print {
-    .no-print {
-      display: none !important;
-    }
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
+  }
+  
+  /* Glass effect */
+  .glass {
+    @apply bg-white/80 backdrop-blur-sm border border-white/20;
+  }
+  
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent;
   }
 }
 
-/* Loading and skeleton states */
-@keyframes shimmer {
-  0% {
-    background-position: -200px 0;
+/* Print styles */
+@media print {
+  .print-hidden {
+    @apply hidden;
   }
-  100% {
-    background-position: calc(200px + 100%) 0;
+  
+  .print-visible {
+    @apply block;
   }
 }
 
-.skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200px 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-/* Focus visible improvements */
-.focus-visible:focus {
-  outline: 2px solid rgb(59 130 246);
-  outline-offset: 2px;
-}
-
-/* Custom selection colors */
-::selection {
-  background-color: rgb(59 130 246 / 0.2);
-  color: rgb(30 64 175);
-}
-
-::-moz-selection {
-  background-color: rgb(59 130 246 / 0.2);
-  color: rgb(30 64 175);
-}
-
-/* Dark mode support (if needed in future) */
+/* Dark mode support (for future implementation) */
 @media (prefers-color-scheme: dark) {
-  .dark-mode-ready {
-    /* Dark mode styles would go here */
-  }
-}
-
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+  /* Dark mode styles would go here */
 }
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   .btn {
-    border-width: 2px;
-  }
-  
-  .input {
-    border-width: 2px;
+    @apply border-2;
   }
 }
 
-/* Touch device optimizations */
-@media (hover: none) and (pointer: coarse) {
-  .btn {
-    min-height: 44px; /* Minimum touch target size */
-  }
-  
-  .input {
-    min-height: 44px;
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    @apply animate-none;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
