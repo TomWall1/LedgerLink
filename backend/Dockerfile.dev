@@ -1,0 +1,39 @@
+# Development Dockerfile for LedgerLink Backend
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    ca-certificates \
+    && update-ca-certificates
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=development
+
+# Copy source code
+COPY . .
+
+# Create uploads directory
+RUN mkdir -p uploads && chown -R node:node uploads
+
+# Create logs directory
+RUN mkdir -p logs && chown -R node:node logs
+
+# Switch to non-root user
+USER node
+
+# Expose port
+EXPOSE 3002
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3002/health || exit 1
+
+# Start application in development mode
+CMD ["npm", "run", "dev"]
