@@ -9,20 +9,12 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    extensions: ['.tsx', '.ts', '.jsx', '.js']
   },
   esbuild: {
-    loader: 'tsx',
-    include: /src\/.*\.(ts|tsx)$/,
-    exclude: []
-  },
-  optimizeDeps: {
-    esbuildOptions: {
-      loader: {
-        '.js': 'tsx',
-        '.ts': 'tsx',
-        '.tsx': 'tsx'
-      }
-    }
+    include: /\.(ts|tsx)$/,
+    exclude: /\.(js|jsx)$/,
+    loader: 'tsx'
   },
   server: {
     port: 3000,
@@ -38,12 +30,7 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
-      input: {
-        main: path.resolve(__dirname, 'index.html')
-      },
-      output: {
-        manualChunks: undefined
-      }
+      input: path.resolve(__dirname, 'index.html')
     }
   },
 })
