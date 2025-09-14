@@ -2,7 +2,8 @@
   "buildCommand": "cd frontend && find src -name '*.js' -not -name '*.test.js' -not -name '*.spec.js' -delete && npm ci --legacy-peer-deps && vite build",
   "outputDirectory": "frontend/dist",
   "installCommand": "cd frontend && npm ci --legacy-peer-deps",
-  "framework": "vite",
+  "framework": null,
+  "public": false,
   "rewrites": [
     {
       "source": "/(.*)",
