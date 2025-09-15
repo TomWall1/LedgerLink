@@ -1,0 +1,15 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Disallow:
+
+# Allow search engines to index the main pages
+Allow: /
+Allow: /matches
+
+# Prevent indexing of authentication pages
+Disallow: /login
+Disallow: /signup
+Disallow: /admin
+
+# Sitemap location
+Sitemap: https://ledgerlink.vercel.app/sitemap.xml

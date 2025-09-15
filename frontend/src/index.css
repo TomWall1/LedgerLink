@@ -1,193 +1,25 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@import './styles/global.css';
 
-/* Custom styles for LedgerLink */
-
-/* Smooth transitions for interactive elements */
-* {
-  @apply transition-colors duration-150;
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  @apply bg-neutral-100;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-neutral-300 rounded-full;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-neutral-400;
-}
-
-/* Focus styles */
-.focus-visible {
-  @apply outline-none ring-2 ring-primary-500 ring-offset-2;
-}
-
-/* Loading animation */
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-/* Fade in animation */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-
-/* Slide in animation */
-@keyframes slideIn {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.animate-slide-in {
-  animation: slideIn 0.3s ease-out;
-}
-
-/* Custom selection colors */
-::selection {
-  @apply bg-primary-200 text-primary-900;
-}
-
-/* Typography improvements */
+/* Additional global styles can go here */
 body {
-  @apply text-neutral-900 antialiased;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Table improvements */
-table {
-  @apply border-collapse;
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
 }
 
-th, td {
-  @apply border-neutral-200;
+/* Remove default margins and paddings */
+* {
+  box-sizing: border-box;
 }
 
-/* Form improvements */
-input[type="file"] {
-  @apply file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100;
-}
-
-/* Print styles */
-@media print {
-  .no-print {
-    display: none !important;
-  }
-  
-  body {
-    @apply text-black bg-white;
-  }
-  
-  .print-break {
-    page-break-before: always;
-  }
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  :root {
-    --tw-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
-  }
-  
-  button, input, select, textarea {
-    @apply border-2 border-neutral-900;
-  }
-}
-
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Dark mode preparation (for future implementation) */
-@media (prefers-color-scheme: dark) {
-  /* Will be implemented when dark mode is added */
-}
-
-/* Focus management for accessibility */
-.skip-to-content {
-  @apply sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary-600 focus:text-white focus:rounded;
-}
-
-/* Loading states */
-.loading-shimmer {
-  background: linear-gradient(90deg, 
-    theme('colors.neutral.200') 25%, 
-    theme('colors.neutral.100') 50%, 
-    theme('colors.neutral.200') 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-/* Custom utilities */
-.text-balance {
-  text-wrap: balance;
-}
-
-.text-pretty {
-  text-wrap: pretty;
-}
-
-/* Container queries support */
-@container (min-width: 768px) {
-  .container-md\:text-lg {
-    @apply text-lg;
-  }
-}
-
-/* Custom shadows */
-.shadow-soft {
-  box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
-}
-
-.shadow-medium {
-  box-shadow: 0 4px 25px -4px rgba(0, 0, 0, 0.1), 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-}
-
-.shadow-strong {
-  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+#root {
+  min-height: 100vh;
 }
