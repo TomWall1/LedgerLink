@@ -19,8 +19,7 @@
     "axios": "^1.6.0",
     "clsx": "^2.0.0",
     "tailwind-merge": "^2.0.0",
-    "lucide-react": "^0.263.1",
-    "@craco/craco": "^7.1.0"
+    "lucide-react": "^0.263.1"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.6",
@@ -31,12 +30,12 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "DISABLE_ESLINT_PLUGIN=true GENERATE_SOURCEMAP=false react-scripts build",
-    "build-craco": "craco build",
+    "build": "npm run postinstall && DISABLE_ESLINT_PLUGIN=true GENERATE_SOURCEMAP=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
-    "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix"
+    "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
+    "postinstall": "node scripts/fix-dependencies.js"
   },
   "eslintConfig": {
     "extends": [
