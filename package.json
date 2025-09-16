@@ -1,27 +1,5 @@
 {
-  "name": "ledgerlink-platform",
+  "name": "ledgerlink",
   "version": "1.0.0",
-  "description": "LedgerLink - Ledger Reconciliation Platform",
-  "private": true,
-  "scripts": {
-    "build": "echo 'Static site - no build needed' && exit 0",
-    "start": "echo 'LedgerLink is deployed and running!'",
-    "dev": "python3 -m http.server 3000 || npx serve ."
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/TomWall1/LedgerLink.git"
-  },
-  "keywords": [
-    "ledger",
-    "reconciliation",
-    "xero",
-    "accounting",
-    "fintech"
-  ],
-  "author": "LedgerLink Team",
-  "license": "MIT",
-  "engines": {
-    "node": "22.x"
-  }
+  "description": "LedgerLink Platform"
 }
