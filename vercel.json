@@ -7,7 +7,7 @@
       "use": "@vercel/static-build",
       "config": {
         "distDir": "build",
-        "buildCommand": "cd frontend && yarn install --frozen-lockfile && yarn build"
+        "buildCommand": "cd frontend && npm install --legacy-peer-deps && npm run build"
       }
     }
   ],
