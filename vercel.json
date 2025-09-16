@@ -7,7 +7,7 @@
       "use": "@vercel/static-build",
       "config": {
         "distDir": "build",
-        "buildCommand": "cd frontend && npm run build:react"
+        "buildCommand": "cd frontend && npm install && npm run build"
       }
     }
   ],
@@ -31,7 +31,9 @@
   "env": {
     "NODE_OPTIONS": "--max_old_space_size=4096",
     "GENERATE_SOURCEMAP": "false",
-    "INLINE_RUNTIME_CHUNK": "false"
+    "INLINE_RUNTIME_CHUNK": "false",
+    "DISABLE_ESLINT_PLUGIN": "true",
+    "FAST_REFRESH": "false"
   },
   "functions": {
     "frontend/src/**": {

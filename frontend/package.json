@@ -20,21 +20,19 @@
     "clsx": "^2.0.0",
     "tailwind-merge": "^2.0.0",
     "lucide-react": "^0.263.1",
-    "ajv": "^8.12.0"
+    "@craco/craco": "^7.1.0"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.6",
     "@tailwindcss/typography": "^0.5.10",
     "autoprefixer": "^10.4.15",
     "postcss": "^8.4.29",
-    "tailwindcss": "^3.3.3",
-    "ajv-keywords": "^5.1.0"
+    "tailwindcss": "^3.3.3"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "node scripts/build.js",
-    "build:react": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test",
     "eject": "react-scripts eject",
     "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix"
@@ -69,14 +67,5 @@
   "bugs": {
     "url": "https://github.com/TomWall1/LedgerLink/issues"
   },
-  "homepage": "https://github.com/TomWall1/LedgerLink#readme",
-  "resolutions": {
-    "ajv": "^8.12.0",
-    "ajv-keywords": "^5.1.0",
-    "**/@types/node": "^16.18.48"
-  },
-  "overrides": {
-    "ajv": "^8.12.0",
-    "ajv-keywords": "^5.1.0"
-  }
+  "homepage": "https://github.com/TomWall1/LedgerLink#readme"
 }
