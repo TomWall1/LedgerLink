@@ -66,5 +66,13 @@
   "bugs": {
     "url": "https://github.com/TomWall1/LedgerLink/issues"
   },
-  "homepage": "https://github.com/TomWall1/LedgerLink#readme"
+  "homepage": "https://github.com/TomWall1/LedgerLink#readme",
+  "resolutions": {
+    "ajv": "^8.12.0",
+    "ajv-keywords": "^5.1.0"
+  },
+  "overrides": {
+    "ajv": "^8.12.0",
+    "ajv-keywords": "^5.1.0"
+  }
 }
