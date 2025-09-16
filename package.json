@@ -4,7 +4,9 @@
   "description": "LedgerLink - Ledger Reconciliation Platform",
   "private": true,
   "scripts": {
-    "start": "echo 'LedgerLink is deployed and running!'"
+    "build": "echo 'Static site - no build needed' && exit 0",
+    "start": "echo 'LedgerLink is deployed and running!'",
+    "dev": "python3 -m http.server 3000 || npx serve ."
   },
   "repository": {
     "type": "git",
@@ -18,5 +20,8 @@
     "fintech"
   ],
   "author": "LedgerLink Team",
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": "22.x"
+  }
 }
