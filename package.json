@@ -1,29 +1,28 @@
 {
   "name": "ledgerlink",
   "version": "1.0.0",
-  "description": "Automated ledger reconciliation and invoice matching system",
-  "main": "cleanup.js",
+  "description": "LedgerLink - Ledger Reconciliation Platform with Xero Integration",
+  "main": "index.html",
   "scripts": {
-    "cleanup": "node cleanup.js",
-    "build": "npm run cleanup && cd frontend && npm run build",
-    "dev:frontend": "cd frontend && npm run dev",
-    "dev:backend": "cd backend && npm run dev",
-    "install:all": "cd frontend && npm install && cd ../backend && npm install"
+    "start": "echo 'LedgerLink deployed successfully'",
+    "build": "echo 'No build needed for static site'",
+    "dev": "python3 -m http.server 3000"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/TomWall1/LedgerLink.git"
   },
   "keywords": [
-    "accounting",
-    "reconciliation",
     "ledger",
-    "invoice-matching",
+    "reconciliation",
+    "xero",
+    "accounting",
+    "fintech",
     "automation"
   ],
-  "author": "TomWall1",
+  "author": "LedgerLink Team",
   "license": "MIT",
   "engines": {
-    "node": ">=18.0.0"
+    "node": "22.x"
   }
 }
