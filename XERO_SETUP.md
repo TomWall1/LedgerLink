@@ -1,204 +1,380 @@
 # Xero Integration Setup Guide
 
-This guide will help you set up the Xero OAuth 2.0 integration for LedgerLink.
+Complete step-by-step guide to set up Xero OAuth 2.0 integration with LedgerLink.
 
-## Prerequisites
+## 📋 Prerequisites
 
-1. **Xero Developer Account**: You need a Xero developer account at https://developer.xero.com/
-2. **Xero App**: Create a custom connection app in your Xero developer console
-3. **HTTPS Endpoint**: For production, you need HTTPS endpoints for OAuth callbacks
+- Xero Developer Account
+- LedgerLink backend deployed and accessible
+- HTTPS-enabled domain (required for production)
 
-## Step 1: Create Xero App
+## 🏗️ Step 1: Create Xero Developer App
 
-1. Go to https://developer.xero.com/app/manage
-2. Click "Create app"
-3. Choose "Custom connection"
-4. Fill in your app details:
-   - **App name**: LedgerLink Integration
-   - **Company or application URL**: Your company website
-   - **OAuth 2.0 redirect URI**: 
-     - Development: `http://localhost:3002/api/xero/callback`
-     - Production: `https://yourbackend.com/api/xero/callback`
+### 1.1 Access Xero Developer Portal
 
-## Step 2: Configure Environment Variables
+1. Visit [Xero Developer Portal](https://developer.xero.com/app/manage)
+2. Sign in with your Xero credentials
+3. Click **"Create an app"**
 
-1. Copy `.env.example` to `.env` if you haven't already
-2. Add your Xero credentials from the developer console:
+### 1.2 Choose App Type
+
+1. Select **"Custom connection"**
+2. This allows your app to connect to any Xero organization
+
+### 1.3 Configure App Settings
+
+**App Details:**
+- **App name**: `LedgerLink Integration` (or your preferred name)
+- **Company or application URL**: Your company website
+- **Privacy policy URL**: Your privacy policy URL
+- **Terms of service URL**: Your terms of service URL
+
+**Integration Details:**
+- **Redirect URI**: `https://your-backend-domain.com/api/xero/callback`
+  - For development: `http://localhost:3002/api/xero/callback`
+  - For production: `https://ledgerlink.onrender.com/api/xero/callback`
+
+**Scopes** (select the following):
+- ✅ `accounting.transactions` - Read and write transactions
+- ✅ `accounting.contacts` - Read and write contacts
+- ✅ `accounting.settings` - Read organization settings
+- ✅ `offline_access` - Refresh tokens
+
+### 1.4 Save and Note Credentials
+
+After creating the app:
+1. Copy the **Client ID**
+2. Copy the **Client Secret**
+3. Save these for the next step
+
+## ⚙️ Step 2: Configure Backend Environment
+
+### 2.1 Update Environment Variables
+
+Add the following to your `backend/.env` file:
 
 ```bash
 # Xero OAuth 2.0 Configuration
-XERO_CLIENT_ID=your_client_id_from_xero_console
-XERO_CLIENT_SECRET=your_client_secret_from_xero_console
-XERO_REDIRECT_URI=http://localhost:3002/api/xero/callback
+XERO_CLIENT_ID=your_client_id_from_step_1
+XERO_CLIENT_SECRET=your_client_secret_from_step_1
+XERO_REDIRECT_URI=https://your-backend-domain.com/api/xero/callback
 
-# Generate a 32-byte encryption key for token storage
-ENCRYPTION_KEY=run_node_-e_"console.log(require('crypto').randomBytes(32).toString('hex'))"
+# Security (generate these securely)
+ENCRYPTION_KEY=your_32_byte_hex_encryption_key_here
+JWT_SECRET=your_super_secure_jwt_secret_here
+
+# Enable Xero sync jobs (optional)
+ENABLE_XERO_SYNC_JOBS=true
 ```
 
-## Step 3: Install Dependencies
+### 2.2 Generate Encryption Key
 
-Install the required npm packages:
+Generate a secure 32-byte encryption key:
 
 ```bash
-cd backend
-npm install axios node-cron uuid
+# Using Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Using OpenSSL
+openssl rand -hex 32
+
+# Using Python
+python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-## Step 4: Update Server Configuration
+### 2.3 Generate JWT Secret
 
-Add the Xero integration to your main server file (server.js or app.js):
+```bash
+# Generate a secure JWT secret
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
 
-```javascript
-// Import Xero components
-const xeroRoutes = require('./routes/xero');
-const xeroSyncJob = require('./jobs/xeroSyncJob');
-const { handleXeroErrors } = require('./middleware/xeroAuth');
+## 🚀 Step 3: Deploy and Test
 
-// Add Xero routes
-app.use('/api/xero', xeroRoutes);
+### 3.1 Deploy Backend
 
-// Add Xero error handler
-app.use(handleXeroErrors);
+Ensure your backend is deployed with the new environment variables:
 
-// Start sync jobs (optional, for background data syncing)
-if (process.env.ENABLE_XERO_SYNC_JOBS === 'true') {
-  xeroSyncJob.start();
+```bash
+# If using Docker
+docker-compose up -d --build
+
+# If deploying to Render, Heroku, etc.
+# Make sure environment variables are set in your deployment platform
+```
+
+### 3.2 Test OAuth Flow
+
+1. **Access your LedgerLink frontend**
+2. **Navigate to Connections page**
+3. **Click "Connect to Xero"**
+4. **You should be redirected to Xero login**
+5. **Login and authorize the connection**
+6. **You should be redirected back to LedgerLink**
+
+### 3.3 Verify Connection
+
+After successful OAuth flow:
+
+1. **Check the Connections page** - should show active Xero connection
+2. **View invoices** - click "View Invoices" to see Xero data
+3. **Check backend logs** - should show successful API calls
+
+## 🔧 Step 4: Production Configuration
+
+### 4.1 SSL Certificate
+
+Xero requires HTTPS for production redirect URIs:
+
+```bash
+# Using Let's Encrypt with Certbot
+sudo certbot --nginx -d your-domain.com
+
+# Or use your hosting provider's SSL certificate
+```
+
+### 4.2 Update Xero App for Production
+
+1. **Return to Xero Developer Portal**
+2. **Edit your app**
+3. **Update Redirect URI** to production HTTPS URL:
+   ```
+   https://your-production-domain.com/api/xero/callback
+   ```
+4. **Save changes**
+
+### 4.3 Environment Variables for Production
+
+```bash
+# Production backend .env
+NODE_ENV=production
+XERO_CLIENT_ID=your_production_client_id
+XERO_CLIENT_SECRET=your_production_client_secret
+XERO_REDIRECT_URI=https://your-production-domain.com/api/xero/callback
+ENCRYPTION_KEY=your_secure_encryption_key
+JWT_SECRET=your_secure_jwt_secret
+ENABLE_XERO_SYNC_JOBS=true
+FORCE_HTTPS=true
+```
+
+## 🔍 Step 5: Testing and Verification
+
+### 5.1 Test OAuth Flow
+
+```bash
+# Test auth initiation
+curl "https://your-domain.com/api/xero/auth?companyId=test-company"
+
+# Should return:
+{
+  "success": true,
+  "data": {
+    "authUrl": "https://login.xero.com/identity/connect/authorize?...",
+    "state": "generated-state-value"
+  }
 }
 ```
 
-## Step 5: Database Setup
+### 5.2 Test API Endpoints
 
-The Xero integration uses MongoDB to store connection details. Make sure your MongoDB connection is working, and the XeroConnection model will automatically create the necessary collections.
+```bash
+# Test health check
+curl "https://your-domain.com/health/xero" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 
-## Step 6: Test the Integration
+# Test connections
+curl "https://your-domain.com/api/xero/connections" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 
-1. Start your backend server:
-   ```bash
-   npm run dev
-   ```
-
-2. Test the auth endpoint:
-   ```bash
-   curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-        "http://localhost:3002/api/xero/auth?companyId=YOUR_COMPANY_ID"
-   ```
-
-3. You should receive a JSON response with an authorization URL.
-
-## Step 7: Frontend Integration
-
-To connect the frontend, you'll need to:
-
-1. Add a "Connect to Xero" button in your Connections tab
-2. When clicked, fetch the auth URL from `/api/xero/auth`
-3. Redirect user to the Xero authorization page
-4. Handle the callback and show connection status
-
-### Example Frontend Code:
-
-```javascript
-// Connect to Xero
-const connectXero = async (companyId) => {
-  try {
-    const response = await fetch(`/api/xero/auth?companyId=${companyId}`, {
-      headers: { 'Authorization': `Bearer ${userToken}` }
-    });
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      // Redirect to Xero for authorization
-      window.location.href = data.data.authUrl;
-    }
-  } catch (error) {
-    console.error('Failed to initiate Xero connection:', error);
-  }
-};
-
-// Check connection status
-const getXeroConnections = async () => {
-  try {
-    const response = await fetch('/api/xero/connections', {
-      headers: { 'Authorization': `Bearer ${userToken}` }
-    });
-    
-    const data = await response.json();
-    return data.data; // Array of connections
-  } catch (error) {
-    console.error('Failed to fetch Xero connections:', error);
-  }
-};
+# Test invoice fetch
+curl "https://your-domain.com/api/xero/invoices?connectionId=CONNECTION_ID" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
-## API Endpoints
+### 5.3 Monitor Logs
 
-The integration provides these endpoints:
+```bash
+# Check backend logs for Xero API calls
+docker-compose logs -f backend | grep -i xero
 
-### Authentication
-- `GET /api/xero/auth?companyId=ID` - Start OAuth flow
-- `GET /api/xero/callback` - OAuth callback (handled automatically)
+# Or if deployed elsewhere
+tail -f /path/to/app/logs/app.log | grep -i xero
+```
 
-### Connection Management
-- `GET /api/xero/connections` - List user's connections
-- `DELETE /api/xero/connections/:id` - Disconnect Xero
-- `GET /api/xero/health/:id` - Check connection health
+## 🛠️ Troubleshooting
 
-### Data Access
-- `GET /api/xero/invoices?connectionId=ID` - Fetch invoices
-- `GET /api/xero/contacts?connectionId=ID` - Fetch contacts
-- `POST /api/xero/sync` - Manual sync trigger
+### Common Issues
 
-## Security Considerations
+#### 1. "Invalid Redirect URI" Error
 
-1. **Token Encryption**: All OAuth tokens are encrypted before storage
-2. **HTTPS Required**: Use HTTPS in production for OAuth callbacks
-3. **State Parameter**: OAuth state includes CSRF protection
-4. **Token Refresh**: Automatic token refresh before expiry
-5. **Rate Limiting**: Built-in Xero API rate limit compliance
+**Problem**: Xero returns redirect URI mismatch error
 
-## Troubleshooting
+**Solution**:
+- Ensure redirect URI in Xero app matches exactly with backend configuration
+- Check for trailing slashes
+- Verify HTTPS in production
 
-### Common Issues:
+```bash
+# Check your backend configuration
+echo $XERO_REDIRECT_URI
 
-1. **"Invalid redirect URI"**
-   - Check that the redirect URI in your Xero app matches exactly
-   - Ensure no trailing slashes
+# Should match exactly what's in Xero Developer Portal
+```
 
-2. **"Token refresh failed"**
-   - User may need to reconnect to Xero
-   - Check that refresh tokens are being stored correctly
+#### 2. "Token Encryption Error"
 
-3. **"Rate limit exceeded"**
-   - Xero allows 60 requests per minute per tenant
-   - The integration includes automatic rate limiting
+**Problem**: Backend can't encrypt/decrypt tokens
 
-4. **"Organization not found"**
-   - User may have disconnected the app from Xero
-   - Check connection status and prompt for reconnection
+**Solution**:
+- Ensure `ENCRYPTION_KEY` is exactly 32 bytes (64 hex characters)
+- Generate new key if unsure:
 
-### Debug Mode:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+#### 3. "Connection Expired" Issues
+
+**Problem**: Xero connection shows as expired
+
+**Solution**:
+- Check if Xero refresh token is working
+- Verify system time is correct
+- Check token refresh job logs:
+
+```bash
+# Manual token refresh test
+curl -X POST "https://your-domain.com/api/xero/sync" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"connectionId": "YOUR_CONNECTION_ID"}'
+```
+
+#### 4. "Rate Limit Exceeded"
+
+**Problem**: Too many API calls to Xero
+
+**Solution**:
+- Xero allows 60 requests per minute
+- Check sync job frequency
+- Implement exponential backoff:
+
+```javascript
+// Backend will automatically handle rate limiting
+// But you can adjust sync frequency in jobs/xeroSyncJob.js
+```
+
+### Debug Mode
 
 Enable detailed logging:
 
 ```bash
+# Add to backend/.env
 LOG_LEVEL=debug
 ENABLE_API_LOGGING=true
+
+# Restart backend
+docker-compose restart backend
 ```
 
-## Production Deployment
+### Health Checks
 
-1. **Update redirect URI** in Xero app to production URL
-2. **Use HTTPS** for all endpoints
-3. **Set secure environment variables**
-4. **Enable sync jobs** with `ENABLE_XERO_SYNC_JOBS=true`
-5. **Monitor rate limits** and API usage
+```bash
+# Comprehensive Xero health check
+curl "https://your-domain.com/health/xero" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 
-## Support
+# Response should include:
+{
+  "status": "healthy",
+  "connections": {
+    "total": 1,
+    "active": 1,
+    "healthScore": "100.0"
+  },
+  "sync": {
+    "isRunning": true,
+    "lastRun": "2025-01-01T12:00:00.000Z"
+  }
+}
+```
 
-- **Xero API Documentation**: https://developer.xero.com/documentation/
-- **OAuth 2.0 Guide**: https://developer.xero.com/documentation/guides/oauth2/overview/
-- **Xero Developer Community**: https://developer.xero.com/community/
+## 📊 Monitoring
+
+### Key Metrics to Monitor
+
+1. **Connection Health**
+   - Active vs total connections
+   - Token expiry dates
+   - Failed refresh attempts
+
+2. **API Usage**
+   - Requests per minute
+   - Rate limit hits
+   - Error rates
+
+3. **Sync Performance**
+   - Sync job success rate
+   - Data processing time
+   - Queue lengths
+
+### Monitoring Endpoints
+
+```bash
+# Overall health
+GET /health/detailed
+
+# Xero-specific health
+GET /health/xero
+
+# Application metrics
+GET /health/metrics
+```
+
+## 🔐 Security Best Practices
+
+### 1. Environment Security
+
+- Never commit `.env` files to version control
+- Use strong, unique encryption keys
+- Rotate secrets regularly
+- Use HTTPS in production
+
+### 2. Token Management
+
+- Tokens are encrypted at rest
+- Automatic refresh before expiry
+- Secure token transmission
+- Audit logging of token usage
+
+### 3. Network Security
+
+- Rate limiting on all endpoints
+- CORS protection
+- Input validation and sanitization
+- Error message sanitization
+
+## ✅ Setup Checklist
+
+- [ ] Created Xero Developer App
+- [ ] Configured correct scopes
+- [ ] Set proper redirect URI
+- [ ] Generated secure encryption key
+- [ ] Updated backend environment variables
+- [ ] Deployed backend with new config
+- [ ] Tested OAuth flow end-to-end
+- [ ] Verified invoice data sync
+- [ ] Set up monitoring and logging
+- [ ] Configured production SSL
+- [ ] Updated production redirect URI
+- [ ] Tested in production environment
 
 ---
 
-**Note**: This integration maintains all existing LedgerLink functionality while adding Xero connectivity. No existing features or UI components are modified.
+## 🆘 Need Help?
+
+- **Xero Developer Documentation**: https://developer.xero.com/documentation
+- **LedgerLink Issues**: https://github.com/TomWall1/LedgerLink/issues
+- **Email Support**: support@ledgerlink.com
+
+**Your Xero integration should now be fully functional! 🎉**
