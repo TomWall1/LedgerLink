@@ -1,12 +1,10 @@
 {
-  "name": "ledgerlink",
+  "name": "ledgerlink-platform",
   "version": "1.0.0",
-  "description": "LedgerLink - Ledger Reconciliation Platform with Xero Integration",
-  "main": "index.html",
+  "description": "LedgerLink - Ledger Reconciliation Platform",
+  "private": true,
   "scripts": {
-    "start": "echo 'LedgerLink deployed successfully'",
-    "build": "echo 'No build needed for static site'",
-    "dev": "python3 -m http.server 3000"
+    "start": "echo 'LedgerLink is deployed and running!'"
   },
   "repository": {
     "type": "git",
@@ -17,12 +15,8 @@
     "reconciliation",
     "xero",
     "accounting",
-    "fintech",
-    "automation"
+    "fintech"
   ],
   "author": "LedgerLink Team",
-  "license": "MIT",
-  "engines": {
-    "node": "22.x"
-  }
+  "license": "MIT"
 }
