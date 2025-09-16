@@ -1,24 +1,12 @@
-# Ignore backend and root files that aren't needed for frontend deployment
+frontend/
 backend/
 node_modules/
 .git/
+*.log
 .env
 .env.local
-.env.*.local
-*.log
-.DS_Store
-Thumbs.db
-
-# Keep only frontend directory
-!frontend/
-
-# But ignore frontend's node_modules and build artifacts
-frontend/node_modules/
-frontend/dist/
-frontend/.env.local
-frontend/.env.*.local
-
-# Ignore any JS files in src that might conflict with TSX
-frontend/src/**/*.js
-!frontend/src/**/*.test.js
-!frontend/src/**/*.spec.js
+.env.production
+.env.development
+README.md
+package-lock.json
+yarn.lock
