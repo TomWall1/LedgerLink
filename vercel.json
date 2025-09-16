@@ -29,7 +29,7 @@
     }
   ],
   "env": {
-    "NODE_VERSION": "18.19.0",
+    "NODE_VERSION": "22.x",
     "NODE_OPTIONS": "--max_old_space_size=4096",
     "GENERATE_SOURCEMAP": "false",
     "INLINE_RUNTIME_CHUNK": "false",

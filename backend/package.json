@@ -1,7 +1,7 @@
 {
   "name": "ledgerlink-backend",
   "version": "1.0.0",
-  "description": "LedgerLink Backend API with Xero Integration",
+  "description": "LedgerLink Backend with Xero OAuth 2.0 Integration",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -10,46 +10,42 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "docker:build": "docker build -t ledgerlink-backend .",
+    "docker:run": "docker run -p 3002:3002 ledgerlink-backend"
   },
-  "keywords": [
-    "ledger",
-    "reconciliation",
-    "xero",
-    "accounting",
-    "api"
-  ],
-  "author": "LedgerLink Team",
-  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "mongoose": "^7.5.0",
-    "dotenv": "^16.3.1",
     "cors": "^2.8.5",
     "helmet": "^7.0.0",
-    "compression": "^1.7.4",
-    "express-rate-limit": "^6.10.0",
-    "rate-limit-redis": "^4.2.0",
-    "redis": "^4.6.8",
-    "multer": "^1.4.5-lts.1",
-    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "dotenv": "^16.3.1",
     "bcryptjs": "^2.4.3",
-    "joi": "^17.9.2",
-    "axios": "^1.6.0",
-    "node-cron": "^3.0.3",
-    "uuid": "^9.0.1",
-    "crypto": "^1.0.1"
+    "jsonwebtoken": "^9.0.2",
+    "express-rate-limit": "^6.10.0",
+    "express-validator": "^7.0.1",
+    "multer": "^1.4.5-lts.1",
+    "csv-parser": "^3.0.0",
+    "fast-csv": "^4.3.6",
+    "axios": "^1.5.0",
+    "crypto": "^1.0.1",
+    "node-cron": "^3.0.2",
+    "winston": "^3.10.0",
+    "redis": "^4.6.8",
+    "ioredis": "^5.3.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
-    "jest": "^29.6.2",
+    "jest": "^29.6.4",
     "supertest": "^6.3.3",
-    "eslint": "^8.47.0",
-    "@babel/preset-env": "^7.22.10"
+    "eslint": "^8.48.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.28.1"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "node": "22.x",
+    "npm": ">=10.0.0"
   },
   "repository": {
     "type": "git",
@@ -58,5 +54,18 @@
   "bugs": {
     "url": "https://github.com/TomWall1/LedgerLink/issues"
   },
-  "homepage": "https://github.com/TomWall1/LedgerLink#readme"
+  "homepage": "https://github.com/TomWall1/LedgerLink#readme",
+  "keywords": [
+    "ledger",
+    "reconciliation",
+    "xero",
+    "accounting",
+    "oauth",
+    "api",
+    "nodejs",
+    "express",
+    "mongodb"
+  ],
+  "author": "LedgerLink Team",
+  "license": "MIT"
 }
