@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -32,56 +32,27 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
 
-  // Mock data for demonstration
-  const mockMatches: MatchRecord[] = [
-    {
-      id: '1',
-      invoiceNumber: 'INV-2024-001',
-      date: '2024-01-15',
-      amount: 1250.00,
-      customer: 'Acme Corporation',
-      ourRef: 'PO-12345',
-      theirRef: 'PO-12345',
-      confidence: 100,
-      status: 'matched'
-    },
-    {
-      id: '2',
-      invoiceNumber: 'INV-2024-002',
-      date: '2024-01-16',
-      amount: 850.75,
-      customer: 'Beta Limited',
-      ourRef: 'SO-67890',
-      theirRef: 'SO-67890',
-      confidence: 85,
-      status: 'partial',
-      reasonCodes: ['Amount variance: $5.00', 'Date difference: 1 day']
-    },
-    {
-      id: '3',
-      invoiceNumber: 'INV-2024-003',
-      date: '2024-01-17',
-      amount: 2100.00,
-      customer: 'Gamma Industries',
-      ourRef: 'WO-54321',
-      theirRef: '',
-      confidence: 0,
-      status: 'unmatched',
-      reasonCodes: ['Missing from counterparty ledger']
-    },
-    {
-      id: '4',
-      invoiceNumber: 'INV-2024-004',
-      date: '2024-01-18',
-      amount: 750.50,
-      customer: 'Delta Services',
-      ourRef: 'REF-98765',
-      theirRef: 'REF-98765',
-      confidence: 95,
-      status: 'matched'
-    }
-  ];
+  // Real matches will be loaded from backend
+  const [matches, setMatches] = useState<MatchRecord[]>([]);
+
+  useEffect(() => {
+    // TODO: Fetch real matching data when available
+    // const fetchMatches = async () => {
+    //   setLoading(true);
+    //   try {
+    //     const response = await fetch('/api/matches');
+    //     const data = await response.json();
+    //     setMatches(data);
+    //   } catch (error) {
+    //     console.error('Failed to fetch matches:', error);
+    //   } finally {
+    //     setLoading(false);
+    //   }
+    // };
+    // fetchMatches();
+  }, []);
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -120,25 +91,25 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
   const handleCSVUpload = () => {
     if (!csvFile) return;
-    // Implement CSV processing logic here
+    // TODO: Implement CSV processing logic
     console.log('Processing CSV:', csvFile.name);
     setUploadModalOpen(false);
     setCsvFile(null);
   };
 
   const handleInviteCounterparty = () => {
-    // Implement invite logic here
+    // TODO: Implement invite logic
     console.log('Sending invitation to counterparty');
     setInviteModalOpen(false);
   };
 
   const stats = {
-    total: mockMatches.length,
-    matched: mockMatches.filter(m => m.status === 'matched').length,
-    partial: mockMatches.filter(m => m.status === 'partial').length,
-    unmatched: mockMatches.filter(m => m.status === 'unmatched').length,
-    totalAmount: mockMatches.reduce((sum, m) => sum + m.amount, 0),
-    matchedAmount: mockMatches.filter(m => m.status === 'matched').reduce((sum, m) => sum + m.amount, 0),
+    total: matches.length,
+    matched: matches.filter(m => m.status === 'matched').length,
+    partial: matches.filter(m => m.status === 'partial').length,
+    unmatched: matches.filter(m => m.status === 'unmatched').length,
+    totalAmount: matches.reduce((sum, m) => sum + m.amount, 0),
+    matchedAmount: matches.filter(m => m.status === 'matched').reduce((sum, m) => sum + m.amount, 0),
   };
 
   const matchPercentage = stats.total > 0 ? ((stats.matched / stats.total) * 100).toFixed(1) : '0';
@@ -175,8 +146,8 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                 >
                   <option value="">Choose ERP system...</option>
                   <option value="xero">Xero</option>
-                  <option value="quickbooks">QuickBooks</option>
-                  <option value="sage">Sage</option>
+                  <option value="quickbooks">QuickBooks (Coming Soon)</option>
+                  <option value="sage">Sage (Coming Soon)</option>
                 </select>
               </div>
             )}
@@ -192,10 +163,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                   onChange={(e) => setSelectedCustomer(e.target.value)}
                   className="input w-full"
                 >
-                  <option value="">Choose customer...</option>
-                  <option value="acme">Acme Corporation</option>
-                  <option value="beta">Beta Limited</option>
-                  <option value="gamma">Gamma Industries</option>
+                  <option value="">No counterparties connected yet</option>
                 </select>
               </div>
             )}
@@ -274,156 +242,128 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
             <div>
               <h2 className="text-h3 text-neutral-900">Matching Results</h2>
               <p className="text-body text-neutral-600 mt-1">
-                Click on rows to view detailed history and insights
+                {matches.length > 0 
+                  ? 'Click on rows to view detailed history and insights'
+                  : 'Upload CSV files to start matching invoices'}
               </p>
             </div>
             <div className="flex space-x-2">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" disabled={matches.length === 0}>
                 Export CSV
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" disabled={matches.length === 0}>
                 Export PDF
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead 
-                  sortable 
-                  sortDirection={sortField === 'invoiceNumber' ? sortDirection : null}
-                  onSort={() => handleSort('invoiceNumber')}
-                >
-                  Invoice #
-                </TableHead>
-                <TableHead 
-                  sortable 
-                  sortDirection={sortField === 'date' ? sortDirection : null}
-                  onSort={() => handleSort('date')}
-                >
-                  Date
-                </TableHead>
-                <TableHead 
-                  sortable 
-                  sortDirection={sortField === 'amount' ? sortDirection : null}
-                  onSort={() => handleSort('amount')}
-                >
-                  Amount
-                </TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Our Ref</TableHead>
-                <TableHead>Their Ref</TableHead>
-                <TableHead 
-                  sortable 
-                  sortDirection={sortField === 'confidence' ? sortDirection : null}
-                  onSort={() => handleSort('confidence')}
-                >
-                  Confidence
-                </TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-12">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockMatches.map((match) => (
-                <React.Fragment key={match.id}>
-                  <TableRow 
-                    expandable
-                    expanded={expandedRows.has(match.id)}
-                    onToggleExpand={() => toggleRowExpand(match.id)}
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+              <p className="text-neutral-600">Loading matches...</p>
+            </div>
+          ) : matches.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead 
+                    sortable 
+                    sortDirection={sortField === 'invoiceNumber' ? sortDirection : null}
+                    onSort={() => handleSort('invoiceNumber')}
                   >
-                    <TableCell className="font-mono font-medium">{match.invoiceNumber}</TableCell>
-                    <TableCell>{match.date}</TableCell>
-                    <TableCell className="font-mono">${match.amount.toLocaleString()}</TableCell>
-                    <TableCell>{match.customer}</TableCell>
-                    <TableCell className="font-mono">{match.ourRef || '-'}</TableCell>
-                    <TableCell className="font-mono">{match.theirRef || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant="confidence" score={match.confidence}>
-                        {match.confidence}%
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(match.status)}</TableCell>
-                    <TableCell>
-                      <button
-                        className="p-1 hover:bg-neutral-100 rounded transition-colors duration-120"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          console.log('View details for', match.id);
-                        }}
-                        title="View details"
-                      >
-                        <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                  
-                  {/* Expanded Row Content */}
-                  {expandedRows.has(match.id) && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="bg-neutral-50 border-t-0">
-                        <div className="py-4 px-2">
-                          <h4 className="text-body font-medium text-neutral-900 mb-3">Match Analysis</h4>
-                          
-                          {match.reasonCodes && match.reasonCodes.length > 0 && (
-                            <div className="mb-4">
-                              <p className="text-small font-medium text-neutral-700 mb-2">Issues Found:</p>
-                              <ul className="space-y-1">
-                                {match.reasonCodes.map((reason, index) => (
-                                  <li key={index} className="text-small text-neutral-600 flex items-start space-x-2">
-                                    <span className="text-warning mt-1">•</span>
-                                    <span>{reason}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-small">
-                            <div>
-                              <p className="font-medium text-neutral-700">Match Components:</p>
-                              <ul className="mt-1 space-y-1 text-neutral-600">
-                                <li>Invoice Number: {match.confidence >= 90 ? '✓' : '✗'} Match</li>
-                                <li>Amount: {match.confidence >= 70 ? '✓' : '✗'} Match</li>
-                                <li>Date: {match.confidence >= 80 ? '✓' : '✗'} Match</li>
-                                <li>Reference: {match.ourRef === match.theirRef ? '✓' : '✗'} Match</li>
-                              </ul>
-                            </div>
-                            
-                            <div>
-                              <p className="font-medium text-neutral-700">Transaction History:</p>
-                              <ul className="mt-1 space-y-1 text-neutral-600">
-                                <li>Created: {match.date}</li>
-                                <li>Last matched: 2 hours ago</li>
-                                <li>Status changes: 1</li>
-                              </ul>
-                            </div>
-                            
-                            <div>
-                              <p className="font-medium text-neutral-700">Actions:</p>
-                              <div className="mt-1 space-y-2">
-                                <Button variant="ghost" size="sm" className="text-xs">
-                                  View PDF
-                                </Button>
-                                <Button variant="ghost" size="sm" className="text-xs">
-                                  Notify Counterparty
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                    Invoice #
+                  </TableHead>
+                  <TableHead 
+                    sortable 
+                    sortDirection={sortField === 'date' ? sortDirection : null}
+                    onSort={() => handleSort('date')}
+                  >
+                    Date
+                  </TableHead>
+                  <TableHead 
+                    sortable 
+                    sortDirection={sortField === 'amount' ? sortDirection : null}
+                    onSort={() => handleSort('amount')}
+                  >
+                    Amount
+                  </TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Our Ref</TableHead>
+                  <TableHead>Their Ref</TableHead>
+                  <TableHead 
+                    sortable 
+                    sortDirection={sortField === 'confidence' ? sortDirection : null}
+                    onSort={() => handleSort('confidence')}
+                  >
+                    Confidence
+                  </TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-12">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {matches.map((match) => (
+                  <React.Fragment key={match.id}>
+                    <TableRow 
+                      expandable
+                      expanded={expandedRows.has(match.id)}
+                      onToggleExpand={() => toggleRowExpand(match.id)}
+                    >
+                      <TableCell className="font-mono font-medium">{match.invoiceNumber}</TableCell>
+                      <TableCell>{match.date}</TableCell>
+                      <TableCell className="font-mono">${match.amount.toLocaleString()}</TableCell>
+                      <TableCell>{match.customer}</TableCell>
+                      <TableCell className="font-mono">{match.ourRef || '-'}</TableCell>
+                      <TableCell className="font-mono">{match.theirRef || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant="confidence" score={match.confidence}>
+                          {match.confidence}%
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(match.status)}</TableCell>
+                      <TableCell>
+                        <button
+                          className="p-1 hover:bg-neutral-100 rounded transition-colors duration-120"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            console.log('View details for', match.id);
+                          }}
+                          title="View details"
+                        >
+                          <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
                       </TableCell>
                     </TableRow>
-                  )}
-                </React.Fragment>
-              ))}
-            </TableBody>
-          </Table>
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="p-12 text-center">
+              <svg className="w-16 h-16 mx-auto mb-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 className="text-h3 font-semibold text-neutral-900 mb-2">No matches yet</h3>
+              <p className="text-body text-neutral-600 mb-6 max-w-md mx-auto">
+                Upload CSV files or connect your accounting system to start matching invoices automatically.
+              </p>
+              <Button
+                variant="primary"
+                onClick={() => setUploadModalOpen(true)}
+                leftIcon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                }
+              >
+                Upload Your First CSV
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
