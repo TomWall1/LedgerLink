@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
@@ -25,51 +25,27 @@ export const Counterparties: React.FC = () => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteType, setInviteType] = useState<'customer' | 'vendor'>('customer');
   const [inviteName, setInviteName] = useState('');
+  const [loading, setLoading] = useState(false);
   
-  // Mock data
-  const [counterparties, setCounterparties] = useState<Counterparty[]>([
-    {
-      id: '1',
-      name: 'Acme Corporation',
-      email: 'finance@acme.com',
-      type: 'customer',
-      status: 'linked',
-      linkedSystem: 'Xero',
-      lastActivity: '2 hours ago',
-      matchingEnabled: true,
-      totalTransactions: 145,
-      matchRate: 96.5
-    },
-    {
-      id: '2',
-      name: 'Beta Limited',
-      email: 'accounts@beta.com',
-      type: 'vendor',
-      status: 'invited',
-      lastActivity: '1 day ago',
-      matchingEnabled: false,
-      totalTransactions: 23
-    },
-    {
-      id: '3',
-      name: 'Gamma Industries',
-      email: 'billing@gamma.com',
-      type: 'customer',
-      status: 'pending',
-      lastActivity: '3 days ago',
-      matchingEnabled: false,
-      totalTransactions: 67
-    },
-    {
-      id: '4',
-      name: 'Delta Services',
-      email: 'finance@delta.com',
-      type: 'vendor',
-      status: 'unlinked',
-      matchingEnabled: false,
-      totalTransactions: 89
-    }
-  ]);
+  // Real data will be fetched from backend
+  const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
+
+  useEffect(() => {
+    // TODO: Fetch real counterparty data from backend
+    // const fetchCounterparties = async () => {
+    //   setLoading(true);
+    //   try {
+    //     const response = await fetch('/api/counterparties');
+    //     const data = await response.json();
+    //     setCounterparties(data);
+    //   } catch (error) {
+    //     console.error('Failed to fetch counterparties:', error);
+    //   } finally {
+    //     setLoading(false);
+    //   }
+    // };
+    // fetchCounterparties();
+  }, []);
   
   const getStatusBadge = (status: Counterparty['status']) => {
     switch (status) {
@@ -87,6 +63,7 @@ export const Counterparties: React.FC = () => {
   };
   
   const handleInvite = () => {
+    // TODO: Send invitation via backend API
     const newCounterparty: Counterparty = {
       id: Date.now().toString(),
       name: inviteName,
@@ -104,7 +81,7 @@ export const Counterparties: React.FC = () => {
   };
   
   const handleResendInvite = (counterparty: Counterparty) => {
-    // Simulate resending invite
+    // TODO: Resend invite via backend API
     console.log('Resending invite to:', counterparty.email);
     setCounterparties(prev => 
       prev.map(cp => 
@@ -116,6 +93,7 @@ export const Counterparties: React.FC = () => {
   };
   
   const handleRemoveCounterparty = (id: string) => {
+    // TODO: Remove via backend API
     setCounterparties(prev => prev.filter(cp => cp.id !== id));
   };
   
@@ -191,123 +169,155 @@ export const Counterparties: React.FC = () => {
             <div>
               <h2 className="text-h3 text-neutral-900">All Counterparties</h2>
               <p className="text-body text-neutral-600 mt-1">
-                Manage your customer and vendor relationships
+                {counterparties.length > 0 
+                  ? 'Manage your customer and vendor relationships'
+                  : 'Invite counterparties to start automated reconciliation'}
               </p>
             </div>
-            <div className="flex space-x-2">
-              <Input 
-                placeholder="Search counterparties..."
-                className="w-64"
-                leftIcon={
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                }
-              />
-            </div>
+            {counterparties.length > 0 && (
+              <div className="flex space-x-2">
+                <Input 
+                  placeholder="Search counterparties..."
+                  className="w-64"
+                  leftIcon={
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  }
+                />
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>System</TableHead>
-                <TableHead>Transactions</TableHead>
-                <TableHead>Match Rate</TableHead>
-                <TableHead>Last Activity</TableHead>
-                <TableHead className="w-32">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {counterparties.map((counterparty) => (
-                <TableRow key={counterparty.id}>
-                  <TableCell>
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                        counterparty.type === 'customer' 
-                          ? 'bg-primary-100 text-primary-700'
-                          : 'bg-warning-100 text-warning-700'
-                      }`}>
-                        {counterparty.type === 'customer' ? 'C' : 'V'}
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+              <p className="text-neutral-600">Loading counterparties...</p>
+            </div>
+          ) : counterparties.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>System</TableHead>
+                  <TableHead>Transactions</TableHead>
+                  <TableHead>Match Rate</TableHead>
+                  <TableHead>Last Activity</TableHead>
+                  <TableHead className="w-32">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {counterparties.map((counterparty) => (
+                  <TableRow key={counterparty.id}>
+                    <TableCell>
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+                          counterparty.type === 'customer' 
+                            ? 'bg-primary-100 text-primary-700'
+                            : 'bg-warning-100 text-warning-700'
+                        }`}>
+                          {counterparty.type === 'customer' ? 'C' : 'V'}
+                        </div>
+                        <div>
+                          <p className="font-medium text-neutral-900">{counterparty.name}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-neutral-900">{counterparty.name}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-neutral-600">{counterparty.email}</TableCell>
-                  <TableCell>
-                    <span className="capitalize text-neutral-900">{counterparty.type}</span>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(counterparty.status)}</TableCell>
-                  <TableCell>
-                    {counterparty.linkedSystem ? (
-                      <span className="text-neutral-900">{counterparty.linkedSystem}</span>
-                    ) : (
-                      <span className="text-neutral-400">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-mono text-neutral-900">
-                      {counterparty.totalTransactions?.toLocaleString() || 0}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {counterparty.matchRate ? (
-                      <Badge variant="confidence" score={counterparty.matchRate}>
-                        {counterparty.matchRate.toFixed(1)}%
-                      </Badge>
-                    ) : (
-                      <span className="text-neutral-400">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-neutral-600">
-                    {counterparty.lastActivity || '-'}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-1">
-                      {counterparty.status === 'invited' && (
+                    </TableCell>
+                    <TableCell className="text-neutral-600">{counterparty.email}</TableCell>
+                    <TableCell>
+                      <span className="capitalize text-neutral-900">{counterparty.type}</span>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(counterparty.status)}</TableCell>
+                    <TableCell>
+                      {counterparty.linkedSystem ? (
+                        <span className="text-neutral-900">{counterparty.linkedSystem}</span>
+                      ) : (
+                        <span className="text-neutral-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono text-neutral-900">
+                        {counterparty.totalTransactions?.toLocaleString() || 0}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {counterparty.matchRate ? (
+                        <Badge variant="confidence" score={counterparty.matchRate}>
+                          {counterparty.matchRate.toFixed(1)}%
+                        </Badge>
+                      ) : (
+                        <span className="text-neutral-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-neutral-600">
+                      {counterparty.lastActivity || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-1">
+                        {counterparty.status === 'invited' && (
+                          <button
+                            onClick={() => handleResendInvite(counterparty)}
+                            className="p-1 hover:bg-neutral-100 rounded transition-colors duration-120"
+                            title="Resend invitation"
+                          >
+                            <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </button>
+                        )}
+                        
                         <button
-                          onClick={() => handleResendInvite(counterparty)}
+                          onClick={() => setSelectedCounterparty(counterparty)}
                           className="p-1 hover:bg-neutral-100 rounded transition-colors duration-120"
-                          title="Resend invitation"
+                          title="View details"
                         >
                           <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
                         </button>
-                      )}
-                      
-                      <button
-                        onClick={() => setSelectedCounterparty(counterparty)}
-                        className="p-1 hover:bg-neutral-100 rounded transition-colors duration-120"
-                        title="View details"
-                      >
-                        <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </button>
-                      
-                      <button
-                        onClick={() => handleRemoveCounterparty(counterparty.id)}
-                        className="p-1 hover:bg-error-100 rounded transition-colors duration-120"
-                        title="Remove counterparty"
-                      >
-                        <svg className="w-4 h-4 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                        
+                        <button
+                          onClick={() => handleRemoveCounterparty(counterparty.id)}
+                          className="p-1 hover:bg-error-100 rounded transition-colors duration-120"
+                          title="Remove counterparty"
+                        >
+                          <svg className="w-4 h-4 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="p-12 text-center">
+              <svg className="w-16 h-16 mx-auto mb-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <h3 className="text-h3 font-semibold text-neutral-900 mb-2">No counterparties yet</h3>
+              <p className="text-body text-neutral-600 mb-6 max-w-md mx-auto">
+                Invite your customers and vendors to establish secure connections for automatic invoice reconciliation.
+              </p>
+              <Button 
+                variant="primary" 
+                onClick={() => setInviteModal(true)}
+                leftIcon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                }
+              >
+                Invite Your First Counterparty
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
       
@@ -436,30 +446,7 @@ export const Counterparties: React.FC = () => {
             {selectedCounterparty.status === 'linked' && (
               <div>
                 <h4 className="font-medium text-neutral-900 mb-3">Recent Activity</h4>
-                <div className="space-y-3">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-success-100 rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-neutral-900">System synchronized</p>
-                      <p className="text-xs text-neutral-600">2 hours ago</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-neutral-900">New invoices matched</p>
-                      <p className="text-xs text-neutral-600">5 hours ago</p>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-sm text-neutral-600">No recent activity</p>
               </div>
             )}
             
