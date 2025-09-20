@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 
@@ -12,23 +12,60 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
-  // Mock data for demonstration
-  const stats = {
-    totalInvoices: 1247,
-    matchedInvoices: 1173,
-    unmatchedInvoices: 74,
-    matchRate: 94.1,
-    totalAmount: 485230.50,
-    matchedAmount: 456890.25,
-    lastSync: '2 minutes ago'
-  };
+  // Real data will be fetched from backend
+  const [stats, setStats] = useState({
+    totalInvoices: 0,
+    matchedInvoices: 0,
+    unmatchedInvoices: 0,
+    matchRate: 0,
+    totalAmount: 0,
+    matchedAmount: 0,
+    lastSync: 'Never'
+  });
 
-  const recentActivity = [
-    { id: 1, type: 'match', description: 'INV-2024-001 matched with Acme Corp', time: '5 min ago', status: 'success' },
-    { id: 2, type: 'sync', description: 'Xero connection synced successfully', time: '12 min ago', status: 'success' },
-    { id: 3, type: 'mismatch', description: 'INV-2024-045 partial match (85% confidence)', time: '1 hour ago', status: 'warning' },
-    { id: 4, type: 'invite', description: 'Counterparty invitation sent to Beta Ltd', time: '2 hours ago', status: 'default' },
-  ];
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // TODO: Fetch real dashboard data from backend
+    // const fetchDashboardData = async () => {
+    //   try {
+    //     const response = await fetch('/api/dashboard');
+    //     const data = await response.json();
+    //     setStats(data.stats);
+    //     setRecentActivity(data.activity);
+    //   } catch (error) {
+    //     console.error('Failed to fetch dashboard data:', error);
+    //   } finally {
+    //     setLoading(false);
+    //   }
+    // };
+    // fetchDashboardData();
+    
+    // For now, just set loading to false
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map(i => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <div className="h-12 bg-gray-200 rounded"></div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const hasData = stats.totalInvoices > 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -38,7 +75,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           Welcome back{user ? `, ${user.name.split(' ')[0]}` : ''}!
         </h1>
         <p className="text-body-lg text-neutral-600">
-          Here's an overview of your account reconciliation activity.
+          {hasData 
+            ? 'Here\'s an overview of your account reconciliation activity.'
+            : 'Get started by connecting your accounting system or uploading invoice data.'}
         </p>
       </div>
 
@@ -52,7 +91,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                   Match Rate
                 </p>
                 <p className="text-h1 font-bold text-success mt-1">
-                  {stats.matchRate}%
+                  {hasData ? `${stats.matchRate}%` : '-'}
                 </p>
               </div>
               <div className="w-12 h-12 bg-success-100 rounded-lg flex items-center justify-center">
@@ -92,7 +131,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                   Matched Amount
                 </p>
                 <p className="text-h1 font-bold text-neutral-900 mt-1">
-                  ${stats.matchedAmount.toLocaleString()}
+                  {hasData ? `$${stats.matchedAmount.toLocaleString()}` : '$0'}
                 </p>
               </div>
               <div className="w-12 h-12 bg-success-100 rounded-lg flex items-center justify-center">
@@ -135,58 +174,68 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentActivity.map((activity) => {
-                const getIcon = (type: string) => {
-                  switch (type) {
-                    case 'match':
-                      return (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      );
-                    case 'sync':
-                      return (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                      );
-                    case 'mismatch':
-                      return (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.502 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                        </svg>
-                      );
-                    default:
-                      return (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      );
-                  }
-                };
+            {recentActivity.length > 0 ? (
+              <div className="space-y-4">
+                {recentActivity.map((activity) => {
+                  const getIcon = (type: string) => {
+                    switch (type) {
+                      case 'match':
+                        return (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        );
+                      case 'sync':
+                        return (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        );
+                      case 'mismatch':
+                        return (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.502 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                        );
+                      default:
+                        return (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        );
+                    }
+                  };
 
-                return (
-                  <div key={activity.id} className="flex items-start space-x-3">
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                      activity.status === 'success' ? 'bg-success-100 text-success-600' :
-                      activity.status === 'warning' ? 'bg-warning-100 text-warning-600' :
-                      'bg-primary-100 text-primary-600'
-                    }`}>
-                      {getIcon(activity.type)}
+                  return (
+                    <div key={activity.id} className="flex items-start space-x-3">
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                        activity.status === 'success' ? 'bg-success-100 text-success-600' :
+                        activity.status === 'warning' ? 'bg-warning-100 text-warning-600' :
+                        'bg-primary-100 text-primary-600'
+                      }`}>
+                        {getIcon(activity.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-neutral-900">
+                          {activity.description}
+                        </p>
+                        <p className="text-xs text-neutral-500 mt-1">
+                          {activity.time}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-neutral-900">
-                        {activity.description}
-                      </p>
-                      <p className="text-xs text-neutral-500 mt-1">
-                        {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-neutral-500">
+                <svg className="w-12 h-12 mx-auto mb-3 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm">No recent activity</p>
+                <p className="text-xs mt-1">Activity will appear here once you start matching invoices</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -203,8 +252,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               <div className="p-4 border border-neutral-200 rounded-lg hover:border-primary-300 transition-colors cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-body font-medium text-neutral-900">Run New Match</h3>
-                    <p className="text-small text-neutral-600 mt-1">Process latest transactions and find matches</p>
+                    <h3 className="text-body font-medium text-neutral-900">Upload CSV</h3>
+                    <p className="text-small text-neutral-600 mt-1">Import invoice data from spreadsheets</p>
                   </div>
                   <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -215,8 +264,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               <div className="p-4 border border-neutral-200 rounded-lg hover:border-primary-300 transition-colors cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-body font-medium text-neutral-900">Sync Systems</h3>
-                    <p className="text-small text-neutral-600 mt-1">Refresh data from connected platforms</p>
+                    <h3 className="text-body font-medium text-neutral-900">Connect System</h3>
+                    <p className="text-small text-neutral-600 mt-1">Link your accounting software</p>
                   </div>
                   <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -227,8 +276,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               <div className="p-4 border border-neutral-200 rounded-lg hover:border-primary-300 transition-colors cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-body font-medium text-neutral-900">Export Report</h3>
-                    <p className="text-small text-neutral-600 mt-1">Download reconciliation results</p>
+                    <h3 className="text-body font-medium text-neutral-900">Run Match</h3>
+                    <p className="text-small text-neutral-600 mt-1">Process and match transactions</p>
                   </div>
                   <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -268,14 +317,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-success-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-10 h-10 bg-neutral-100 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               <div>
                 <p className="text-body font-medium text-neutral-900">Xero Connection</p>
-                <p className="text-small text-neutral-600">Last sync: {stats.lastSync}</p>
+                <p className="text-small text-neutral-600">
+                  {stats.lastSync !== 'Never' ? `Last sync: ${stats.lastSync}` : 'Not connected'}
+                </p>
               </div>
             </div>
 
