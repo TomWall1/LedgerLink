@@ -44,20 +44,12 @@ function App() {
           //   headers: { Authorization: `Bearer ${token}` }
           // });
           // const userData = await response.json();
+          // setUser(userData.user);
+          // setCompany(userData.company);
           
-          // Mock user data for development - replace with actual API call
+          // For now, just set logged in status
           setIsLoggedIn(true);
-          setUser({
-            id: 'user_123',
-            name: 'Demo User',
-            email: 'demo@ledgerlink.com'
-          });
-          
-          setCompany({
-            id: 'company_123',
-            name: 'Demo Company',
-            ownerId: 'user_123'
-          });
+          // Real user data will be fetched from backend
         }
       } catch (error) {
         console.error('Authentication initialization error:', error);
@@ -75,19 +67,10 @@ function App() {
     // This could redirect to a login page or open a login modal
     console.log('Login clicked');
     
-    // For demo purposes, simulate login
+    // For development purposes, simulate login
     localStorage.setItem('authToken', 'demo_token_123');
     setIsLoggedIn(true);
-    setUser({
-      id: 'user_123',
-      name: 'Demo User',
-      email: 'demo@ledgerlink.com'
-    });
-    setCompany({
-      id: 'company_123',
-      name: 'Demo Company',
-      ownerId: 'user_123'
-    });
+    // Real user data will be fetched from backend
   };
   
   const handleLogout = () => {
@@ -118,7 +101,7 @@ function App() {
       case 'connections':
         return (
           <ErrorBoundary>
-            <ConnectionsPage companyId={company?.id || 'demo-company'} />
+            <ConnectionsPage companyId={company?.id || 'default-company'} />
           </ErrorBoundary>
         );
       
