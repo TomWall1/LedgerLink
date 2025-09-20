@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/Card';
@@ -33,41 +33,27 @@ export const Reports: React.FC = () => {
   const [selectedCounterparty, setSelectedCounterparty] = useState('');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
+  const [loading, setLoading] = useState(false);
   
-  // Mock data
-  const [reports, setReports] = useState<Report[]>([
-    {
-      id: '1',
-      name: 'Monthly Reconciliation Report',
-      type: 'reconciliation',
-      description: 'Complete reconciliation summary for January 2024',
-      dateRange: 'Jan 1, 2024 - Jan 31, 2024',
-      status: 'ready',
-      generatedAt: '2 hours ago',
-      fileSize: '2.4 MB',
-      downloadUrl: '#'
-    },
-    {
-      id: '2',
-      name: 'Acme Corp Matching Report',
-      type: 'matching',
-      description: 'Invoice matching results for Acme Corporation',
-      dateRange: 'Last 30 days',
-      status: 'ready',
-      generatedAt: '1 day ago',
-      fileSize: '1.1 MB',
-      downloadUrl: '#'
-    },
-    {
-      id: '3',
-      name: 'Discrepancy Analysis',
-      type: 'discrepancy',
-      description: 'Detailed analysis of unmatched transactions',
-      dateRange: 'Last 7 days',
-      status: 'generating',
-      generatedAt: undefined
-    }
-  ]);
+  // Real reports will be fetched from backend
+  const [reports, setReports] = useState<Report[]>([]);
+
+  useEffect(() => {
+    // TODO: Fetch real reports from backend
+    // const fetchReports = async () => {
+    //   setLoading(true);
+    //   try {
+    //     const response = await fetch('/api/reports');
+    //     const data = await response.json();
+    //     setReports(data);
+    //   } catch (error) {
+    //     console.error('Failed to fetch reports:', error);
+    //   } finally {
+    //     setLoading(false);
+    //   }
+    // };
+    // fetchReports();
+  }, []);
   
   const reportTemplates: ReportTemplate[] = [
     {
@@ -163,6 +149,7 @@ export const Reports: React.FC = () => {
   const handleGenerateReport = () => {
     if (!generateModal.template) return;
     
+    // TODO: Generate report via backend API
     const newReport: Report = {
       id: Date.now().toString(),
       name: `${generateModal.template.name} - ${new Date().toLocaleDateString()}`,
@@ -177,7 +164,7 @@ export const Reports: React.FC = () => {
     setReports(prev => [newReport, ...prev]);
     setGenerateModal({ open: false });
     
-    // Simulate report generation
+    // Simulate report generation for now
     setTimeout(() => {
       setReports(prev => 
         prev.map(r => 
@@ -196,11 +183,12 @@ export const Reports: React.FC = () => {
   };
   
   const handleDownload = (report: Report) => {
-    // Simulate file download
+    // TODO: Implement actual file download
     console.log('Downloading report:', report.name);
   };
   
   const handleDelete = (reportId: string) => {
+    // TODO: Delete via backend API
     setReports(prev => prev.filter(r => r.id !== reportId));
   };
   
@@ -314,31 +302,42 @@ export const Reports: React.FC = () => {
       <div>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-h2 text-neutral-900">Recent Reports</h2>
-          <div className="flex space-x-2">
-            <Input 
-              placeholder="Search reports..."
-              className="w-64"
-              leftIcon={
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              }
-            />
-          </div>
+          {reports.length > 0 && (
+            <div className="flex space-x-2">
+              <Input 
+                placeholder="Search reports..."
+                className="w-64"
+                leftIcon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                }
+              />
+            </div>
+          )}
         </div>
         
-        {reports.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <p className="text-neutral-600">Loading reports...</p>
+          </div>
+        ) : reports.length === 0 ? (
           <Card className="text-center py-12">
             <CardContent>
-              <div className="w-16 h-16 bg-neutral-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
+              <svg className="w-16 h-16 mx-auto mb-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
               <h3 className="text-h3 text-neutral-900 mb-2">No reports yet</h3>
-              <p className="text-body text-neutral-600 max-w-md mx-auto">
-                Generate your first report to get insights into your reconciliation data.
+              <p className="text-body text-neutral-600 max-w-md mx-auto mb-6">
+                Start by uploading invoice data or connecting your accounting system, then generate reports to get insights into your reconciliation data.
               </p>
+              <Button 
+                variant="primary"
+                onClick={() => reportTemplates[0] && setGenerateModal({ open: true, template: reportTemplates[0] })}
+              >
+                Generate Your First Report
+              </Button>
             </CardContent>
           </Card>
         ) : (
@@ -494,9 +493,7 @@ export const Reports: React.FC = () => {
                   className="input w-full"
                 >
                   <option value="">All counterparties</option>
-                  <option value="acme">Acme Corporation</option>
-                  <option value="beta">Beta Limited</option>
-                  <option value="gamma">Gamma Industries</option>
+                  {/* Real counterparties will be loaded from backend */}
                 </select>
               </div>
             )}
