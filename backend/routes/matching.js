@@ -14,7 +14,6 @@ const path = require('path');
 const { matchRecords } = require('../utils/matching');
 const MatchingResult = require('../models/MatchingResult');
 const Counterparty = require('../models/Counterparty');
-const { requireAuth } = require('../middleware/auth');
 
 // Configure multer for CSV uploads
 const upload = multer({
@@ -72,7 +71,6 @@ const cleanupFiles = async (files) => {
       console.error(`Failed to delete file ${file}:`, err);
     }
   }
-  }
 };
 
 /**
@@ -100,7 +98,7 @@ const updateCounterpartyStats = async (counterpartyId, matchingResult) => {
 /**
  * @route   POST /api/matching/upload-and-match
  * @desc    Upload two CSV files and run matching algorithm with counterparty tracking
- * @access  Private
+ * @access  Private (Authentication handled by server.js middleware)
  */
 router.post('/upload-and-match', upload.fields([
   { name: 'company1File', maxCount: 1 },
@@ -286,7 +284,7 @@ router.post('/upload-and-match', upload.fields([
 /**
  * @route   POST /api/matching/match-from-erp
  * @desc    Run matching using ERP data (Xero, QuickBooks, etc.) with counterparty tracking
- * @access  Private
+ * @access  Private (Authentication handled by server.js middleware)
  */
 router.post('/match-from-erp', async (req, res) => {
   try {
@@ -436,7 +434,7 @@ router.post('/match-from-erp', async (req, res) => {
 /**
  * @route   GET /api/matching/results/:matchId
  * @desc    Get specific matching result by ID with counterparty information
- * @access  Private
+ * @access  Private (Authentication handled by server.js middleware)
  */
 router.get('/results/:matchId', async (req, res) => {
   try {
@@ -480,7 +478,7 @@ router.get('/results/:matchId', async (req, res) => {
 /**
  * @route   GET /api/matching/history
  * @desc    Get matching history for the current user with counterparty information
- * @access  Private
+ * @access  Private (Authentication handled by server.js middleware)
  */
 router.get('/history', async (req, res) => {
   try {
@@ -529,7 +527,7 @@ router.get('/history', async (req, res) => {
 /**
  * @route   DELETE /api/matching/results/:matchId
  * @desc    Delete a matching result
- * @access  Private
+ * @access  Private (Authentication handled by server.js middleware)
  */
 router.delete('/results/:matchId', async (req, res) => {
   try {
@@ -563,7 +561,7 @@ router.delete('/results/:matchId', async (req, res) => {
 /**
  * @route   POST /api/matching/export/:matchId
  * @desc    Export matching results to CSV
- * @access  Private
+ * @access  Private (Authentication handled by server.js middleware)
  */
 router.post('/export/:matchId', async (req, res) => {
   try {
@@ -625,7 +623,7 @@ router.post('/export/:matchId', async (req, res) => {
 /**
  * @route   GET /api/matching/counterparties/search
  * @desc    Search counterparties for matching operations
- * @access  Private
+ * @access  Private (Authentication handled by server.js middleware)
  */
 router.get('/counterparties/search', async (req, res) => {
   try {
