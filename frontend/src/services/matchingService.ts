@@ -14,7 +14,9 @@ import {
   UploadMatchingRequest,
   UploadResponse,
   DateFormat,
-  TransactionRecord
+  TransactionRecord,
+  MatchingHistoryItem,
+  CompanyStatistics
 } from '../types/matching';
 
 // The base URL of your backend - change this if your backend URL changes
@@ -171,8 +173,9 @@ class MatchingService {
   /**
    * Get the history of all matching operations (Phase 2 Compatible)
    * Like getting a list of all the reports you've ever created
+   * Now returns properly formatted data for the Dashboard
    */
-  getMatchingHistory = async (): Promise<MatchingResult[]> => {
+  getMatchingHistory = async (limit: number = 10): Promise<MatchingHistoryResponse> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/matching/history`, {
         method: 'GET',
@@ -183,8 +186,47 @@ class MatchingService {
       });
 
       await handleApiError(response);
-      const result = await response.json();
-      return result;
+      const rawResults: MatchingResult[] = await response.json();
+      
+      // Convert raw results to the format expected by the Dashboard
+      const history: MatchingHistoryItem[] = rawResults.slice(0, limit).map(result => ({
+        _id: result._id,
+        createdAt: result.createdAt,
+        metadata: {
+          fileName1: `${result.company1Name}.csv`,
+          fileName2: `${result.company2Name}.csv`,
+          sourceType1: 'csv',
+          sourceType2: 'csv',
+          processingTime: 1000, // Default value since not tracked in Phase 2
+          uploadedBy: result.userId,
+          notes: undefined
+        },
+        statistics: result.statistics,
+        totals: {
+          company1Total: result.statistics.totalAmount1,
+          company2Total: result.statistics.totalAmount2,
+          variance: Math.abs(result.statistics.totalAmount1 - result.statistics.totalAmount2),
+          perfectMatchTotal: result.statistics.perfectMatches,
+          mismatchTotal: result.statistics.mismatches,
+          unmatchedTotal: result.statistics.company1Unmatched + result.statistics.company2Unmatched
+        }
+      }));
+
+      // Calculate company statistics from the history
+      const statistics: CompanyStatistics = {
+        totalRuns: rawResults.length,
+        avgMatchRate: rawResults.length > 0 
+          ? rawResults.reduce((sum, r) => sum + r.statistics.matchRate, 0) / rawResults.length 
+          : 0,
+        totalPerfectMatches: rawResults.reduce((sum, r) => sum + r.statistics.perfectMatches, 0),
+        totalMismatches: rawResults.reduce((sum, r) => sum + r.statistics.mismatches, 0),
+        lastRun: rawResults.length > 0 ? rawResults[0].createdAt : null
+      };
+
+      return {
+        history,
+        statistics
+      };
     } catch (error) {
       console.error('Error fetching matching history:', error);
       throw error;
