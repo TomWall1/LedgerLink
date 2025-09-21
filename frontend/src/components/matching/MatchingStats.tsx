@@ -1,276 +1,255 @@
-/**
- * Matching Statistics Component
- * 
- * This component displays summary statistics and recent matching history.
- * Think of it as your "dashboard widget" that gives you a quick overview
- * of your reconciliation performance.
- */
+// frontend/src/components/matching/MatchingStats.tsx
+// This component shows summary statistics for the dashboard
+// Think of it as a "dashboard widget" that shows key numbers
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardContent } from '../ui/Card';
-import { Badge } from '../ui/Badge';
-import { Button } from '../ui/Button';
-import matchingService from '../../services/matchingService';
-import { MatchingHistoryResponse, MatchingHistoryItem } from '../../types/matching';
+import React, { useEffect, useState } from 'react';
+import { MatchingResult } from '../../types/matching';
+import { matchingService } from '../../services/matchingService';
 
-interface MatchingStatsProps {
-  onViewDetails?: (matchId: string) => void;
-  className?: string;
+interface StatsData {
+  totalMatches: number;
+  averageMatchRate: number;
+  totalTransactionsProcessed: number;
+  totalAmountProcessed: number;
+  recentActivity: MatchingResult[];
 }
 
-export const MatchingStats: React.FC<MatchingStatsProps> = ({
-  onViewDetails,
-  className = ''
-}) => {
-  const [data, setData] = useState<MatchingHistoryResponse | null>(null);
+export const MatchingStats: React.FC = () => {
+  const [stats, setStats] = useState<StatsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * Load matching statistics and history
-   */
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const response = await matchingService.getMatchingHistory(5); // Get last 5 matches
-        setData(response);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load statistics');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
+    loadStats();
   }, []);
 
-  /**
-   * Format currency for display
-   */
-  const formatCurrency = (amount: number): string => {
+  const loadStats = async () => {
+    try {
+      setIsLoading(true);
+      const history = await matchingService.getMatchingHistory();
+      
+      // Calculate statistics
+      const totalMatches = history.length;
+      const averageMatchRate = totalMatches > 0 
+        ? history.reduce((sum, result) => sum + result.statistics.matchRate, 0) / totalMatches
+        : 0;
+      const totalTransactionsProcessed = history.reduce((sum, result) => 
+        sum + result.statistics.totalCompany1 + result.statistics.totalCompany2, 0
+      );
+      const totalAmountProcessed = history.reduce((sum, result) => 
+        sum + result.statistics.totalAmount1 + result.statistics.totalAmount2, 0
+      );
+      const recentActivity = history.slice(0, 5); // Last 5 matches
+
+      setStats({
+        totalMatches,
+        averageMatchRate,
+        totalTransactionsProcessed,
+        totalAmountProcessed,
+        recentActivity
+      });
+    } catch (error) {
+      setError(`Error loading statistics: ${(error as Error).message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-AU', {
       style: 'currency',
       currency: 'AUD',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Math.abs(amount));
+      maximumFractionDigits: 0
+    }).format(amount);
   };
 
-  /**
-   * Format date for display
-   */
-  const formatDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-AU', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return 'Unknown';
-    }
+  // Format percentage
+  const formatPercentage = (rate: number) => {
+    return `${Math.round(rate * 100)}%`;
   };
 
-  /**
-   * Get match rate badge styling
-   */
-  const getMatchRateBadge = (rate: number) => {
-    if (rate >= 90) return 'success';
-    if (rate >= 70) return 'warning';
-    return 'error';
+  // Format date
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-AU', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (isLoading) {
     return (
-      <div className={`space-y-4 ${className}`}>
-        <Card>
-          <CardContent className="p-6">
-            <div className="animate-pulse space-y-4">
-              <div className="h-4 bg-neutral-200 rounded w-1/3"></div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-16 bg-neutral-200 rounded"></div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-200 rounded mb-4"></div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-20 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className={className}>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <svg className="w-12 h-12 mx-auto mb-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <h3 className="text-lg font-medium text-neutral-900 mb-2">Unable to load statistics</h3>
-              <p className="text-neutral-600 mb-4">{error}</p>
-              <Button variant="secondary" onClick={() => window.location.reload()}>
-                Try Again
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="text-red-600 text-center">
+          <div className="text-2xl mb-2">⚠️</div>
+          <div>{error}</div>
+        </div>
       </div>
     );
   }
 
-  const stats = data?.statistics;
-  const history = data?.history || [];
+  if (!stats || stats.totalMatches === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Matching Statistics</h3>
+        <div className="text-center py-8">
+          <div className="text-gray-400 text-4xl mb-4">📊</div>
+          <h4 className="text-lg font-medium text-gray-900 mb-2">No data yet</h4>
+          <p className="text-gray-500">
+            Start by uploading CSV files to see your matching statistics here.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={`space-y-6 ${className}`}>
-      {/* Overall Statistics */}
-      <Card>
-        <CardHeader>
-          <h3 className="text-lg font-semibold text-neutral-900">Matching Overview</h3>
-          <p className="text-neutral-600">Your reconciliation performance summary</p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{stats?.totalRuns || 0}</div>
-              <div className="text-sm text-neutral-600">Total Runs</div>
+    <div className="space-y-6">
+      {/* Main Statistics Cards */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-6">Matching Overview</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="text-center">
+            <div className="text-3xl font-bold text-blue-600 mb-2">
+              {stats.totalMatches}
             </div>
-            
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{(stats?.avgMatchRate || 0).toFixed(1)}%</div>
-              <div className="text-sm text-neutral-600">Avg Match Rate</div>
-            </div>
-            
-            <div className="text-center">
-              <div className="text-2xl font-bold text-neutral-900">{stats?.totalPerfectMatches || 0}</div>
-              <div className="text-sm text-neutral-600">Perfect Matches</div>
-            </div>
-            
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{stats?.totalMismatches || 0}</div>
-              <div className="text-sm text-neutral-600">Mismatches</div>
+            <div className="text-sm text-gray-600">
+              Total Matches
             </div>
           </div>
-
-          {stats?.lastRun && (
-            <div className="mt-4 pt-4 border-t border-neutral-200">
-              <p className="text-sm text-neutral-600">
-                Last run: {formatDate(stats.lastRun)}
-              </p>
+          
+          <div className="text-center">
+            <div className="text-3xl font-bold text-green-600 mb-2">
+              {formatPercentage(stats.averageMatchRate)}
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Recent History */}
-      {history.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-neutral-900">Recent Matches</h3>
-                <p className="text-neutral-600">Your latest reconciliation runs</p>
-              </div>
-              <Button variant="ghost" size="sm">
-                View All
-              </Button>
+            <div className="text-sm text-gray-600">
+              Average Match Rate
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-neutral-200">
-              {history.map((item) => (
-                <div key={item._id} className="p-4 hover:bg-neutral-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3">
-                        <div>
-                          <p className="font-medium text-neutral-900">
-                            {item.metadata.fileName1 && item.metadata.fileName2 ? (
-                              `${item.metadata.fileName1} vs ${item.metadata.fileName2}`
-                            ) : (
-                              `${item.metadata.sourceType1 || 'Source 1'} vs ${item.metadata.sourceType2 || 'Source 2'}`
-                            )}
-                          </p>
-                          <p className="text-sm text-neutral-600">
-                            {formatDate(item.createdAt)} • {(item.metadata.processingTime / 1000).toFixed(1)}s
-                          </p>
-                        </div>
-                        
-                        <Badge variant={getMatchRateBadge(item.statistics.matchRate)}>
-                          {item.statistics.matchRate.toFixed(1)}% matched
-                        </Badge>
-                      </div>
-                      
-                      <div className="mt-2 flex items-center space-x-4 text-sm text-neutral-600">
-                        <span>{item.statistics.totalRecords} records</span>
-                        <span>{formatCurrency(item.statistics.matchedAmount)} matched</span>
-                        {item.statistics.varianceAmount > 0 && (
-                          <span className="text-orange-600">
-                            {formatCurrency(item.statistics.varianceAmount)} variance
-                          </span>
-                        )}
-                      </div>
-                    </div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-3xl font-bold text-purple-600 mb-2">
+              {stats.totalTransactionsProcessed.toLocaleString()}
+            </div>
+            <div className="text-sm text-gray-600">
+              Transactions Processed
+            </div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-3xl font-bold text-orange-600 mb-2">
+              {formatCurrency(stats.totalAmountProcessed)}
+            </div>
+            <div className="text-sm text-gray-600">
+              Total Amount
+            </div>
+          </div>
+        </div>
+      </div>
 
-                    {onViewDetails && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onViewDetails(item._id)}
-                      >
-                        View
-                      </Button>
-                    )}
+      {/* Recent Activity */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Recent Activity</h3>
+          <span className="text-sm text-gray-500">Last 5 matches</span>
+        </div>
+        
+        {stats.recentActivity.length === 0 ? (
+          <div className="text-center py-4 text-gray-500">
+            No recent activity
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {stats.recentActivity.map((result) => (
+              <div key={result._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-gray-900">
+                    {result.company1Name} vs {result.company2Name}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {formatDate(result.createdAt)}
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                <div className="flex items-center space-x-4">
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-gray-900">
+                      {result.statistics.perfectMatches + result.statistics.mismatches} matches
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      of {result.statistics.totalCompany1 + result.statistics.totalCompany2} total
+                    </div>
+                  </div>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    result.statistics.matchRate >= 0.8 
+                      ? 'bg-green-100 text-green-800'
+                      : result.statistics.matchRate >= 0.6
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {formatPercentage(result.statistics.matchRate)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* No History State */}
-      {history.length === 0 && stats?.totalRuns === 0 && (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <svg className="w-16 h-16 mx-auto mb-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <h3 className="text-lg font-medium text-neutral-900 mb-2">No matches yet</h3>
-            <p className="text-neutral-600 mb-4">
-              Upload your first CSV files to start reconciling invoices and see statistics here.
-            </p>
-            <Button variant="primary">
-              Start Your First Match
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Quick Tips */}
-      {stats && stats.totalRuns > 0 && stats.avgMatchRate < 80 && (
-        <Card>
-          <CardHeader>
-            <h3 className="text-lg font-semibold text-yellow-800">💡 Tips to Improve Match Rate</h3>
-          </CardHeader>
-          <CardContent className="bg-yellow-50">
-            <ul className="text-sm text-yellow-800 space-y-2">
-              <li>• Ensure transaction numbers are consistent between systems</li>
-              <li>• Check date formats match the selected format</li>
-              <li>• Verify amounts include the same currency and precision</li>
-              <li>• Remove any duplicate or test transactions</li>
-            </ul>
-          </CardContent>
-        </Card>
+      {/* Performance Insights */}
+      {stats.totalMatches >= 3 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Insights</h3>
+          <div className="space-y-3">
+            {stats.averageMatchRate >= 0.8 && (
+              <div className="flex items-center p-3 bg-green-50 rounded-lg">
+                <div className="text-green-500 mr-3">✅</div>
+                <div className="text-sm text-green-800">
+                  Great work! Your average match rate is {formatPercentage(stats.averageMatchRate)}, 
+                  which indicates high data quality.
+                </div>
+              </div>
+            )}
+            
+            {stats.averageMatchRate < 0.6 && (
+              <div className="flex items-center p-3 bg-yellow-50 rounded-lg">
+                <div className="text-yellow-500 mr-3">💡</div>
+                <div className="text-sm text-yellow-800">
+                  Consider reviewing your data formats and transaction numbering systems 
+                  to improve match rates.
+                </div>
+              </div>
+            )}
+            
+            {stats.totalMatches >= 10 && (
+              <div className="flex items-center p-3 bg-blue-50 rounded-lg">
+                <div className="text-blue-500 mr-3">📈</div>
+                <div className="text-sm text-blue-800">
+                  You've processed {stats.totalMatches} matches! Consider setting up automated 
+                  reconciliation workflows.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
 };
-
-export default MatchingStats;
