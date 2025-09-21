@@ -1,6 +1,6 @@
 /**
  * LedgerLink Backend Server
- * Main server file with Xero integration
+ * Main server file with Xero integration and matching functionality
  */
 
 require('dotenv').config();
@@ -20,6 +20,7 @@ const { handleXeroErrors } = require('./middleware/xeroAuth');
 // Import routes
 const xeroRoutes = require('./routes/xero');
 const healthRoutes = require('./routes/health');
+const matchingRoutes = require('./routes/matching');
 
 // Import Xero sync jobs
 const xeroSyncJob = require('./jobs/xeroSyncJob');
@@ -101,7 +102,8 @@ const auth = (req, res, next) => {
     req.user = {
       id: 'user_123',
       email: 'demo@ledgerlink.com',
-      name: 'Demo User'
+      name: 'Demo User',
+      companyId: 'company_123'
     };
     
     next();
@@ -115,6 +117,7 @@ const auth = (req, res, next) => {
 
 // API Routes
 app.use('/api/xero', auth, xeroRoutes);
+app.use('/api/matching', auth, matchingRoutes);
 
 // Add your existing routes here
 // app.use('/api/users', auth, userRoutes);
@@ -151,11 +154,20 @@ app.use('*', (req, res) => {
   });
 });
 
+// Create uploads directory if it doesn't exist
+const fs = require('fs');
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+  console.log('📁 Created uploads directory');
+}
+
 // Start server
 const server = app.listen(PORT, () => {
   console.log(`🚀 LedgerLink API server running on port ${PORT}`);
   console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  console.log(`✅ Matching API available at /api/matching`);
   
   // Start Xero sync jobs in production
   if (process.env.NODE_ENV === 'production' && process.env.ENABLE_XERO_SYNC_JOBS === 'true') {
