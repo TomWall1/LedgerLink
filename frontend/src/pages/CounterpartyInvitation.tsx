@@ -4,18 +4,44 @@
  * This page allows users to view and accept counterparty invitations.
  * When someone invites you to be their business partner for invoice reconciliation,
  * you'll receive a link that brings you to this page.
+ * 
+ * Note: This component gracefully handles both router and non-router environments
  */
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import counterpartyService, { CounterpartyInvitation } from '../services/counterpartyService';
 
+// Helper function to get token from URL - works with or without React Router
+const getTokenFromUrl = (): string | null => {
+  const path = window.location.pathname;
+  const tokenMatch = path.match(/\/invite\/([^\/]+)/);
+  return tokenMatch ? tokenMatch[1] : null;
+};
+
+// Helper function to navigate - works with or without React Router  
+const navigateTo = (path: string) => {
+  // Try to use React Router navigation if available
+  try {
+    // Check if we're in a React Router environment
+    if (window.history && window.history.pushState) {
+      window.history.pushState({}, '', path);
+      // Trigger a popstate event to update any router listeners
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } else {
+      // Fallback to full page navigation
+      window.location.href = path;
+    }
+  } catch {
+    // Final fallback
+    window.location.href = path;
+  }
+};
+
 export const CounterpartyInvitation: React.FC = () => {
-  const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
+  const token = getTokenFromUrl();
   
   // State management
   const [invitation, setInvitation] = useState<CounterpartyInvitation | null>(null);
@@ -67,7 +93,7 @@ export const CounterpartyInvitation: React.FC = () => {
       
       // Redirect to counterparties page after a short delay
       setTimeout(() => {
-        navigate('/counterparties');
+        navigateTo('/counterparties');
       }, 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to accept invitation');
@@ -121,7 +147,7 @@ export const CounterpartyInvitation: React.FC = () => {
             <p className="text-body text-neutral-600 mb-6">{error}</p>
             <Button 
               variant="primary" 
-              onClick={() => navigate('/')}
+              onClick={() => navigateTo('/')}
             >
               Go to Homepage
             </Button>
@@ -144,7 +170,7 @@ export const CounterpartyInvitation: React.FC = () => {
             </p>
             <Button 
               variant="primary" 
-              onClick={() => navigate('/counterparties')}
+              onClick={() => navigateTo('/counterparties')}
             >
               Go to Counterparties
             </Button>
@@ -285,7 +311,7 @@ export const CounterpartyInvitation: React.FC = () => {
               <p className="text-neutral-600 mb-4">This invitation has expired</p>
               <Button 
                 variant="ghost" 
-                onClick={() => navigate('/')}
+                onClick={() => navigateTo('/')}
               >
                 Go to Homepage
               </Button>
@@ -294,7 +320,7 @@ export const CounterpartyInvitation: React.FC = () => {
             <>
               <Button 
                 variant="ghost" 
-                onClick={() => navigate('/')}
+                onClick={() => navigateTo('/')}
                 disabled={accepting}
               >
                 Decline
