@@ -1,501 +1,375 @@
-/**
- * Matching Results Display Component
- * 
- * This component displays the results of invoice matching in a clear,
- * organized way. Think of it as a digital report that shows you
- * exactly what matches, what doesn't, and why.
- */
+// frontend/src/components/matching/MatchingResults.tsx
+// This component displays the results of the matching process
+// Think of it as a detailed report showing what matched and what didn't
 
 import React, { useState } from 'react';
-import { Button } from '../ui/Button';
-import { Card, CardHeader, CardContent } from '../ui/Card';
-import { Badge } from '../ui/Badge';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/Table';
-import { MatchingResults, PerfectMatch, Mismatch, TransactionRecord } from '../../types/matching';
-import matchingService from '../../services/matchingService';
+import { MatchingResult, MatchedPair, MatchingTransaction } from '../../types/matching';
+import { matchingService } from '../../services/matchingService';
 
-interface MatchingResultsDisplayProps {
-  results: MatchingResults;
-  onExport?: () => void;
-  onStartNew?: () => void;
+interface MatchingResultsProps {
+  result: MatchingResult;
+  onExport: () => void;
+  onDelete: () => void;
 }
 
-export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
-  results,
-  onExport,
-  onStartNew
-}) => {
-  const [activeTab, setActiveTab] = useState<'matches' | 'mismatches' | 'unmatched'>('matches');
+export const MatchingResults: React.FC<MatchingResultsProps> = ({ result, onExport, onDelete }) => {
+  const [activeTab, setActiveTab] = useState<'perfect' | 'mismatches' | 'unmatched'>('perfect');
   const [isExporting, setIsExporting] = useState(false);
 
-  /**
-   * Format currency for display
-   */
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-      minimumFractionDigits: 2,
-    }).format(Math.abs(amount));
-  };
-
-  /**
-   * Format date for display
-   */
-  const formatDate = (dateString: string): string => {
-    if (!dateString) return '-';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-AU', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch {
-      return dateString;
-    }
-  };
-
-  /**
-   * Get status badge styling
-   */
-  const getStatusBadge = (status?: string) => {
-    if (!status) return null;
-    
-    const statusLower = status.toLowerCase();
-    let variant: 'success' | 'warning' | 'error' | 'default' = 'default';
-    
-    if (statusLower === 'paid') {
-      variant = 'success';
-    } else if (statusLower.includes('open') || statusLower.includes('authorised')) {
-      variant = 'warning';
-    } else if (statusLower.includes('void')) {
-      variant = 'error';
-    }
-
-    return <Badge variant={variant}>{status}</Badge>;
-  };
-
-  /**
-   * Get confidence badge styling
-   */
-  const getConfidenceBadge = (confidence: number) => {
-    let variant: 'success' | 'warning' | 'error' = 'success';
-    
-    if (confidence < 70) {
-      variant = 'error';
-    } else if (confidence < 90) {
-      variant = 'warning';
-    }
-
-    return <Badge variant={variant}>{confidence}%</Badge>;
-  };
-
-  /**
-   * Handle export functionality
-   */
+  // Handle export functionality
   const handleExport = async () => {
-    if (!results.matchId) {
-      alert('Cannot export: No match ID available');
-      return;
-    }
-
     setIsExporting(true);
     try {
-      await matchingService.exportToCSV(results.matchId);
+      const blob = await matchingService.exportResults(result._id);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `matching-results-${result.company1Name}-${result.company2Name}-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      onExport();
     } catch (error) {
-      alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Export failed:', error);
     } finally {
       setIsExporting(false);
     }
   };
 
-  /**
-   * Calculate summary statistics
-   */
-  const stats = {
-    total: results.perfectMatches.length + results.mismatches.length + 
-           results.unmatchedItems.company1.length + results.unmatchedItems.company2.length,
-    matched: results.perfectMatches.length + results.mismatches.length,
-    matchRate: results.statistics.matchRate,
-    totalAmount: results.totals.company1Total + results.totals.company2Total,
-    matchedAmount: results.totals.perfectMatchTotal + results.totals.mismatchTotal,
-    variance: Math.abs(results.totals.variance)
+  // Format currency amounts
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-AU', {
+      style: 'currency',
+      currency: 'AUD'
+    }).format(amount);
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-neutral-900">Matching Results</h2>
-          <p className="text-neutral-600">
-            Processing completed in {(results.processingTime / 1000).toFixed(2)} seconds
-          </p>
-        </div>
-        
-        <div className="flex space-x-3">
-          {onStartNew && (
-            <Button variant="ghost" onClick={onStartNew}>
-              Start New Match
-            </Button>
-          )}
-          <Button
-            variant="secondary"
-            onClick={onExport || handleExport}
-            disabled={isExporting}
-            leftIcon={
-              isExporting ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-neutral-600"></div>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              )
-            }
-          >
-            {isExporting ? 'Exporting...' : 'Export CSV'}
-          </Button>
+  // Format dates
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-AU');
+  };
+
+  // Get confidence badge color
+  const getConfidenceBadgeColor = (confidence: number) => {
+    if (confidence >= 0.9) return 'bg-green-100 text-green-800';
+    if (confidence >= 0.7) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
+  };
+
+  // Statistics summary component
+  const StatsSummary = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="bg-green-50 p-6 rounded-lg">
+        <div className="text-2xl font-bold text-green-600">{result.statistics.perfectMatches}</div>
+        <div className="text-sm text-green-800">Perfect Matches</div>
+        <div className="text-xs text-green-600 mt-1">
+          {formatCurrency(result.statistics.matchedAmount)}
         </div>
       </div>
-
-      {/* Summary Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.matchRate.toFixed(1)}%</div>
-            <div className="text-sm text-neutral-600">Match Rate</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-            <div className="text-sm text-neutral-600">Total Records</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-neutral-900">{formatCurrency(stats.matchedAmount)}</div>
-            <div className="text-sm text-neutral-600">Matched Amount</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-orange-600">{formatCurrency(stats.variance)}</div>
-            <div className="text-sm text-neutral-600">Variance</div>
-          </CardContent>
-        </Card>
+      
+      <div className="bg-yellow-50 p-6 rounded-lg">
+        <div className="text-2xl font-bold text-yellow-600">{result.statistics.mismatches}</div>
+        <div className="text-sm text-yellow-800">Mismatches</div>
+        <div className="text-xs text-yellow-600 mt-1">Need Review</div>
       </div>
-
-      {/* Detailed Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card 
-          className={`cursor-pointer transition-all ${activeTab === 'matches' ? 'ring-2 ring-green-500' : 'hover:shadow-md'}`}
-          onClick={() => setActiveTab('matches')}
-        >
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-green-600">{results.perfectMatches.length}</div>
-            <div className="text-sm text-neutral-600">Perfect Matches</div>
-            <div className="text-xs text-neutral-500 mt-1">
-              {formatCurrency(results.totals.perfectMatchTotal)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${activeTab === 'mismatches' ? 'ring-2 ring-yellow-500' : 'hover:shadow-md'}`}
-          onClick={() => setActiveTab('mismatches')}
-        >
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-yellow-600">{results.mismatches.length}</div>
-            <div className="text-sm text-neutral-600">Mismatches</div>
-            <div className="text-xs text-neutral-500 mt-1">
-              {formatCurrency(results.totals.mismatchTotal)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${activeTab === 'unmatched' ? 'ring-2 ring-red-500' : 'hover:shadow-md'}`}
-          onClick={() => setActiveTab('unmatched')}
-        >
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-red-600">
-              {results.unmatchedItems.company1.length + results.unmatchedItems.company2.length}
-            </div>
-            <div className="text-sm text-neutral-600">Unmatched</div>
-            <div className="text-xs text-neutral-500 mt-1">
-              {formatCurrency(results.totals.unmatchedTotal)}
-            </div>
-          </CardContent>
-        </Card>
+      
+      <div className="bg-red-50 p-6 rounded-lg">
+        <div className="text-2xl font-bold text-red-600">
+          {result.statistics.company1Unmatched + result.statistics.company2Unmatched}
+        </div>
+        <div className="text-sm text-red-800">Unmatched</div>
+        <div className="text-xs text-red-600 mt-1">
+          C1: {result.statistics.company1Unmatched} | C2: {result.statistics.company2Unmatched}
+        </div>
       </div>
+      
+      <div className="bg-blue-50 p-6 rounded-lg">
+        <div className="text-2xl font-bold text-blue-600">
+          {Math.round(result.statistics.matchRate * 100)}%
+        </div>
+        <div className="text-sm text-blue-800">Match Rate</div>
+        <div className="text-xs text-blue-600 mt-1">Overall Success</div>
+      </div>
+    </div>
+  );
 
-      {/* Detailed Results */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-neutral-900">
-              {activeTab === 'matches' && 'Perfect Matches'}
-              {activeTab === 'mismatches' && 'Mismatches & Discrepancies'}
-              {activeTab === 'unmatched' && 'Unmatched Items'}
-            </h3>
-            
-            <div className="flex space-x-2">
-              <Button
-                variant={activeTab === 'matches' ? 'primary' : 'ghost'}
-                size="sm"
-                onClick={() => setActiveTab('matches')}
-              >
-                Matches ({results.perfectMatches.length})
-              </Button>
-              <Button
-                variant={activeTab === 'mismatches' ? 'primary' : 'ghost'}
-                size="sm"
-                onClick={() => setActiveTab('mismatches')}
-              >
-                Mismatches ({results.mismatches.length})
-              </Button>
-              <Button
-                variant={activeTab === 'unmatched' ? 'primary' : 'ghost'}
-                size="sm"
-                onClick={() => setActiveTab('unmatched')}
-              >
-                Unmatched ({results.unmatchedItems.company1.length + results.unmatchedItems.company2.length})
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          {/* Perfect Matches */}
-          {activeTab === 'matches' && (
-            <div className="overflow-x-auto">
-              {results.perfectMatches.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Transaction #</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Confidence</TableHead>
-                      <TableHead>Matched On</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {results.perfectMatches.map((match, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-mono">
-                          {match.company1.transactionNumber || match.company2.transactionNumber}
-                        </TableCell>
-                        <TableCell className="font-mono">
-                          {formatCurrency(match.company1.amount || match.company2.amount || 0)}
-                        </TableCell>
-                        <TableCell>
-                          {formatDate(match.company1.date || match.company2.date)}
-                        </TableCell>
-                        <TableCell>
-                          {formatDate(match.company1.dueDate || match.company2.dueDate)}
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(match.company1.status || match.company2.status)}
-                        </TableCell>
-                        <TableCell>
-                          {getConfidenceBadge(match.confidence)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {match.matchedOn.map((field, i) => (
-                              <Badge key={i} variant="default" className="text-xs">
-                                {field}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+  // Table component for matched pairs
+  const MatchedPairsTable = ({ pairs, type }: { pairs: MatchedPair[], type: 'perfect' | 'mismatches' }) => (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {result.company1Name}
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {result.company2Name}
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Confidence
+            </th>
+            {type === 'mismatches' && (
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Issues
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {pairs.map((pair, index) => (
+            <tr key={index} className="hover:bg-gray-50">
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-gray-900">
+                    {pair.company1Transaction.transaction_number || 
+                     pair.company1Transaction.transactionNumber || 
+                     pair.company1Transaction.invoice_number || 
+                     pair.company1Transaction.id || 'N/A'}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {formatCurrency(pair.company1Transaction.amount)}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {pair.company1Transaction.issue_date || 
+                     pair.company1Transaction.date || 
+                     pair.company1Transaction.invoiceDate || 'No date'}
+                  </div>
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-gray-900">
+                    {pair.company2Transaction.transaction_number || 
+                     pair.company2Transaction.transactionNumber || 
+                     pair.company2Transaction.invoice_number || 
+                     pair.company2Transaction.id || 'N/A'}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {formatCurrency(pair.company2Transaction.amount)}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {pair.company2Transaction.issue_date || 
+                     pair.company2Transaction.date || 
+                     pair.company2Transaction.invoiceDate || 'No date'}
+                  </div>
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getConfidenceBadgeColor(pair.confidence)}`}>
+                  {Math.round(pair.confidence * 100)}%
+                </span>
+              </td>
+              {type === 'mismatches' && (
+                <td className="px-6 py-4">
+                  <div className="text-xs text-red-600 space-y-1">
+                    {pair.reasons?.map((reason, idx) => (
+                      <div key={idx}>{reason}</div>
                     ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="p-8 text-center text-neutral-500">
-                  No perfect matches found
-                </div>
+                  </div>
+                </td>
               )}
-            </div>
-          )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 
-          {/* Mismatches */}
-          {activeTab === 'mismatches' && (
-            <div className="overflow-x-auto">
-              {results.mismatches.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Transaction #</TableHead>
-                      <TableHead>Company 1 Amount</TableHead>
-                      <TableHead>Company 2 Amount</TableHead>
-                      <TableHead>Difference</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Confidence</TableHead>
-                      <TableHead>Issues</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {results.mismatches.map((mismatch, index) => {
-                      const difference = Math.abs(
-                        (mismatch.company1.amount || 0) - (mismatch.company2.amount || 0)
-                      );
-                      
-                      return (
-                        <TableRow key={index}>
-                          <TableCell className="font-mono">
-                            {mismatch.company1.transactionNumber || mismatch.company2.transactionNumber}
-                          </TableCell>
-                          <TableCell className="font-mono">
-                            {formatCurrency(mismatch.company1.amount || 0)}
-                          </TableCell>
-                          <TableCell className="font-mono">
-                            {formatCurrency(mismatch.company2.amount || 0)}
-                          </TableCell>
-                          <TableCell className="font-mono text-orange-600">
-                            {formatCurrency(difference)}
-                          </TableCell>
-                          <TableCell>
-                            {formatDate(mismatch.company1.date || mismatch.company2.date)}
-                          </TableCell>
-                          <TableCell>
-                            {getConfidenceBadge(mismatch.confidence)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {mismatch.differences.map((diff, i) => (
-                                <Badge key={i} variant="warning" className="text-xs">
-                                  {diff.field}
-                                </Badge>
-                              ))}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="p-8 text-center text-neutral-500">
-                  No mismatches found
-                </div>
-              )}
-            </div>
-          )}
+  // Table component for unmatched transactions
+  const UnmatchedTable = ({ transactions, companyName }: { transactions: MatchingTransaction[], companyName: string }) => (
+    <div className="mb-6">
+      <h4 className="text-lg font-medium text-gray-900 mb-4">{companyName} Unmatched ({transactions.length})</h4>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Transaction Number
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Amount
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Date
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Reference
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {transactions.map((transaction, index) => (
+              <tr key={index} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  {transaction.transaction_number || 
+                   transaction.transactionNumber || 
+                   transaction.invoice_number || 
+                   transaction.id || 'N/A'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {formatCurrency(transaction.amount)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {transaction.issue_date || 
+                   transaction.date || 
+                   transaction.invoiceDate || 'No date'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                    {transaction.status || 'Unknown'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {transaction.reference || 'N/A'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
-          {/* Unmatched Items */}
-          {activeTab === 'unmatched' && (
-            <div className="space-y-6">
-              {/* Company 1 Unmatched */}
-              <div>
-                <h4 className="text-md font-medium text-neutral-900 mb-3 px-6">
-                  Company 1 Unmatched ({results.unmatchedItems.company1.length})
-                </h4>
-                <div className="overflow-x-auto">
-                  {results.unmatchedItems.company1.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Transaction #</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Due Date</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Type</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {results.unmatchedItems.company1.map((item, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-mono">{item.transactionNumber}</TableCell>
-                            <TableCell className="font-mono">{formatCurrency(item.amount)}</TableCell>
-                            <TableCell>{formatDate(item.date)}</TableCell>
-                            <TableCell>{formatDate(item.dueDate)}</TableCell>
-                            <TableCell>{getStatusBadge(item.status)}</TableCell>
-                            <TableCell>{item.type || '-'}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <div className="p-4 text-center text-neutral-500">
-                      All Company 1 records were matched
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Company 2 Unmatched */}
-              <div>
-                <h4 className="text-md font-medium text-neutral-900 mb-3 px-6">
-                  Company 2 Unmatched ({results.unmatchedItems.company2.length})
-                </h4>
-                <div className="overflow-x-auto">
-                  {results.unmatchedItems.company2.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Transaction #</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Due Date</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Type</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {results.unmatchedItems.company2.map((item, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-mono">{item.transactionNumber}</TableCell>
-                            <TableCell className="font-mono">{formatCurrency(item.amount)}</TableCell>
-                            <TableCell>{formatDate(item.date)}</TableCell>
-                            <TableCell>{formatDate(item.dueDate)}</TableCell>
-                            <TableCell>{getStatusBadge(item.status)}</TableCell>
-                            <TableCell>{item.type || '-'}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <div className="p-4 text-center text-neutral-500">
-                      All Company 2 records were matched
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Processing Summary */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-neutral-600">
-            <div>
-              <span className="font-medium">Processing Time:</span> {(results.processingTime / 1000).toFixed(2)}s
-            </div>
-            <div>
-              <span className="font-medium">Total Variance:</span> {formatCurrency(Math.abs(results.totals.variance))}
-            </div>
-            <div>
-              <span className="font-medium">Average Confidence:</span> {results.statistics.avgConfidence.toFixed(1)}%
-            </div>
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Matching Results</h2>
+            <p className="text-gray-600">
+              {result.company1Name} vs {result.company2Name}
+            </p>
+            <p className="text-sm text-gray-500">
+              Created: {formatDate(result.createdAt)}
+            </p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex space-x-3">
+            <button
+              onClick={handleExport}
+              disabled={isExporting}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              {isExporting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                  Exporting...
+                </>
+              ) : (
+                <>📊 Export CSV</>
+              )}
+            </button>
+            <button
+              onClick={onDelete}
+              className="inline-flex items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50"
+            >
+              🗑️ Delete
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Statistics Summary */}
+      <StatsSummary />
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('perfect')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'perfect'
+                ? 'border-green-500 text-green-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Perfect Matches ({result.statistics.perfectMatches})
+          </button>
+          <button
+            onClick={() => setActiveTab('mismatches')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'mismatches'
+                ? 'border-yellow-500 text-yellow-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Mismatches ({result.statistics.mismatches})
+          </button>
+          <button
+            onClick={() => setActiveTab('unmatched')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'unmatched'
+                ? 'border-red-500 text-red-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Unmatched ({result.statistics.company1Unmatched + result.statistics.company2Unmatched})
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      <div className="tab-content">
+        {activeTab === 'perfect' && (
+          <div>
+            <h3 className="text-lg font-medium text-green-800 mb-4">
+              Perfect Matches ({result.perfectMatches.length})
+            </h3>
+            {result.perfectMatches.length > 0 ? (
+              <MatchedPairsTable pairs={result.perfectMatches} type="perfect" />
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No perfect matches found
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'mismatches' && (
+          <div>
+            <h3 className="text-lg font-medium text-yellow-800 mb-4">
+              Mismatches ({result.mismatches.length})
+            </h3>
+            {result.mismatches.length > 0 ? (
+              <MatchedPairsTable pairs={result.mismatches} type="mismatches" />
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No mismatches found
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'unmatched' && (
+          <div>
+            <h3 className="text-lg font-medium text-red-800 mb-4">Unmatched Transactions</h3>
+            {result.company1Unmatched.length > 0 && (
+              <UnmatchedTable 
+                transactions={result.company1Unmatched} 
+                companyName={result.company1Name}
+              />
+            )}
+            {result.company2Unmatched.length > 0 && (
+              <UnmatchedTable 
+                transactions={result.company2Unmatched} 
+                companyName={result.company2Name}
+              />
+            )}
+            {result.company1Unmatched.length === 0 && result.company2Unmatched.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                All transactions were matched!
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
-
-export default MatchingResultsDisplay;
