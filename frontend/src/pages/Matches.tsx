@@ -1,121 +1,116 @@
+/**
+ * Enhanced Matches Page
+ * 
+ * This is the main page for invoice matching functionality.
+ * It integrates the CSV upload, results display, and statistics
+ * components into a complete matching workflow.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
-import { Modal } from '../components/ui/Modal';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
+import { Toast } from '../components/ui/Toast';
+import CSVUpload from '../components/matching/CSVUpload';
+import MatchingResultsDisplay from '../components/matching/MatchingResults';
+import MatchingStats from '../components/matching/MatchingStats';
+import { MatchingResults } from '../types/matching';
+import matchingService from '../services/matchingService';
 
 interface MatchesProps {
   isLoggedIn: boolean;
 }
 
-interface MatchRecord {
-  id: string;
-  invoiceNumber: string;
-  date: string;
-  amount: number;
-  customer: string;
-  ourRef?: string;
-  theirRef?: string;
-  confidence: number;
-  status: 'matched' | 'partial' | 'unmatched';
-  reasonCodes?: string[];
-}
+type ViewMode = 'upload' | 'results' | 'history';
 
 export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
-  const [selectedERP, setSelectedERP] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState('');
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [sortField, setSortField] = useState<string>('');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
+  // State management
+  const [viewMode, setViewMode] = useState<ViewMode>('upload');
+  const [currentResults, setCurrentResults] = useState<MatchingResults | null>(null);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+  } | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // Real matches will be loaded from backend
-  const [matches, setMatches] = useState<MatchRecord[]>([]);
+  /**
+   * Show toast notification
+   */
+  const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000);
+  };
 
-  useEffect(() => {
-    // TODO: Fetch real matching data when available
-    // const fetchMatches = async () => {
-    //   setLoading(true);
-    //   try {
-    //     const response = await fetch('/api/matches');
-    //     const data = await response.json();
-    //     setMatches(data);
-    //   } catch (error) {
-    //     console.error('Failed to fetch matches:', error);
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
-    // fetchMatches();
-  }, []);
+  /**
+   * Handle successful matching completion
+   */
+  const handleMatchingComplete = (results: MatchingResults) => {
+    setCurrentResults(results);
+    setViewMode('results');
+    showToast(
+      `Matching completed! Found ${results.perfectMatches.length} perfect matches and ${results.mismatches.length} discrepancies.`,
+      'success'
+    );
+  };
 
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : sortDirection === 'desc' ? null : 'asc');
-      if (sortDirection === 'desc') {
-        setSortField('');
-      }
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
+  /**
+   * Handle matching errors
+   */
+  const handleMatchingError = (error: string) => {
+    showToast(error, 'error');
+  };
+
+  /**
+   * Start a new matching operation
+   */
+  const handleStartNew = () => {
+    setCurrentResults(null);
+    setSelectedHistoryId(null);
+    setViewMode('upload');
+  };
+
+  /**
+   * View historical matching results
+   */
+  const handleViewHistory = async (matchId: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const results = await matchingService.getMatchingResult(matchId);
+      setCurrentResults(results);
+      setSelectedHistoryId(matchId);
+      setViewMode('results');
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : 'Failed to load historical results',
+        'error'
+      );
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
-  const toggleRowExpand = (id: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
+  /**
+   * Export current results
+   */
+  const handleExport = async () => {
+    if (!currentResults?.matchId) {
+      showToast('No results to export', 'warning');
+      return;
     }
-    setExpandedRows(newExpanded);
-  };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'matched':
-        return <Badge variant="success">Matched</Badge>;
-      case 'partial':
-        return <Badge variant="warning">Partial Match</Badge>;
-      case 'unmatched':
-        return <Badge variant="error">No Match</Badge>;
-      default:
-        return <Badge variant="default">{status}</Badge>;
+    try {
+      await matchingService.exportToCSV(currentResults.matchId);
+      showToast('Results exported successfully!', 'success');
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : 'Export failed',
+        'error'
+      );
     }
   };
-
-  const handleCSVUpload = () => {
-    if (!csvFile) return;
-    // TODO: Implement CSV processing logic
-    console.log('Processing CSV:', csvFile.name);
-    setUploadModalOpen(false);
-    setCsvFile(null);
-  };
-
-  const handleInviteCounterparty = () => {
-    // TODO: Implement invite logic
-    console.log('Sending invitation to counterparty');
-    setInviteModalOpen(false);
-  };
-
-  const stats = {
-    total: matches.length,
-    matched: matches.filter(m => m.status === 'matched').length,
-    partial: matches.filter(m => m.status === 'partial').length,
-    unmatched: matches.filter(m => m.status === 'unmatched').length,
-    totalAmount: matches.reduce((sum, m) => sum + m.amount, 0),
-    matchedAmount: matches.filter(m => m.status === 'matched').reduce((sum, m) => sum + m.amount, 0),
-  };
-
-  const matchPercentage = stats.total > 0 ? ((stats.matched / stats.total) * 100).toFixed(1) : '0';
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-h1 text-neutral-900 mb-2">Invoice Matching</h1>
@@ -126,329 +121,219 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         </p>
       </div>
 
-      {/* Controls */}
-      <Card className="mb-6">
-        <CardHeader>
-          <h2 className="text-h3 text-neutral-900">Matching Controls</h2>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* ERP Selection - only for logged in users */}
-            {isLoggedIn && (
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Select ERP System
-                </label>
-                <select
-                  value={selectedERP}
-                  onChange={(e) => setSelectedERP(e.target.value)}
-                  className="input w-full"
-                >
-                  <option value="">Choose ERP system...</option>
-                  <option value="xero">Xero</option>
-                  <option value="quickbooks">QuickBooks (Coming Soon)</option>
-                  <option value="sage">Sage (Coming Soon)</option>
-                </select>
-              </div>
-            )}
-
-            {/* Customer Selection - only if ERP selected */}
-            {isLoggedIn && selectedERP && (
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Select Customer/Vendor
-                </label>
-                <select
-                  value={selectedCustomer}
-                  onChange={(e) => setSelectedCustomer(e.target.value)}
-                  className="input w-full"
-                >
-                  <option value="">No counterparties connected yet</option>
-                </select>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex flex-col space-y-2 md:justify-end">
+      {/* Navigation */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex space-x-2">
               <Button
-                variant="primary"
-                onClick={() => setUploadModalOpen(true)}
-                leftIcon={
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                }
+                variant={viewMode === 'upload' ? 'primary' : 'ghost'}
+                onClick={() => setViewMode('upload')}
               >
-                Upload CSV
+                New Match
               </Button>
-              {isLoggedIn && selectedCustomer && (
-                <Button
-                  variant="secondary"
-                  onClick={() => setInviteModalOpen(true)}
-                  leftIcon={
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-                    </svg>
-                  }
-                >
-                  Invite Counterparty
-                </Button>
-              )}
+              <Button
+                variant={viewMode === 'results' ? 'primary' : 'ghost'}
+                onClick={() => setViewMode('results')}
+                disabled={!currentResults}
+              >
+                {selectedHistoryId ? 'Historical Results' : 'Current Results'}
+              </Button>
+              <Button
+                variant={viewMode === 'history' ? 'primary' : 'ghost'}
+                onClick={() => setViewMode('history')}
+              >
+                Statistics & History
+              </Button>
             </div>
+
+            {/* Quick Actions */}
+            {viewMode !== 'upload' && (
+              <div className="flex space-x-2">
+                {currentResults && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleExport}
+                  >
+                    Export CSV
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleStartNew}
+                >
+                  New Match
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-h2 font-bold text-success">{matchPercentage}%</div>
-              <div className="text-small text-neutral-600">Match Rate</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-h2 font-bold text-primary-600">{stats.total}</div>
-              <div className="text-small text-neutral-600">Total Invoices</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-h2 font-bold text-neutral-900">${stats.matchedAmount.toLocaleString()}</div>
-              <div className="text-small text-neutral-600">Matched Amount</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-h2 font-bold text-warning">{stats.unmatched}</div>
-              <div className="text-small text-neutral-600">Unmatched</div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Main Content */}
+      <div className="space-y-6">
+        {/* Upload Mode */}
+        {viewMode === 'upload' && (
+          <div className="space-y-6">
+            <CSVUpload
+              onMatchingComplete={handleMatchingComplete}
+              onError={handleMatchingError}
+            />
+
+            {/* ERP Integration Placeholder */}
+            {isLoggedIn && (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-xl font-semibold text-neutral-900">ERP Integration</h2>
+                  <p className="text-neutral-600">
+                    Connect your accounting systems for automatic matching
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300">
+                      <div className="text-center">
+                        <div className="text-lg font-medium">Xero</div>
+                        <div className="text-sm text-neutral-600">Connected</div>
+                      </div>
+                    </Button>
+                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300">
+                      <div className="text-center">
+                        <div className="text-lg font-medium">QuickBooks</div>
+                        <div className="text-sm text-neutral-600">Coming Soon</div>
+                      </div>
+                    </Button>
+                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300">
+                      <div className="text-center">
+                        <div className="text-lg font-medium">SAP</div>
+                        <div className="text-sm text-neutral-600">Coming Soon</div>
+                      </div>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Quick Stats Preview */}
+            <MatchingStats onViewDetails={handleViewHistory} />
+          </div>
+        )}
+
+        {/* Results Mode */}
+        {viewMode === 'results' && currentResults && (
+          <div className="space-y-6">
+            {selectedHistoryId && (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="text-sm text-neutral-600">
+                        Viewing historical results from previous matching operation
+                      </span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={handleStartNew}>
+                      Back to New Match
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <MatchingResultsDisplay
+              results={currentResults}
+              onExport={handleExport}
+              onStartNew={handleStartNew}
+            />
+          </div>
+        )}
+
+        {/* History Mode */}
+        {viewMode === 'history' && (
+          <MatchingStats onViewDetails={handleViewHistory} />
+        )}
+
+        {/* Loading State for History */}
+        {isLoadingHistory && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+              <p className="text-neutral-600">Loading historical results...</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {/* Results Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-h3 text-neutral-900">Matching Results</h2>
-              <p className="text-body text-neutral-600 mt-1">
-                {matches.length > 0 
-                  ? 'Click on rows to view detailed history and insights'
-                  : 'Upload CSV files to start matching invoices'}
-              </p>
-            </div>
-            <div className="flex space-x-2">
-              <Button variant="ghost" size="sm" disabled={matches.length === 0}>
-                Export CSV
-              </Button>
-              <Button variant="ghost" size="sm" disabled={matches.length === 0}>
-                Export PDF
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-8 text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-              <p className="text-neutral-600">Loading matches...</p>
-            </div>
-          ) : matches.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead 
-                    sortable 
-                    sortDirection={sortField === 'invoiceNumber' ? sortDirection : null}
-                    onSort={() => handleSort('invoiceNumber')}
-                  >
-                    Invoice #
-                  </TableHead>
-                  <TableHead 
-                    sortable 
-                    sortDirection={sortField === 'date' ? sortDirection : null}
-                    onSort={() => handleSort('date')}
-                  >
-                    Date
-                  </TableHead>
-                  <TableHead 
-                    sortable 
-                    sortDirection={sortField === 'amount' ? sortDirection : null}
-                    onSort={() => handleSort('amount')}
-                  >
-                    Amount
-                  </TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Our Ref</TableHead>
-                  <TableHead>Their Ref</TableHead>
-                  <TableHead 
-                    sortable 
-                    sortDirection={sortField === 'confidence' ? sortDirection : null}
-                    onSort={() => handleSort('confidence')}
-                  >
-                    Confidence
-                  </TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-12">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {matches.map((match) => (
-                  <React.Fragment key={match.id}>
-                    <TableRow 
-                      expandable
-                      expanded={expandedRows.has(match.id)}
-                      onToggleExpand={() => toggleRowExpand(match.id)}
-                    >
-                      <TableCell className="font-mono font-medium">{match.invoiceNumber}</TableCell>
-                      <TableCell>{match.date}</TableCell>
-                      <TableCell className="font-mono">${match.amount.toLocaleString()}</TableCell>
-                      <TableCell>{match.customer}</TableCell>
-                      <TableCell className="font-mono">{match.ourRef || '-'}</TableCell>
-                      <TableCell className="font-mono">{match.theirRef || '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant="confidence" score={match.confidence}>
-                          {match.confidence}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(match.status)}</TableCell>
-                      <TableCell>
-                        <button
-                          className="p-1 hover:bg-neutral-100 rounded transition-colors duration-120"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('View details for', match.id);
-                          }}
-                          title="View details"
-                        >
-                          <svg className="w-4 h-4 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  </React.Fragment>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="p-12 text-center">
-              <svg className="w-16 h-16 mx-auto mb-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h3 className="text-h3 font-semibold text-neutral-900 mb-2">No matches yet</h3>
-              <p className="text-body text-neutral-600 mb-6 max-w-md mx-auto">
-                Upload CSV files or connect your accounting system to start matching invoices automatically.
-              </p>
-              <Button
-                variant="primary"
-                onClick={() => setUploadModalOpen(true)}
-                leftIcon={
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Help & Documentation */}
+      {viewMode === 'upload' && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-xl font-semibold text-neutral-900">How It Works</h2>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                }
-              >
-                Upload Your First CSV
-              </Button>
+                </div>
+                <h3 className="font-semibold text-neutral-900 mb-2">1. Upload Files</h3>
+                <p className="text-sm text-neutral-600">
+                  Upload CSV files from both companies containing invoice/transaction data
+                </p>
+              </div>
+
+              <div className="text-center">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-neutral-900 mb-2">2. Smart Matching</h3>
+                <p className="text-sm text-neutral-600">
+                  Our algorithm finds matches based on transaction numbers, amounts, and dates
+                </p>
+              </div>
+
+              <div className="text-center">
+                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-neutral-900 mb-2">3. View Results</h3>
+                <p className="text-sm text-neutral-600">
+                  Get detailed reports showing matches, mismatches, and reconciliation insights
+                </p>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Upload Modal */}
-      <Modal
-        isOpen={uploadModalOpen}
-        onClose={() => setUploadModalOpen(false)}
-        title="Upload Ledger Data"
-        description="Upload your AR or AP ledger data in CSV format for matching"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Your Ledger CSV
-            </label>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-              className="input w-full"
-            />
-            <p className="text-xs text-neutral-500 mt-1">
-              Required columns: transaction_number, amount, issue_date, due_date, status, reference
-            </p>
-          </div>
+            <div className="bg-blue-50 rounded-lg p-4 mt-6">
+              <h4 className="font-medium text-blue-900 mb-2">Supported File Formats</h4>
+              <p className="text-sm text-blue-800">
+                CSV files with transaction_number, amount, and date columns. 
+                Optional: due_date, status, reference, vendor, description fields.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="flex space-x-3 pt-4">
-            <Button
-              variant="primary"
-              onClick={handleCSVUpload}
-              disabled={!csvFile}
-            >
-              Process Upload
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => setUploadModalOpen(false)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Invite Modal */}
-      <Modal
-        isOpen={inviteModalOpen}
-        onClose={() => setInviteModalOpen(false)}
-        title="Invite Counterparty"
-        description="Invite a customer or vendor to link their system for automatic matching"
-      >
-        <div className="space-y-4">
-          <Input
-            label="Counterparty Email"
-            type="email"
-            placeholder="customer@company.com"
-            helperText="They will receive an invitation to connect their accounting system"
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Access Level
-            </label>
-            <select className="input w-full">
-              <option>View matching results only</option>
-              <option>Full reconciliation access</option>
-            </select>
-          </div>
-
-          <div className="flex space-x-3 pt-4">
-            <Button
-              variant="primary"
-              onClick={handleInviteCounterparty}
-            >
-              Send Invitation
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => setInviteModalOpen(false)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };
+
+export default Matches;
