@@ -16,6 +16,15 @@ export interface ApiResponse<T = any> {
 // Date Format Options - Different ways dates can be formatted in CSV files  
 export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'MM-DD-YYYY';
 
+// Available date formats for the user to choose from
+export const DATE_FORMATS = [
+  { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (e.g., 31/12/2024)' },
+  { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY (e.g., 12/31/2024)' },
+  { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (e.g., 2024-12-31)' },
+  { value: 'DD-MM-YYYY', label: 'DD-MM-YYYY (e.g., 31-12-2024)' },
+  { value: 'MM-DD-YYYY', label: 'MM-DD-YYYY (e.g., 12-31-2024)' }
+] as const;
+
 // Invoice/Transaction Record - A single invoice or transaction line
 export interface TransactionRecord {
   transactionNumber: string;
@@ -31,12 +40,37 @@ export interface TransactionRecord {
   [key: string]: any;
 }
 
+// Matching Transaction (compatible with backend API response)
+export interface MatchingTransaction {
+  transaction_number?: string;
+  transactionNumber?: string;
+  invoice_number?: string;
+  id?: string;
+  amount: number;
+  issue_date?: string;
+  date?: string;
+  invoiceDate?: string;
+  due_date?: string;
+  dueDate?: string;
+  status?: string;
+  reference?: string;
+}
+
 // Perfect Match - When two invoices match exactly
 export interface PerfectMatch {
   company1: TransactionRecord;
   company2: TransactionRecord;
   confidence: number;
   matchedOn: string[]; // What fields were used to match (e.g., ['transactionNumber', 'amount'])
+}
+
+// Matched Pair (from backend API)
+export interface MatchedPair {
+  company1Transaction: MatchingTransaction;
+  company2Transaction: MatchingTransaction;
+  confidence: number;
+  matchType: 'perfect' | 'mismatch';
+  reasons?: string[];
 }
 
 // Mismatch - When invoices are related but have differences
@@ -71,14 +105,24 @@ export interface MatchingTotals {
 
 // Statistics calculated from the matching results
 export interface MatchingStatistics {
-  totalRecords: number;
-  matchedRecords: number;
-  unmatchedRecords: number;
+  totalRecords?: number;
+  matchedRecords?: number;
+  unmatchedRecords?: number;
   matchRate: number; // Percentage
-  avgConfidence: number;
-  totalAmount: number;
-  matchedAmount: number;
-  varianceAmount: number;
+  avgConfidence?: number;
+  totalAmount?: number;
+  matchedAmount?: number;
+  varianceAmount?: number;
+  
+  // Backend API compatible fields
+  totalCompany1: number;
+  totalCompany2: number;
+  perfectMatches: number;
+  mismatches: number;
+  company1Unmatched: number;
+  company2Unmatched: number;
+  totalAmount1: number;
+  totalAmount2: number;
 }
 
 // Complete Matching Results - Everything returned from a matching operation
@@ -90,6 +134,38 @@ export interface MatchingResults {
   statistics: MatchingStatistics;
   processingTime: number; // How long the matching took in milliseconds
   matchId?: string; // Database ID for this matching result
+}
+
+// Backend API Response Structure
+export interface MatchingResult {
+  _id: string;
+  userId: string;
+  company1Name: string;
+  company2Name: string;
+  dateFormat1: string;
+  dateFormat2: string;
+  perfectMatches: MatchedPair[];
+  mismatches: MatchedPair[];
+  company1Unmatched: MatchingTransaction[];
+  company2Unmatched: MatchingTransaction[];
+  statistics: MatchingStatistics;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Upload Response from backend
+export interface UploadResponse {
+  success: boolean;
+  matchId: string;
+  message: string;
+  result?: MatchingResult;
+}
+
+// CSV Preview for file upload component
+export interface CSVPreview {
+  headers: string[];
+  rows: string[][];
+  totalRows: number;
 }
 
 // Upload Request - What we send to the backend when uploading CSVs
@@ -136,7 +212,7 @@ export interface MatchingHistoryResponse {
 
 // CSV Upload Component Props
 export interface CSVUploadProps {
-  onUploadSuccess: (results: MatchingResults) => void;
+  onUploadSuccess: (matchId: string) => void;
   onUploadError: (error: string) => void;
   isLoading?: boolean;
   disabled?: boolean;
