@@ -1,6 +1,6 @@
 /**
  * LedgerLink Backend Server
- * Main server file with Xero integration and matching functionality
+ * Main server file with Xero integration, matching functionality, and counterparty management
  */
 
 require('dotenv').config();
@@ -21,6 +21,7 @@ const { handleXeroErrors } = require('./middleware/xeroAuth');
 const xeroRoutes = require('./routes/xero');
 const healthRoutes = require('./routes/health');
 const matchingRoutes = require('./routes/matching');
+const counterpartyRoutes = require('./routes/counterparties');
 
 // Import Xero sync jobs
 const xeroSyncJob = require('./jobs/xeroSyncJob');
@@ -76,7 +77,8 @@ app.get('/', (req, res) => {
     message: 'LedgerLink API Server',
     status: 'running',
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0'
+    version: process.env.npm_package_version || '1.0.0',
+    features: ['matching', 'xero-integration', 'counterparty-management']
   });
 });
 
@@ -103,7 +105,8 @@ const auth = (req, res, next) => {
       id: 'user_123',
       email: 'demo@ledgerlink.com',
       name: 'Demo User',
-      companyId: 'company_123'
+      companyId: 'company_123',
+      companyName: 'Demo Company'
     };
     
     next();
@@ -115,9 +118,13 @@ const auth = (req, res, next) => {
   }
 };
 
-// API Routes
+// Special route for counterparty invitations (public access for invitation viewing)
+app.use('/api/counterparties/invitation', counterpartyRoutes);
+
+// API Routes (with authentication)
 app.use('/api/xero', auth, xeroRoutes);
 app.use('/api/matching', auth, matchingRoutes);
+app.use('/api/counterparties', auth, counterpartyRoutes);
 
 // Add your existing routes here
 // app.use('/api/users', auth, userRoutes);
@@ -168,6 +175,8 @@ const server = app.listen(PORT, () => {
   console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
   console.log(`✅ Matching API available at /api/matching`);
+  console.log(`👥 Counterparty API available at /api/counterparties`);
+  console.log(`🔗 Xero integration available at /api/xero`);
   
   // Start Xero sync jobs in production
   if (process.env.NODE_ENV === 'production' && process.env.ENABLE_XERO_SYNC_JOBS === 'true') {
