@@ -49,14 +49,8 @@ router.get('/test', (req, res) => {
   });
 });
 
-// Import and mount the existing xero auth routes
-try {
-  const { default: xeroAuthRouter } = await import('./xeroAuth.js');
-  router.use('/', xeroAuthRouter);
-  console.log('Successfully imported xeroAuth routes');
-} catch (error) {
-  console.error('Failed to import xeroAuth routes:', error);
-  // Continue without the additional auth routes if they fail to load
-}
+// Import existing xero auth routes using regular import
+import xeroAuthRouter from './xeroAuth.js';
+router.use('/', xeroAuthRouter);
 
 export default router;
