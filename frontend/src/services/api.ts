@@ -58,12 +58,16 @@ const createApiClient = (): AxiosInstance => {
     (error) => {
       // Handle common errors
       if (error.response?.status === 401) {
-        // Unauthorized - redirect to login
+        // Unauthorized - just remove token, don't redirect
         localStorage.removeItem('authToken');
-        // Only redirect to login if we're not already there
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
+        console.warn('Authentication failed - token removed');
+      }
+      
+      // Handle 404 errors for missing backend endpoints gracefully
+      if (error.response?.status === 404) {
+        console.warn('API endpoint not found:', error.config?.url);
+        // Don't throw error for missing endpoints in demo mode
+        return Promise.reject(new Error('This feature requires backend implementation'));
       }
       
       return Promise.reject(error);
