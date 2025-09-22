@@ -1,6 +1,5 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './styles/global.css';
 
@@ -27,13 +26,13 @@ class ErrorBoundary extends React.Component<
       return (
         <div className="min-h-screen flex items-center justify-center bg-neutral-50">
           <div className="max-w-md text-center">
-            <h1 className="text-h2 text-neutral-900 mb-4">Something went wrong</h1>
-            <p className="text-body text-neutral-600 mb-6">
+            <h1 className="text-2xl font-bold text-neutral-900 mb-4">Something went wrong</h1>
+            <p className="text-neutral-600 mb-6">
               We're sorry, but something unexpected happened. Please refresh the page to try again.
             </p>
             <button 
               onClick={() => window.location.reload()}
-              className="btn btn-primary"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               Refresh page
             </button>
@@ -53,9 +52,7 @@ const root = createRoot(container);
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <App />
     </ErrorBoundary>
   </React.StrictMode>
 );
