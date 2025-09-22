@@ -50,6 +50,20 @@ function logDiagnostic(type, message, data = null) {
 }
 
 /**
+ * Check if we're in development mode
+ */
+function isDevelopmentMode() {
+  // Check various indicators for development mode
+  return (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.port === '3000' ||
+    window.location.search.includes('debug=true') ||
+    window.location.search.includes('diagnostic=true')
+  );
+}
+
+/**
  * Initialize diagnostics immediately when script loads
  */
 function initializeDiagnostics() {
@@ -218,8 +232,8 @@ function initializeDiagnostics() {
  * Create diagnostic panel
  */
 function createDiagnosticPanel() {
-  // Only create in development or when explicitly enabled
-  if (process.env.NODE_ENV === 'production' && !window.location.search.includes('debug=true')) {
+  // Only create in development mode or when explicitly enabled
+  if (!isDevelopmentMode()) {
     return;
   }
   
