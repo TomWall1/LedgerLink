@@ -58,16 +58,18 @@ router.get('/test', (req, res) => {
 
 console.log('🔍 XERO ROUTES: All route handlers defined');
 
-// Try to import existing xero auth routes
+// Try to import existing xero auth routes - using regular import
 try {
   console.log('🔍 XERO ROUTES: Attempting to import xeroAuth.js');
-  const xeroAuthRouter = await import('./xeroAuth.js');
-  console.log('🔍 XERO ROUTES: Successfully imported xeroAuth.js');
-  router.use('/', xeroAuthRouter.default);
-  console.log('🔍 XERO ROUTES: Mounted xeroAuth routes');
+  import('./xeroAuth.js').then(xeroAuthModule => {
+    console.log('🔍 XERO ROUTES: Successfully imported xeroAuth.js');
+    router.use('/', xeroAuthModule.default);
+    console.log('🔍 XERO ROUTES: Mounted xeroAuth routes');
+  }).catch(error => {
+    console.error('🚨 XERO ROUTES: Failed to import xeroAuth.js:', error);
+  });
 } catch (error) {
-  console.error('🚨 XERO ROUTES: Failed to import xeroAuth.js:', error);
-  // Continue without the additional auth routes
+  console.error('🚨 XERO ROUTES: Error setting up xeroAuth import:', error);
 }
 
 console.log('🔍 XERO ROUTES: xeroRoutes.js module fully loaded');
