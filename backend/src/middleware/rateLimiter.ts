@@ -52,14 +52,48 @@ const endpointLimits = {
   api: rateLimiter,
 };
 
-// Get client IP address
+// Get client IP address - improved to handle proxy headers properly
 const getClientIP = (req: Request): string => {
-  return (
-    req.ip ||
-    req.connection.remoteAddress ||
-    req.socket.remoteAddress ||
-    'unknown'
-  );
+  // Try multiple sources for the real IP address
+  // Check standard proxy headers first
+  const xForwardedFor = req.headers['x-forwarded-for'] as string;
+  const xRealIP = req.headers['x-real-ip'] as string;
+  const cfConnectingIP = req.headers['cf-connecting-ip'] as string;
+  
+  // If behind a proxy, these headers contain the real client IP
+  if (xForwardedFor) {
+    // X-Forwarded-For can contain multiple IPs, take the first one (original client)
+    const ips = xForwardedFor.split(',').map(ip => ip.trim());
+    const clientIP = ips[0];
+    if (clientIP && clientIP !== 'unknown') {
+      return clientIP;
+    }
+  }
+  
+  if (xRealIP && xRealIP !== 'unknown') {
+    return xRealIP;
+  }
+  
+  if (cfConnectingIP && cfConnectingIP !== 'unknown') {
+    return cfConnectingIP;
+  }
+  
+  // Fallback to Express's req.ip (works when trust proxy is set)
+  if (req.ip && req.ip !== '::1' && req.ip !== '127.0.0.1') {
+    return req.ip;
+  }
+  
+  // Legacy fallbacks (deprecated but kept for compatibility)
+  if (req.connection?.remoteAddress) {
+    return req.connection.remoteAddress;
+  }
+  
+  if ((req as any).socket?.remoteAddress) {
+    return (req as any).socket.remoteAddress;
+  }
+  
+  // Final fallback
+  return 'unknown';
 };
 
 // Get rate limiter key
@@ -91,7 +125,7 @@ const getRateLimiter = (req: Request) => {
 };
 
 // Main rate limiter middleware
-export const rateLimiter = async (
+export const rateLimiterMiddleware = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -205,4 +239,7 @@ export const emailVerificationLimiter = createActionLimiter({
   keyPrefix: 'rl_email_verification',
 });
 
-export default rateLimiter;
+// Export aliases for compatibility
+export const rateLimiter = rateLimiterMiddleware;
+export const globalRateLimiter = rateLimiterMiddleware;
+export default rateLimiterMiddleware;
