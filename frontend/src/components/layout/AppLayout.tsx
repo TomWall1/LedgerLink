@@ -30,10 +30,30 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   onLogout,
   onInvite
 }) => {
+  console.log('🔍 DIAGNOSTIC: AppLayout rendering with props:', {
+    isLoggedIn,
+    activeTab,
+    hasUser: !!user,
+    userName: user?.name
+  });
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { toasts, removeToast } = useToast();
+  
+  // DIAGNOSTIC: Track prop changes
+  useEffect(() => {
+    console.log('🔍 DIAGNOSTIC: AppLayout activeTab changed to:', activeTab);
+  }, [activeTab]);
+  
+  useEffect(() => {
+    console.log('🔍 DIAGNOSTIC: AppLayout isLoggedIn changed to:', isLoggedIn);
+  }, [isLoggedIn]);
+  
+  useEffect(() => {
+    console.log('🔍 DIAGNOSTIC: AppLayout user changed to:', user?.name || 'none');
+  }, [user]);
   
   // Handle responsive behavior
   useEffect(() => {
@@ -60,11 +80,32 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   }, [activeTab, isMobile]);
   
   const handleMenuToggle = () => {
+    console.log('🔍 DIAGNOSTIC: AppLayout menu toggle called');
     if (isMobile) {
       setSidebarOpen(!sidebarOpen);
     } else {
       setSidebarCollapsed(!sidebarCollapsed);
     }
+  };
+  
+  const wrappedOnTabChange = (tab: string) => {
+    console.log('🔍 DIAGNOSTIC: AppLayout onTabChange called with tab:', tab);
+    onTabChange(tab);
+  };
+  
+  const wrappedOnLogin = () => {
+    console.log('🔍 DIAGNOSTIC: AppLayout onLogin called');
+    onLogin?.();
+  };
+  
+  const wrappedOnLogout = () => {
+    console.log('🔍 DIAGNOSTIC: AppLayout onLogout called');
+    onLogout?.();
+  };
+  
+  const wrappedOnInvite = () => {
+    console.log('🔍 DIAGNOSTIC: AppLayout onInvite called');
+    onInvite?.();
   };
   
   return (
@@ -75,9 +116,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         onMenuToggle={handleMenuToggle}
         isMobile={isMobile}
         isLoggedIn={isLoggedIn}
-        onLogin={onLogin}
-        onLogout={onLogout}
-        onInvite={onInvite}
+        onLogin={wrappedOnLogin}
+        onLogout={wrappedOnLogout}
+        onInvite={wrappedOnInvite}
       />
       
       {/* Sidebar */}
@@ -86,7 +127,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={handleMenuToggle}
         activeTab={activeTab}
-        onTabChange={onTabChange}
+        onTabChange={wrappedOnTabChange}
         isLoggedIn={isLoggedIn}
         isMobile={isMobile}
       />
