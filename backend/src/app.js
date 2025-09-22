@@ -3,9 +3,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
-import xeroRoutes from './routes/xeroRoutes.js';
-import transactionRoutes from './routes/transactionRoutes.js';
 import { errorHandler } from './middleware/errorMiddleware.js';
+
+console.log('🔍 APP: Starting to load app.js');
 
 // Load environment variables
 dotenv.config();
@@ -18,6 +18,29 @@ const app = express();
 // Trust proxy - Required for Render/production deployment
 // This allows Express to properly handle X-Forwarded-For headers from the proxy
 app.set('trust proxy', true);
+console.log('🔍 APP: Trust proxy set to true');
+
+// Import routes with error handling
+let xeroRoutes = null;
+let transactionRoutes = null;
+
+try {
+  console.log('🔍 APP: Attempting to import xeroRoutes');
+  const xeroModule = await import('./routes/xeroRoutes.js');
+  xeroRoutes = xeroModule.default;
+  console.log('🔍 APP: Successfully imported xeroRoutes');
+} catch (error) {
+  console.error('🚨 APP: Failed to import xeroRoutes:', error);
+}
+
+try {
+  console.log('🔍 APP: Attempting to import transactionRoutes');
+  const transactionModule = await import('./routes/transactionRoutes.js');
+  transactionRoutes = transactionModule.default;
+  console.log('🔍 APP: Successfully imported transactionRoutes');
+} catch (error) {
+  console.error('🚨 APP: Failed to import transactionRoutes:', error);
+}
 
 // CORS configuration
 app.use(cors({
@@ -79,9 +102,37 @@ app.get('/api/test', (req, res) => {
 });
 
 // API Routes
+console.log('🔍 APP: Setting up API routes');
+
 app.use('/api/users', userRoutes);
-app.use('/api/xero', xeroRoutes);
-app.use('/api/transactions', transactionRoutes);
+
+if (xeroRoutes) {
+  console.log('🔍 APP: Mounting xeroRoutes at /api/xero');
+  app.use('/api/xero', xeroRoutes);
+} else {
+  console.error('🚨 APP: xeroRoutes not available, creating fallback');
+  app.use('/api/xero', (req, res) => {
+    res.status(500).json({
+      error: 'Xero routes failed to load',
+      message: 'xeroRoutes module could not be imported',
+      path: req.path
+    });
+  });
+}
+
+if (transactionRoutes) {
+  console.log('🔍 APP: Mounting transactionRoutes at /api/transactions');
+  app.use('/api/transactions', transactionRoutes);
+} else {
+  console.error('🚨 APP: transactionRoutes not available, creating fallback');
+  app.use('/api/transactions', (req, res) => {
+    res.status(500).json({
+      error: 'Transaction routes failed to load',
+      message: 'transactionRoutes module could not be imported',
+      path: req.path
+    });
+  });
+}
 
 // 404 handler for unknown routes
 app.all('*', (req, res) => {
@@ -106,7 +157,9 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3002;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🔍 APP: Server running on port ${PORT}`);
 });
+
+console.log('🔍 APP: app.js fully loaded');
 
 export default app;
