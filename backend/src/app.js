@@ -15,6 +15,10 @@ connectDB();
 
 const app = express();
 
+// Trust proxy - Required for Render/production deployment
+// This allows Express to properly handle X-Forwarded-For headers from the proxy
+app.set('trust proxy', true);
+
 // CORS configuration
 app.use(cors({
   origin: [
