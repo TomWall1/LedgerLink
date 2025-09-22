@@ -154,7 +154,7 @@ const AppContent: React.FC = () => {
                 path="/matches" 
                 element={
                   <ErrorBoundary>
-                    <Matches />
+                    <Matches isLoggedIn={isLoggedIn} />
                   </ErrorBoundary>
                 } 
               />
