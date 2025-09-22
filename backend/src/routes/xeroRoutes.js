@@ -1,10 +1,15 @@
 import express from 'express';
 import { tokenStore } from '../utils/tokenStore.js';
 
+console.log('🔍 XERO ROUTES: Starting to load xeroRoutes.js module');
+
 const router = express.Router();
+
+console.log('🔍 XERO ROUTES: Express router created');
 
 // Auth status endpoint that the frontend expects
 router.get('/auth-status', async (req, res) => {
+  console.log('🔍 XERO ROUTES: /auth-status endpoint called');
   try {
     console.log('Auth status endpoint accessed via /auth-status');
     
@@ -29,6 +34,7 @@ router.get('/auth-status', async (req, res) => {
 
 // Health endpoint for testing
 router.get('/health', (req, res) => {
+  console.log('🔍 XERO ROUTES: /health endpoint called');
   res.json({
     status: 'ok',
     service: 'xero-routes',
@@ -38,6 +44,7 @@ router.get('/health', (req, res) => {
 
 // Test endpoint  
 router.get('/test', (req, res) => {
+  console.log('🔍 XERO ROUTES: /test endpoint called');
   res.json({
     message: 'Xero routes working!',
     timestamp: new Date().toISOString(),
@@ -49,8 +56,20 @@ router.get('/test', (req, res) => {
   });
 });
 
-// Import existing xero auth routes using regular import
-import xeroAuthRouter from './xeroAuth.js';
-router.use('/', xeroAuthRouter);
+console.log('🔍 XERO ROUTES: All route handlers defined');
+
+// Try to import existing xero auth routes
+try {
+  console.log('🔍 XERO ROUTES: Attempting to import xeroAuth.js');
+  const xeroAuthRouter = await import('./xeroAuth.js');
+  console.log('🔍 XERO ROUTES: Successfully imported xeroAuth.js');
+  router.use('/', xeroAuthRouter.default);
+  console.log('🔍 XERO ROUTES: Mounted xeroAuth routes');
+} catch (error) {
+  console.error('🚨 XERO ROUTES: Failed to import xeroAuth.js:', error);
+  // Continue without the additional auth routes
+}
+
+console.log('🔍 XERO ROUTES: xeroRoutes.js module fully loaded');
 
 export default router;
