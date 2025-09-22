@@ -82,6 +82,12 @@ router.get(
   asyncHandler(integrationController.handleXeroCallback)
 );
 
+// Xero auth status endpoint - ADDED TO FIX 404 ERROR
+router.get(
+  '/xero/auth-status',
+  asyncHandler(integrationController.getXeroAuthStatus)
+);
+
 router.get(
   '/quickbooks/auth',
   requirePermission('MANAGE_INTEGRATIONS'),
