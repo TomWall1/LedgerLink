@@ -5,10 +5,31 @@
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 
+// Get the API URL based on environment
+const getApiUrl = (): string => {
+  // If explicitly set in environment variables, use that
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Production environment detection
+  if (process.env.NODE_ENV === 'production') {
+    // Use your production backend URL
+    return 'https://ledgerlink.onrender.com/api';
+  }
+  
+  // Development fallback
+  return 'http://localhost:3002/api';
+};
+
 // Create base API client
 const createApiClient = (): AxiosInstance => {
+  const baseURL = getApiUrl();
+  
+  console.log('API Client initialized with base URL:', baseURL);
+  
   const client = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3002/api',
+    baseURL,
     timeout: 30000,
     headers: {
       'Content-Type': 'application/json',
@@ -39,7 +60,10 @@ const createApiClient = (): AxiosInstance => {
       if (error.response?.status === 401) {
         // Unauthorized - redirect to login
         localStorage.removeItem('authToken');
-        window.location.href = '/login';
+        // Only redirect to login if we're not already there
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
       
       return Promise.reject(error);
