@@ -4,13 +4,17 @@
  */
 
 const rateLimit = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis');
-const Redis = require('redis');
 
-// Create Redis client if available
+// Conditionally import Redis dependencies only if Redis is configured
+let RedisStore;
+let Redis;
 let redisClient;
+
 if (process.env.REDIS_URL) {
   try {
+    RedisStore = require('rate-limit-redis');
+    Redis = require('redis');
+    
     redisClient = Redis.createClient({
       url: process.env.REDIS_URL,
       legacyMode: true
@@ -21,9 +25,12 @@ if (process.env.REDIS_URL) {
   } catch (error) {
     console.warn('Failed to connect to Redis, using memory store:', error.message);
     redisClient = null;
+    RedisStore = null;
   }
 } else {
   console.log('Rate limiter using memory store (Redis not configured)');
+  redisClient = null;
+  RedisStore = null;
 }
 
 // General API rate limiter
@@ -31,7 +38,7 @@ const generalLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
   max: parseInt(process.env.RATE_LIMIT_MAX) || 100, // limit each IP to 100 requests per windowMs
   
-  store: redisClient ? new RedisStore({
+  store: (redisClient && RedisStore) ? new RedisStore({
     sendCommand: (...args) => redisClient.sendCommand(args),
   }) : undefined,
   
@@ -63,7 +70,7 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // limit each IP to 5 auth requests per windowMs
   
-  store: redisClient ? new RedisStore({
+  store: (redisClient && RedisStore) ? new RedisStore({
     sendCommand: (...args) => redisClient.sendCommand(args),
   }) : undefined,
   
@@ -84,7 +91,7 @@ const xeroLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 50, // Allow 50 requests per minute per user (Xero allows 60, leaving buffer)
   
-  store: redisClient ? new RedisStore({
+  store: (redisClient && RedisStore) ? new RedisStore({
     sendCommand: (...args) => redisClient.sendCommand(args),
   }) : undefined,
   
@@ -117,7 +124,7 @@ const uploadLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 10, // 10 uploads per minute per user
   
-  store: redisClient ? new RedisStore({
+  store: (redisClient && RedisStore) ? new RedisStore({
     sendCommand: (...args) => redisClient.sendCommand(args),
   }) : undefined,
   
@@ -135,7 +142,7 @@ const webhookLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
   max: 100, // 100 webhook calls per 5 minutes
   
-  store: redisClient ? new RedisStore({
+  store: (redisClient && RedisStore) ? new RedisStore({
     sendCommand: (...args) => redisClient.sendCommand(args),
   }) : undefined,
   
@@ -155,7 +162,7 @@ const webhookLimiter = rateLimit({
 // Custom rate limiter factory
 const createCustomLimiter = (options) => {
   return rateLimit({
-    store: redisClient ? new RedisStore({
+    store: (redisClient && RedisStore) ? new RedisStore({
       sendCommand: (...args) => redisClient.sendCommand(args),
     }) : undefined,
     
