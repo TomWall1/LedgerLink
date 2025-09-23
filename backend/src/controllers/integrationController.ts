@@ -511,6 +511,96 @@ class IntegrationController {
       res.redirect(`${config.cors.origin[0]}/integrations?status=error&type=xero`);
     }
   };
+
+  // NEW METHOD: Get Xero authentication status
+  public getXeroAuthStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        // User not authenticated - return unauthenticated status
+        res.json({
+          success: true,
+          data: {
+            isAuthenticated: false,
+            hasXeroConnection: false,
+            status: 'not_authenticated',
+            message: 'User not authenticated'
+          },
+        });
+        return;
+      }
+
+      // Check if user has a Xero connection
+      const xeroConnection = await prisma.eRPConnection.findFirst({
+        where: {
+          userId,
+          type: 'XERO',
+        },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          lastSyncAt: true,
+          tokenExpiresAt: true,
+          externalId: true,
+          createdAt: true,
+        },
+      });
+
+      if (!xeroConnection) {
+        res.json({
+          success: true,
+          data: {
+            isAuthenticated: true,
+            hasXeroConnection: false,
+            status: 'no_connection',
+            message: 'No Xero connection found'
+          },
+        });
+        return;
+      }
+
+      // Check if token is expired
+      const isTokenExpired = xeroConnection.tokenExpiresAt && 
+        new Date() > xeroConnection.tokenExpiresAt;
+
+      const connectionStatus = isTokenExpired ? 'token_expired' : xeroConnection.status;
+
+      res.json({
+        success: true,
+        data: {
+          isAuthenticated: true,
+          hasXeroConnection: true,
+          connection: {
+            id: xeroConnection.id,
+            name: xeroConnection.name,
+            status: connectionStatus,
+            lastSync: xeroConnection.lastSyncAt,
+            tenantId: xeroConnection.externalId,
+            connectedAt: xeroConnection.createdAt,
+            tokenExpired: isTokenExpired,
+          },
+          status: xeroConnection.status === 'CONNECTED' && !isTokenExpired ? 'connected' : 'disconnected',
+          message: xeroConnection.status === 'CONNECTED' && !isTokenExpired 
+            ? 'Xero connection active' 
+            : 'Xero connection needs attention'
+        },
+      });
+      
+    } catch (error) {
+      logger.error('Error checking Xero auth status:', error);
+      
+      res.status(500).json({
+        success: false,
+        message: 'Failed to check Xero authentication status',
+        error: {
+          code: 'XERO_AUTH_STATUS_ERROR',
+          message: 'An error occurred while checking authentication status'
+        }
+      });
+    }
+  };
   
   public initiateQuickBooksAuth = async (req: Request, res: Response): Promise<void> => {
     if (!config.integrations.quickbooks.clientId) {
