@@ -1,5 +1,31 @@
 {
   "name": "ledgerlink",
   "version": "1.0.0",
-  "description": "LedgerLink Platform"
+  "description": "LedgerLink Platform - Invoice Reconciliation System",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "cd backend && node server.js",
+    "install": "cd backend && npm install",
+    "build": "cd backend && npm install",
+    "dev": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm start",
+    "backend": "cd backend && npm start"
+  },
+  "engines": {
+    "node": "22.x",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TomWall1/LedgerLink.git"
+  },
+  "author": "LedgerLink Team",
+  "license": "MIT",
+  "keywords": [
+    "invoice-reconciliation",
+    "accounting",
+    "xero",
+    "matching",
+    "csv-processing"
+  ]
 }
