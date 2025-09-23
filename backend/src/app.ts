@@ -17,6 +17,11 @@ import { reportRoutes } from './routes/reportRoutes';
 import { webhookRoutes } from './routes/webhookRoutes';
 import { healthRoutes } from './routes/healthRoutes';
 
+// Import controller for direct routes
+import { integrationController } from './controllers/integrationController';
+import { authenticate } from './middleware/auth';
+import { asyncHandler } from './middleware/errorHandler';
+
 const app: Application = express();
 
 // Trust proxy (important for rate limiting and IP detection)
@@ -89,6 +94,9 @@ app.use(globalRateLimiter);
 // Health check endpoint (before other middleware)
 app.use('/api/health', healthRoutes);
 
+// Direct Xero auth status endpoint (matches frontend expectation)
+app.get('/api/xero/auth-status', authenticate, asyncHandler(integrationController.getXeroAuthStatus));
+
 // Serve static files (uploaded files)
 app.use('/uploads', express.static(config.upload.path, {
   maxAge: '1d',
@@ -121,6 +129,7 @@ app.get('/api/docs', (req: Request, res: Response) => {
       reports: `${API_PREFIX}/reports`,
       webhooks: '/api/webhooks',
       health: '/api/health',
+      xeroAuthStatus: '/api/xero/auth-status', // Direct endpoint
     },
     environment: config.server.env,
   });
