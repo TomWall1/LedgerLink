@@ -1,10 +1,12 @@
 import React from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { XeroProvider } from './contexts/XeroContext';
+import HomePage from './components/HomePage';
 import Login from './components/Login';
 import Register from './components/Register';
+import SimpleCSVMatcher from './components/SimpleCSVMatcher';
 
-// Navigation Header Component
+// Navigation Header Component for authenticated users
 const Header = ({ user, onLogout }) => {
   return (
     <header className="bg-white border-b border-border shadow-sm">
@@ -23,66 +25,61 @@ const Header = ({ user, onLogout }) => {
             </div>
           </div>
 
-          {/* Search Bar (when authenticated) */}
-          {user && (
-            <div className="hidden md:block flex-1 max-w-lg mx-8">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search invoices, customers..."
-                  className="input pl-10 w-full"
-                />
-                <svg 
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400"
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
+          {/* Search Bar */}
+          <div className="hidden md:block flex-1 max-w-lg mx-8">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search invoices, customers..."
+                className="input pl-10 w-full"
+              />
+              <svg 
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400"
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
             </div>
-          )}
+          </div>
 
           {/* User Menu */}
-          {user && (
-            <div className="flex items-center gap-4">
-              {/* Notifications */}
-              <button className="p-2 rounded-lg hover:bg-muted transition-colors relative">
-                <svg className="w-5 h-5 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                <div className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></div>
-              </button>
+          <div className="flex items-center gap-4">
+            {/* Notifications */}
+            <button className="p-2 rounded-lg hover:bg-muted transition-colors relative">
+              <svg className="w-5 h-5 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <div className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></div>
+            </button>
 
-              {/* Help */}
-              <button className="p-2 rounded-lg hover:bg-muted transition-colors">
-                <svg className="w-5 h-5 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
+            {/* Help */}
+            <button className="p-2 rounded-lg hover:bg-muted transition-colors">
+              <svg className="w-5 h-5 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
 
-              {/* User Avatar & Menu */}
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:block text-right">
-                  <p className="text-small font-medium text-neutral-900">{user.companyName || 'User'}</p>
-                  <p className="text-small text-neutral-400">{user.email}</p>
-                </div>
-                <div className="relative">
-                  <button className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-medium text-small">
-                    {(user.companyName || user.email || 'U').charAt(0).toUpperCase()}
-                  </button>
-                  {/* Dropdown menu would go here */}
-                </div>
-                <button
-                  onClick={onLogout}
-                  className="btn btn-ghost text-small px-3 py-1.5 h-auto"
-                >
-                  Sign out
+            {/* User Avatar & Menu */}
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:block text-right">
+                <p className="text-small font-medium text-neutral-900">{user.companyName || 'User'}</p>
+                <p className="text-small text-neutral-400">{user.email}</p>
+              </div>
+              <div className="relative">
+                <button className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-medium text-small">
+                  {(user.companyName || user.email || 'U').charAt(0).toUpperCase()}
                 </button>
               </div>
+              <button
+                onClick={onLogout}
+                className="btn btn-ghost text-small px-3 py-1.5 h-auto"
+              >
+                Sign out
+              </button>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </header>
@@ -190,45 +187,61 @@ const Dashboard = ({ user }) => (
   </div>
 );
 
-// Auth Router Component
-const AuthRouter = () => {
-  const [currentView, setCurrentView] = React.useState('login'); // 'login' or 'register'
-
-  if (currentView === 'register') {
-    return (
-      <Register 
-        onSwitchToLogin={() => setCurrentView('login')}
-      />
-    );
-  }
-
-  return (
-    <Login 
-      onSwitchToRegister={() => setCurrentView('register')}
-    />
-  );
-};
-
-// Main App Content
-const AppContent = () => {
+// Main App Router Component
+const AppRouter = () => {
   const { user, loading, logout } = useAuth();
+  const [currentView, setCurrentView] = React.useState('home'); // 'home', 'login', 'register', 'csv-matcher'
 
   if (loading) {
     return <LoadingSpinner />;
   }
 
-  if (!user) {
-    return <AuthRouter />;
+  // Authenticated user - show dashboard
+  if (user) {
+    return (
+      <div className="page-container">
+        <Header user={user} onLogout={logout} />
+        <main>
+          <Dashboard user={user} />
+        </main>
+      </div>
+    );
   }
 
-  return (
-    <div className="page-container">
-      <Header user={user} onLogout={logout} />
-      <main>
-        <Dashboard user={user} />
-      </main>
-    </div>
-  );
+  // Unauthenticated user - show based on current view
+  switch (currentView) {
+    case 'login':
+      return (
+        <Login 
+          onSwitchToRegister={() => setCurrentView('register')}
+          onBackToHome={() => setCurrentView('home')}
+        />
+      );
+    
+    case 'register':
+      return (
+        <Register 
+          onSwitchToLogin={() => setCurrentView('login')}
+          onBackToHome={() => setCurrentView('home')}
+        />
+      );
+    
+    case 'csv-matcher':
+      return (
+        <SimpleCSVMatcher 
+          onBackToHome={() => setCurrentView('home')}
+        />
+      );
+    
+    case 'home':
+    default:
+      return (
+        <HomePage 
+          onLogin={() => setCurrentView('login')}
+          onTryForFree={() => setCurrentView('csv-matcher')}
+        />
+      );
+  }
 };
 
 // Root App Component
@@ -236,8 +249,9 @@ function App() {
   return (
     <div className="App">
       <AuthProvider>
-        <XeroProvider>
-          <AppContent />
+        {/* XeroProvider with autoCheckAuth=false to prevent automatic API calls */}
+        <XeroProvider autoCheckAuth={false}>
+          <AppRouter />
         </XeroProvider>
       </AuthProvider>
     </div>
