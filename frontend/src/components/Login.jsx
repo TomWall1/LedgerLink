@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
-const Login = ({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) => {
+const Login = ({ onSwitchToRegister, onBackToHome }) => {
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -52,22 +54,17 @@ const Login = ({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) => {
     setErrors({});
     
     try {
-      // For now, simulate successful login
-      // In a real implementation, you'd call your login API here
-      const mockUserData = {
-        id: 'user-' + Date.now(),
-        name: formData.email.split('@')[0],
-        email: formData.email,
-        companyName: 'User Company'
-      };
+      const result = await login(formData.email, formData.password);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Call success callback with user data
-      onLoginSuccess(mockUserData);
+      if (!result.success) {
+        setErrors({
+          submit: result.error || 'Login failed. Please check your credentials.'
+        });
+      }
+      // If successful, the AuthContext will handle setting the user and the App will re-render
       
     } catch (error) {
+      console.error('Login error:', error);
       setErrors({
         submit: 'An unexpected error occurred. Please try again.'
       });
@@ -77,165 +74,177 @@ const Login = ({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) => {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card animate-fade-in">
-        <div className="card">
-          <div className="card-header text-center">
-            {/* Logo and Back Button */}
-            <div className="flex items-center justify-between mb-6">
-              <button
-                type="button"
-                onClick={onBackToLanding}
-                className="text-neutral-400 hover:text-neutral-600 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </button>
-              <div></div> {/* Spacer for centering */}
-            </div>
-            
-            {/* Logo */}
-            <div className="mb-6">
-              <div className="w-12 h-12 mx-auto bg-primary-500 rounded-lg flex items-center justify-center mb-4">
-                <svg 
-                  className="w-6 h-6 text-white" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" 
-                  />
-                </svg>
-              </div>
-              <h1 className="h2 text-neutral-900">Welcome back</h1>
-              <p className="text-base text-neutral-400 mt-2">
-                Sign in to your LedgerLink account
-              </p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Back Button */}
+        <div className="flex justify-start mb-6">
+          <button
+            type="button"
+            onClick={onBackToHome}
+            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Home
+          </button>
+        </div>
 
-          <div className="card-body">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Email Field */}
-              <div>
-                <label htmlFor="email" className="label">
-                  Email address
-                </label>
+        {/* Logo */}
+        <div className="text-center">
+          <div className="w-12 h-12 mx-auto bg-blue-600 rounded-lg flex items-center justify-center mb-4">
+            <svg 
+              className="w-6 h-6 text-white" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" 
+              />
+            </svg>
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back</h2>
+          <p className="text-gray-600">
+            Sign in to your LedgerLink account
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Email Field */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Email address
+              </label>
+              <div className="mt-1">
                 <input
                   id="email"
                   name="email"
                   type="email"
                   autoComplete="email"
                   required
-                  className={`input ${errors.email ? 'error' : ''}`}
+                  className={`appearance-none block w-full px-3 py-2 border ${
+                    errors.email ? 'border-red-300' : 'border-gray-300'
+                  } rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
                   placeholder="Enter your email"
                   value={formData.email}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
                 {errors.email && (
-                  <p className="error-message" role="alert">
+                  <p className="mt-2 text-sm text-red-600" role="alert">
                     {errors.email}
                   </p>
                 )}
               </div>
+            </div>
 
-              {/* Password Field */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label htmlFor="password" className="label mb-0">
-                    Password
-                  </label>
+            {/* Password Field */}
+            <div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <div className="text-sm">
                   <button
                     type="button"
-                    className="text-small text-primary-500 hover:text-primary-700 transition-colors"
+                    className="font-medium text-blue-600 hover:text-blue-500"
                     onClick={() => {/* Handle forgot password */}}
                   >
                     Forgot password?
                   </button>
                 </div>
+              </div>
+              <div className="mt-1">
                 <input
                   id="password"
                   name="password"
                   type="password"
                   autoComplete="current-password"
                   required
-                  className={`input ${errors.password ? 'error' : ''}`}
+                  className={`appearance-none block w-full px-3 py-2 border ${
+                    errors.password ? 'border-red-300' : 'border-gray-300'
+                  } rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
                   placeholder="Enter your password"
                   value={formData.password}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
                 {errors.password && (
-                  <p className="error-message" role="alert">
+                  <p className="mt-2 text-sm text-red-600" role="alert">
                     {errors.password}
                   </p>
                 )}
               </div>
+            </div>
 
-              {/* Submit Error */}
-              {errors.submit && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                  <p className="text-small text-error" role="alert">
-                    {errors.submit}
-                  </p>
-                </div>
-              )}
+            {/* Submit Error */}
+            {errors.submit && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <p className="text-sm text-red-600" role="alert">
+                  {errors.submit}
+                </p>
+              </div>
+            )}
 
-              {/* Submit Button */}
+            {/* Submit Button */}
+            <div>
               <button
                 type="submit"
                 disabled={isLoading}
-                className="btn btn-primary w-full"
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
               >
                 {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                     Signing in...
                   </div>
                 ) : (
                   'Sign in'
                 )}
               </button>
-            </form>
-          </div>
+            </div>
+          </form>
 
-          <div className="card-footer">
-            <p className="text-center text-small text-neutral-400">
-              Don't have an account?{' '}
-              <button
-                type="button"
-                className="text-primary-500 hover:text-primary-700 font-medium transition-colors"
-                onClick={onSwitchToRegister}
-              >
-                Sign up here
-              </button>
-            </p>
+          <div className="mt-6">
+            <div className="text-center">
+              <span className="text-sm text-gray-600">
+                Don't have an account?{' '}
+                <button
+                  type="button"
+                  className="font-medium text-blue-600 hover:text-blue-500"
+                  onClick={onSwitchToRegister}
+                >
+                  Sign up here
+                </button>
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Trust indicators */}
         <div className="mt-8 text-center">
-          <div className="flex items-center justify-center gap-6 text-neutral-400">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <div className="flex items-center justify-center space-x-6 text-gray-400">
+            <div className="flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </svg>
-              <span className="text-small">Secure login</span>
+              <span className="text-sm">Secure login</span>
             </div>
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <div className="flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <span className="text-small">Bank-grade encryption</span>
+              <span className="text-sm">Bank-grade encryption</span>
             </div>
           </div>
-          <p className="text-small text-neutral-400 mt-4">
+          <p className="text-sm text-gray-400 mt-4">
             Your financial data is protected with enterprise-level security
           </p>
         </div>
