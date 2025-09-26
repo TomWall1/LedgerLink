@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 
-const Login = ({ onSwitchToRegister }) => {
+const Login = ({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -54,14 +52,21 @@ const Login = ({ onSwitchToRegister }) => {
     setErrors({});
     
     try {
-      const result = await login(formData.email, formData.password);
+      // For now, simulate successful login
+      // In a real implementation, you'd call your login API here
+      const mockUserData = {
+        id: 'user-' + Date.now(),
+        name: formData.email.split('@')[0],
+        email: formData.email,
+        companyName: 'User Company'
+      };
       
-      if (!result.success) {
-        setErrors({
-          submit: result.error || 'Login failed. Please try again.'
-        });
-      }
-      // Success is handled by AuthContext (redirect, etc.)
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Call success callback with user data
+      onLoginSuccess(mockUserData);
+      
     } catch (error) {
       setErrors({
         submit: 'An unexpected error occurred. Please try again.'
@@ -76,6 +81,20 @@ const Login = ({ onSwitchToRegister }) => {
       <div className="auth-card animate-fade-in">
         <div className="card">
           <div className="card-header text-center">
+            {/* Logo and Back Button */}
+            <div className="flex items-center justify-between mb-6">
+              <button
+                type="button"
+                onClick={onBackToLanding}
+                className="text-neutral-400 hover:text-neutral-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+              <div></div> {/* Spacer for centering */}
+            </div>
+            
             {/* Logo */}
             <div className="mb-6">
               <div className="w-12 h-12 mx-auto bg-primary-500 rounded-lg flex items-center justify-center mb-4">
