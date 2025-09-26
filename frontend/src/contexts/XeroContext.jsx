@@ -10,17 +10,19 @@ export const useXero = () => {
   return context;
 };
 
-export const XeroProvider = ({ children }) => {
+export const XeroProvider = ({ children, autoCheckAuth = false }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [tenantId, setTenantId] = useState(null);
   
   const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
   
-  // Check authentication status on mount
+  // Only check authentication on mount if explicitly requested
   useEffect(() => {
-    checkAuth();
-  }, []);
+    if (autoCheckAuth) {
+      checkAuth();
+    }
+  }, [autoCheckAuth]);
   
   const checkAuth = async () => {
     try {
@@ -37,14 +39,17 @@ export const XeroProvider = ({ children }) => {
         const data = await response.json();
         setIsAuthenticated(data.authenticated || false);
         setTenantId(data.tenantId || null);
+        return data.authenticated || false;
       } else {
         setIsAuthenticated(false);
         setTenantId(null);
+        return false;
       }
     } catch (error) {
       console.error('Error checking Xero auth status:', error);
       setIsAuthenticated(false);
       setTenantId(null);
+      return false;
     } finally {
       setIsLoading(false);
     }
