@@ -11,7 +11,8 @@ const api = axios.create({
 // Add request interceptor to include auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    // FIXED: Use 'authToken' to match AuthContext.jsx
+    const token = localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,9 +27,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // FIXED: Remove automatic redirect to /login
+    // Let React components handle authentication flow naturally
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Only clean up invalid tokens, don't force redirect
+      console.debug('API: Received 401 - authentication required');
     }
     return Promise.reject(error);
   }
