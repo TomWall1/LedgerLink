@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 
-const Register = ({ onSwitchToLogin }) => {
+const Register = ({ onRegisterSuccess, onSwitchToLogin, onBackToLanding }) => {
   const [formData, setFormData] = useState({
     companyName: '',
     email: '',
@@ -10,7 +9,6 @@ const Register = ({ onSwitchToLogin }) => {
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -70,14 +68,22 @@ const Register = ({ onSwitchToLogin }) => {
     setErrors({});
     
     try {
-      const result = await register(formData.email, formData.password, formData.companyName);
+      // For now, simulate successful registration
+      // In a real implementation, you'd call your registration API here
+      const mockUserData = {
+        id: 'user-' + Date.now(),
+        name: formData.companyName,
+        email: formData.email,
+        companyName: formData.companyName,
+        companyId: 'company-' + Date.now()
+      };
       
-      if (!result.success) {
-        setErrors({
-          submit: result.error || 'Registration failed. Please try again.'
-        });
-      }
-      // Success is handled by AuthContext (redirect, etc.)
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Call success callback with user data
+      onRegisterSuccess(mockUserData);
+      
     } catch (error) {
       setErrors({
         submit: 'An unexpected error occurred. Please try again.'
@@ -92,6 +98,20 @@ const Register = ({ onSwitchToLogin }) => {
       <div className="auth-card animate-fade-in">
         <div className="card">
           <div className="card-header text-center">
+            {/* Logo and Back Button */}
+            <div className="flex items-center justify-between mb-6">
+              <button
+                type="button"
+                onClick={onBackToLanding}
+                className="text-neutral-400 hover:text-neutral-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+              <div></div> {/* Spacer for centering */}
+            </div>
+            
             {/* Logo */}
             <div className="mb-6">
               <div className="w-12 h-12 mx-auto bg-primary-500 rounded-lg flex items-center justify-center mb-4">
