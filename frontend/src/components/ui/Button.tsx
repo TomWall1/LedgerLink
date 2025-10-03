@@ -11,19 +11,31 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', isLoading, leftIcon, rightIcon, children, disabled, ...props }, ref) => {
+    
+    // Base button classes from style guide
+    const baseClasses = 'inline-flex items-center justify-center rounded-md font-medium transition-all duration-short';
+    
+    // Variant classes from style guide
+    const variantClasses = {
+      primary: 'bg-primary-500 text-white hover:bg-primary-700 hover:-translate-y-px active:translate-y-0 shadow-[0_6px_18px_rgba(42,143,230,0.12)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none',
+      secondary: 'bg-white text-primary-700 border border-border hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed',
+      ghost: 'bg-transparent text-neutral-700 hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed',
+      destructive: 'bg-error text-white hover:bg-error-600 disabled:opacity-50 disabled:cursor-not-allowed',
+    };
+    
+    // Size classes from style guide (height 40px for normal)
+    const sizeClasses = {
+      sm: 'px-3 py-1.5 text-sm h-8',
+      md: 'px-4 py-2 text-sm h-10',
+      lg: 'px-6 py-3 text-base h-12',
+    };
+    
     return (
       <button
         className={cn(
-          'btn',
-          {
-            'btn-primary': variant === 'primary',
-            'btn-secondary': variant === 'secondary',
-            'btn-destructive': variant === 'destructive',
-            'btn-ghost': variant === 'ghost',
-            'btn-sm': size === 'sm',
-            'btn-md': size === 'md',
-            'btn-lg': size === 'lg'
-          },
+          baseClasses,
+          variantClasses[variant],
+          sizeClasses[size],
           className
         )}
         disabled={disabled || isLoading}
