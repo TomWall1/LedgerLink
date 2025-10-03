@@ -3,22 +3,28 @@ import { cn } from '../../utils/cn';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {}
 
+// Card component with style guide specs
+// Surface: background white, padding p-6, radius radius-md, shadow shadow-md
 const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('card', className)}
+      className={cn(
+        'bg-white rounded-md shadow-md border border-border p-6',
+        className
+      )}
       {...props}
     />
   )
 );
 Card.displayName = 'Card';
 
+// Card header: left aligned, title H3 (18px), subtitle muted
 const CardHeader = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('card-header', className)}
+      className={cn('mb-4', className)}
       {...props}
     />
   )
@@ -29,7 +35,7 @@ const CardContent = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('card-content', className)}
+      className={cn('', className)}
       {...props}
     />
   )
@@ -40,7 +46,7 @@ const CardFooter = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('card-footer', className)}
+      className={cn('mt-6 flex items-center justify-between', className)}
       {...props}
     />
   )
