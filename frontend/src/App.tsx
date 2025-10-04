@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './hooks/useToast';
 import { AppLayout } from './components/layout/AppLayout';
 import ConnectionsPage from './pages/ConnectionsPage';
@@ -14,13 +15,6 @@ import Matches from './pages/Matches';
 
 import './styles/global.css';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-}
-
 interface Company {
   id: string;
   name: string;
@@ -32,24 +26,40 @@ type AppView = 'landing' | 'login' | 'register' | 'dashboard';
 // Component to handle tab state based on current route
 const AppContent: React.FC = () => {
   const location = useLocation();
+  const { user, logout, loading } = useAuth();
   
   // Authentication and view state
   const [currentView, setCurrentView] = useState<AppView>('landing');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(false);
   
-  // Check for existing authentication on app load
+  // Check authentication status on mount
   useEffect(() => {
-    const existingToken = localStorage.getItem('authToken');
-    if (existingToken && existingToken !== 'demo_token_123') {
-      // If there's a real auth token, try to restore user session
-      // For now, we'll just keep it simple
+    if (loading) return;
+    
+    if (user) {
+      // User is authenticated
       setCurrentView('dashboard');
-      setIsLoggedIn(true);
+      // Set company info from user data
+      if (user.companyId && user.companyName) {
+        setCompany({
+          id: user.companyId,
+          name: user.companyName,
+          ownerId: user.id
+        });
+      }
+    } else {
+      // Check for demo mode
+      const demoToken = localStorage.getItem('authToken');
+      if (demoToken === 'demo_token_123') {
+        setCurrentView('dashboard');
+        setCompany({
+          id: 'demo-company',
+          name: 'Demo Company',
+          ownerId: 'demo-user'
+        });
+      }
     }
-  }, []);
+  }, [user, loading]);
   
   // Get active tab from current route (when in dashboard mode)
   const getActiveTab = () => {
@@ -73,55 +83,34 @@ const AppContent: React.FC = () => {
   
   const handleTryForFree = () => {
     console.log('🎯 Starting demo/free trial mode');
-    // Set up demo user and company
-    const demoUser: User = {
-      id: 'demo-user',
-      name: 'Demo User',
-      email: 'demo@ledgerlink.com'
-    };
-    const demoCompany: Company = {
+    // Set demo token for API calls
+    localStorage.setItem('authToken', 'demo_token_123');
+    setCompany({
       id: 'demo-company', 
       name: 'Demo Company',
       ownerId: 'demo-user'
-    };
-    
-    setUser(demoUser);
-    setCompany(demoCompany);
-    setIsLoggedIn(true);
+    });
     setCurrentView('dashboard');
-    
-    // Set demo token for API calls
-    localStorage.setItem('authToken', 'demo_token_123');
     console.log('🎯 DEMO MODE: Demo authentication token set');
   };
   
-  // Auth component handlers
-  const handleLoginSuccess = (userData: any) => {
-    console.log('✅ Login successful', userData);
-    setUser({
-      id: userData.id || 'user-1',
-      name: userData.name || userData.companyName || 'User',
-      email: userData.email || 'user@example.com'
-    });
-    setCompany({
-      id: userData.companyId || 'company-1',
-      name: userData.companyName || 'Company',
-      ownerId: userData.id || 'user-1'
-    });
-    setIsLoggedIn(true);
+  // Auth handlers
+  const handleLoginSuccess = () => {
+    console.log('✅ Login successful');
     setCurrentView('dashboard');
+    // User and company will be set by AuthContext
   };
   
-  const handleRegisterSuccess = (userData: any) => {
-    console.log('✅ Registration successful', userData);
-    handleLoginSuccess(userData); // Same flow after registration
+  const handleRegisterSuccess = () => {
+    console.log('✅ Registration successful');
+    setCurrentView('dashboard');
+    // User and company will be set by AuthContext
   };
   
-  const handleLogout = () => {
+  const handleLogout = async () => {
     console.log('🔓 Logging out');
-    setUser(null);
+    await logout();
     setCompany(null);
-    setIsLoggedIn(false);
     setCurrentView('landing');
     localStorage.removeItem('authToken');
   };
@@ -140,6 +129,18 @@ const AppContent: React.FC = () => {
     // The AppLayout will handle navigation via router
   };
   
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-neutral-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
   // Render based on current view
   if (currentView === 'landing') {
     return (
@@ -155,15 +156,11 @@ const AppContent: React.FC = () => {
   if (currentView === 'login') {
     return (
       <ErrorBoundary>
-        <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
-          <div className="w-full max-w-md">
-            <Login 
-              onLoginSuccess={handleLoginSuccess}
-              onSwitchToRegister={() => setCurrentView('register')}
-              onBackToLanding={handleBackToLanding}
-            />
-          </div>
-        </div>
+        <Login 
+          onLoginSuccess={handleLoginSuccess}
+          onSwitchToRegister={() => setCurrentView('register')}
+          onBackToLanding={handleBackToLanding}
+        />
       </ErrorBoundary>
     );
   }
@@ -171,28 +168,37 @@ const AppContent: React.FC = () => {
   if (currentView === 'register') {
     return (
       <ErrorBoundary>
-        <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
-          <div className="w-full max-w-md">
-            <Register 
-              onRegisterSuccess={handleRegisterSuccess}
-              onSwitchToLogin={() => setCurrentView('login')}
-              onBackToLanding={handleBackToLanding}
-            />
-          </div>
-        </div>
+        <Register 
+          onRegisterSuccess={handleRegisterSuccess}
+          onSwitchToLogin={() => setCurrentView('login')}
+          onBackToLanding={handleBackToLanding}
+        />
       </ErrorBoundary>
     );
   }
   
-  // Dashboard mode - authenticated users
-  if (currentView === 'dashboard' && isLoggedIn && user) {
+  // Dashboard mode - authenticated users (real or demo)
+  if (currentView === 'dashboard') {
+    // Create user object for dashboard (from real auth or demo)
+    const displayUser = user || {
+      id: 'demo-user',
+      name: 'Demo User',
+      email: 'demo@ledgerlink.com'
+    };
+    
+    const displayCompany = company || {
+      id: 'demo-company',
+      name: 'Demo Company',
+      ownerId: 'demo-user'
+    };
+
     return (
       <ErrorBoundary>
         <ToastProvider>
           <div className="App">
             <AppLayout
-              user={user}
-              isLoggedIn={isLoggedIn}
+              user={displayUser}
+              isLoggedIn={true}
               activeTab={activeTab}
               onTabChange={handleTabChange}
               onLogin={handleLogin}
@@ -208,7 +214,7 @@ const AppContent: React.FC = () => {
                   path="/dashboard" 
                   element={
                     <ErrorBoundary>
-                      <Dashboard user={user} />
+                      <Dashboard user={displayUser} />
                     </ErrorBoundary>
                   } 
                 />
@@ -216,7 +222,7 @@ const AppContent: React.FC = () => {
                   path="/matches" 
                   element={
                     <ErrorBoundary>
-                      <Matches isLoggedIn={isLoggedIn} />
+                      <Matches isLoggedIn={true} />
                     </ErrorBoundary>
                   } 
                 />
@@ -224,7 +230,7 @@ const AppContent: React.FC = () => {
                   path="/connections" 
                   element={
                     <ErrorBoundary>
-                      <ConnectionsPage companyId={company?.id || 'demo-company'} />
+                      <ConnectionsPage companyId={displayCompany.id} />
                     </ErrorBoundary>
                   } 
                 />
@@ -297,7 +303,9 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <Router>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </Router>
   );
 }
