@@ -10,11 +10,13 @@ services:
     plan: starter # Free tier
     rootDir: backend
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node src/server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 3002
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGIN
@@ -40,3 +42,4 @@ services:
       initialDelaySeconds: 30
       periodSeconds: 10
       timeoutSeconds: 5
+      failureThreshold: 3
