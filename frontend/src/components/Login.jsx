@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-const Login = ({ onSwitchToRegister, onBackToHome }) => {
+const Login = ({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) => {
   const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
@@ -60,28 +60,32 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
         setErrors({
           submit: result.error || 'Login failed. Please check your credentials.'
         });
+        setIsLoading(false);
+      } else {
+        // Success - notify parent component
+        if (onLoginSuccess) {
+          onLoginSuccess();
+        }
       }
-      // If successful, the AuthContext will handle setting the user and the App will re-render
       
     } catch (error) {
       console.error('Login error:', error);
       setErrors({
         submit: 'An unexpected error occurred. Please try again.'
       });
-    } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-neutral-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* Back Button */}
         <div className="flex justify-start mb-6">
           <button
             type="button"
-            onClick={onBackToHome}
-            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+            onClick={onBackToLanding}
+            className="flex items-center text-neutral-600 hover:text-neutral-900 transition-colors duration-short"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -92,7 +96,7 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
 
         {/* Logo */}
         <div className="text-center">
-          <div className="w-12 h-12 mx-auto bg-blue-600 rounded-lg flex items-center justify-center mb-4">
+          <div className="w-12 h-12 mx-auto bg-primary-500 rounded-md flex items-center justify-center mb-4">
             <svg 
               className="w-6 h-6 text-white" 
               fill="none" 
@@ -107,19 +111,19 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
               />
             </svg>
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back</h2>
-          <p className="text-gray-600">
+          <h2 className="text-h1 text-neutral-900 mb-2">Welcome back</h2>
+          <p className="text-body text-neutral-600">
             Sign in to your LedgerLink account
           </p>
         </div>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="bg-white py-8 px-4 shadow-md rounded-md sm:px-10">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="block text-sm font-medium text-neutral-700">
                 Email address
               </label>
               <div className="mt-1">
@@ -129,16 +133,16 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
                   type="email"
                   autoComplete="email"
                   required
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    errors.email ? 'border-red-300' : 'border-gray-300'
-                  } rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
+                  className={`input w-full ${
+                    errors.email ? 'error' : ''
+                  }`}
                   placeholder="Enter your email"
                   value={formData.email}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
                 {errors.email && (
-                  <p className="mt-2 text-sm text-red-600" role="alert">
+                  <p className="mt-2 text-small text-error" role="alert">
                     {errors.email}
                   </p>
                 )}
@@ -148,13 +152,13 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
             {/* Password Field */}
             <div>
               <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="password" className="block text-sm font-medium text-neutral-700">
                   Password
                 </label>
                 <div className="text-sm">
                   <button
                     type="button"
-                    className="font-medium text-blue-600 hover:text-blue-500"
+                    className="font-medium text-primary-500 hover:text-primary-700"
                     onClick={() => {/* Handle forgot password */}}
                   >
                     Forgot password?
@@ -168,16 +172,16 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
                   type="password"
                   autoComplete="current-password"
                   required
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    errors.password ? 'border-red-300' : 'border-gray-300'
-                  } rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
+                  className={`input w-full ${
+                    errors.password ? 'error' : ''
+                  }`}
                   placeholder="Enter your password"
                   value={formData.password}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
                 {errors.password && (
-                  <p className="mt-2 text-sm text-red-600" role="alert">
+                  <p className="mt-2 text-small text-error" role="alert">
                     {errors.password}
                   </p>
                 )}
@@ -186,8 +190,8 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
 
             {/* Submit Error */}
             {errors.submit && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <p className="text-sm text-red-600" role="alert">
+              <div className="bg-error-50 border border-error-200 rounded-md p-4">
+                <p className="text-sm text-error-600" role="alert">
                   {errors.submit}
                 </p>
               </div>
@@ -198,10 +202,10 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
+                className="btn-primary w-full"
               >
                 {isLoading ? (
-                  <div className="flex items-center">
+                  <div className="flex items-center justify-center">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                     Signing in...
                   </div>
@@ -214,11 +218,11 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
 
           <div className="mt-6">
             <div className="text-center">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-neutral-600">
                 Don't have an account?{' '}
                 <button
                   type="button"
-                  className="font-medium text-blue-600 hover:text-blue-500"
+                  className="font-medium text-primary-500 hover:text-primary-700"
                   onClick={onSwitchToRegister}
                 >
                   Sign up here
@@ -230,7 +234,7 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
 
         {/* Trust indicators */}
         <div className="mt-8 text-center">
-          <div className="flex items-center justify-center space-x-6 text-gray-400">
+          <div className="flex items-center justify-center space-x-6 text-neutral-400">
             <div className="flex items-center">
               <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
@@ -244,7 +248,7 @@ const Login = ({ onSwitchToRegister, onBackToHome }) => {
               <span className="text-sm">Bank-grade encryption</span>
             </div>
           </div>
-          <p className="text-sm text-gray-400 mt-4">
+          <p className="text-small text-neutral-400 mt-4">
             Your financial data is protected with enterprise-level security
           </p>
         </div>
