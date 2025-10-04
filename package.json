@@ -2,14 +2,15 @@
   "name": "ledgerlink",
   "version": "1.0.0",
   "description": "LedgerLink Platform - Invoice Reconciliation System",
-  "main": "backend/server.js",
+  "main": "backend/src/server.js",
   "scripts": {
-    "start": "cd backend && node server.js",
+    "start": "cd backend && npm install && node src/server.js",
     "install": "cd backend && npm install",
     "build": "cd backend && npm install",
     "dev": "cd backend && npm run dev",
     "frontend": "cd frontend && npm start",
-    "backend": "cd backend && npm start"
+    "backend": "cd backend && npm start",
+    "backend:dev": "cd backend && npm run dev"
   },
   "engines": {
     "node": "22.x",
