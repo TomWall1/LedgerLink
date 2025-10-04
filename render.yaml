@@ -1,4 +1,4 @@
-# Render.com deployment configuration for Backend Only
+# Render.com deployment configuration for Backend
 # This file enables one-click deployment to Render
 
 services:
@@ -9,36 +9,26 @@ services:
     region: oregon
     plan: starter # Free tier
     rootDir: backend
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: JWT_SECRET
         generateValue: true
-      - key: JWT_REFRESH_SECRET
-        generateValue: true
       - key: CORS_ORIGIN
         value: https://ledgerlink.vercel.app
-      - key: EMAIL_FROM_NAME
-        value: LedgerLink
-      - key: EMAIL_FROM_EMAIL
-        value: noreply@ledgerlink.com
-      - key: UPLOAD_PATH
-        value: ./uploads
-      - key: MAX_FILE_SIZE
-        value: 10485760
-      # Database and Redis URLs will be auto-populated by Render
-      - key: DATABASE_URL
-        fromDatabase:
-          name: ledgerlink-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: ledgerlink-redis
-          property: connectionString
+      - key: FRONTEND_URL
+        value: https://ledgerlink.vercel.app
+      - key: MONGODB_URI
+        sync: false
+      - key: XERO_CLIENT_ID
+        sync: false
+      - key: XERO_CLIENT_SECRET
+        sync: false
+      - key: XERO_REDIRECT_URI
+        value: https://ledgerlink.onrender.com/api/xero/callback
     
     # Auto-deploy from main branch
     autoDeploy: true
@@ -46,27 +36,7 @@ services:
     
     # Health check configuration
     healthCheck:
-      path: /api/health
+      path: /health
       initialDelaySeconds: 30
       periodSeconds: 10
       timeoutSeconds: 5
-      
-# Database
-databases:
-  - name: ledgerlink-db
-    databaseName: ledgerlink
-    user: ledgerlink
-    plan: starter # Free tier
-    region: oregon
-    
-    # Automatic daily backups
-    backup:
-      enabled: true
-      
-# Redis Cache  
-services:
-  - type: redis
-    name: ledgerlink-redis
-    plan: starter # Free tier
-    region: oregon
-    maxmemoryPolicy: allkeys-lru
