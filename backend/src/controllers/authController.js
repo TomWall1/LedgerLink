@@ -10,59 +10,56 @@ const generateToken = (id) => {
 };
 
 // @desc    Register user
-// @route   POST /api/auth/register
+// @route   POST /api/users/register
 // @access  Public
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password, company } = req.body;
+    const { email, password, companyName, name } = req.body;
 
     // Check if user exists
     const userExists = await User.findOne({ email });
 
     if (userExists) {
       return res.status(400).json({
-        success: false,
         error: 'User already exists'
       });
     }
 
     // Create user
     const user = await User.create({
-      name,
+      name: name || companyName, // Use companyName as fallback for name
       email,
       password,
-      company
+      company: companyName
     });
 
     if (user) {
       res.status(201).json({
-        success: true,
         token: generateToken(user._id),
         user: {
-          _id: user._id,
+          id: user._id.toString(),
           name: user.name,
           email: user.email,
-          company: user.company,
+          companyName: user.company,
+          companyId: user._id.toString(),
           role: user.role
         }
       });
     } else {
       res.status(400).json({
-        success: false,
         error: 'Invalid user data'
       });
     }
   } catch (error) {
     console.error('Error in register:', error);
     res.status(500).json({
-      success: false,
       error: error.message
     });
   }
 };
 
 // @desc    Authenticate user & get token
-// @route   POST /api/auth/login
+// @route   POST /api/users/login
 // @access  Public
 export const loginUser = async (req, res) => {
   try {
@@ -73,7 +70,6 @@ export const loginUser = async (req, res) => {
 
     if (!user) {
       return res.status(401).json({
-        success: false,
         error: 'Invalid credentials'
       });
     }
@@ -83,49 +79,106 @@ export const loginUser = async (req, res) => {
 
     if (!isMatch) {
       return res.status(401).json({
-        success: false,
         error: 'Invalid credentials'
       });
     }
 
     res.json({
-      success: true,
       token: generateToken(user._id),
       user: {
-        _id: user._id,
+        id: user._id.toString(),
         name: user.name,
         email: user.email,
-        company: user.company,
+        companyName: user.company,
+        companyId: user._id.toString(),
         role: user.role
       }
     });
   } catch (error) {
     console.error('Error in login:', error);
     res.status(500).json({
-      success: false,
       error: error.message
     });
   }
 };
 
-// @desc    Get current logged in user
-// @route   GET /api/auth/me
+// @desc    Get current logged in user profile
+// @route   GET /api/users/profile
 // @access  Private
-export const getMe = async (req, res) => {
+export const getUserProfile = async (req, res) => {
   try {
     // User is already available in req.user from the auth middleware
-    res.json({
-      success: true,
-      data: req.user
-    });
+    const user = await User.findById(req.user._id);
+    
+    if (user) {
+      res.json({
+        user: {
+          id: user._id.toString(),
+          name: user.name,
+          email: user.email,
+          companyName: user.company,
+          companyId: user._id.toString(),
+          role: user.role
+        }
+      });
+    } else {
+      res.status(404).json({
+        error: 'User not found'
+      });
+    }
   } catch (error) {
-    console.error('Error in getMe:', error);
+    console.error('Error in getUserProfile:', error);
     res.status(500).json({
-      success: false,
       error: error.message
     });
   }
 };
+
+// @desc    Update user profile
+// @route   PUT /api/users/profile
+// @access  Private
+export const updateUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (user) {
+      user.name = req.body.name || user.name;
+      user.email = req.body.email || user.email;
+      user.company = req.body.companyName || user.company;
+      
+      if (req.body.password) {
+        user.password = req.body.password;
+      }
+
+      const updatedUser = await user.save();
+
+      res.json({
+        user: {
+          id: updatedUser._id.toString(),
+          name: updatedUser.name,
+          email: updatedUser.email,
+          companyName: updatedUser.company,
+          companyId: updatedUser._id.toString(),
+          role: updatedUser.role
+        }
+      });
+    } else {
+      res.status(404).json({
+        error: 'User not found'
+      });
+    }
+  } catch (error) {
+    console.error('Error in updateUserProfile:', error);
+    res.status(500).json({
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get current logged in user (alias for getUserProfile)
+// @route   GET /api/auth/me
+// @access  Private
+export const getMe = getUserProfile;
 
 // @desc    Forgot password
 // @route   POST /api/auth/forgot-password
@@ -140,7 +193,6 @@ export const forgotPassword = async (req, res) => {
     if (!user) {
       // Don't reveal that the user doesn't exist for security
       return res.status(200).json({
-        success: true,
         message: 'If your email exists in our system, you will receive password reset instructions.'
       });
     }
@@ -159,18 +211,11 @@ export const forgotPassword = async (req, res) => {
 
     await user.save({ validateBeforeSave: false });
 
-    // For a real application, send an email here with the reset link
-    // For simplicity in this implementation, we'll return the token directly
-    // In production, never return the actual token to the client for security reasons
-
     const resetUrl = `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`;
 
     console.log(`Password reset requested for ${email}. Reset URL: ${resetUrl}`);
 
-    // In a real-world scenario, send an email with the reset URL
-
     res.status(200).json({
-      success: true,
       message: 'If your email exists in our system, you will receive password reset instructions.',
       // For development only - remove in production
       resetUrl,
@@ -188,7 +233,6 @@ export const forgotPassword = async (req, res) => {
     }
 
     res.status(500).json({
-      success: false,
       error: 'Error processing password reset'
     });
   }
@@ -212,7 +256,6 @@ export const resetPassword = async (req, res) => {
 
     if (!user) {
       return res.status(400).json({
-        success: false,
         error: 'Invalid token or token has expired'
       });
     }
@@ -225,20 +268,19 @@ export const resetPassword = async (req, res) => {
 
     // Return token so user can be immediately logged in
     res.json({
-      success: true,
       token: generateToken(user._id),
       user: {
-        _id: user._id,
+        id: user._id.toString(),
         name: user.name,
         email: user.email,
-        company: user.company,
+        companyName: user.company,
+        companyId: user._id.toString(),
         role: user.role
       }
     });
   } catch (error) {
     console.error('Error in resetPassword:', error);
     res.status(500).json({
-      success: false,
       error: error.message
     });
   }
