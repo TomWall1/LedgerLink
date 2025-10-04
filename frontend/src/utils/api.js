@@ -8,6 +8,8 @@ const api = axios.create({
   }
 });
 
+console.log('API Client initialized with base URL:', api.defaults.baseURL);
+
 // Add request interceptor to include auth token
 api.interceptors.request.use(
   (config) => {
