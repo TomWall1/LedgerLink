@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-const Register = ({ onSwitchToLogin, onBackToHome }) => {
+const Register = ({ onRegisterSuccess, onSwitchToLogin, onBackToLanding }) => {
   const { register } = useAuth();
   const [formData, setFormData] = useState({
     companyName: '',
@@ -76,28 +76,32 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
         setErrors({
           submit: result.error || 'Registration failed. Please try again.'
         });
+        setIsLoading(false);
+      } else {
+        // Success - notify parent component
+        if (onRegisterSuccess) {
+          onRegisterSuccess();
+        }
       }
-      // If successful, the AuthContext will handle setting the user and the App will re-render
       
     } catch (error) {
       console.error('Registration error:', error);
       setErrors({
         submit: 'An unexpected error occurred. Please try again.'
       });
-    } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-neutral-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* Back Button */}
         <div className="flex justify-start mb-6">
           <button
             type="button"
-            onClick={onBackToHome}
-            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+            onClick={onBackToLanding}
+            className="flex items-center text-neutral-600 hover:text-neutral-900 transition-colors duration-short"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -108,7 +112,7 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
 
         {/* Logo */}
         <div className="text-center">
-          <div className="w-12 h-12 mx-auto bg-blue-600 rounded-lg flex items-center justify-center mb-4">
+          <div className="w-12 h-12 mx-auto bg-primary-500 rounded-md flex items-center justify-center mb-4">
             <svg 
               className="w-6 h-6 text-white" 
               fill="none" 
@@ -123,19 +127,19 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
               />
             </svg>
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Create your account</h2>
-          <p className="text-gray-600">
+          <h2 className="text-h1 text-neutral-900 mb-2">Create your account</h2>
+          <p className="text-body text-neutral-600">
             Start reconciling your ledgers in minutes
           </p>
         </div>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="bg-white py-8 px-4 shadow-md rounded-md sm:px-10">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Company Name Field */}
             <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="companyName" className="block text-sm font-medium text-neutral-700">
                 Company name
               </label>
               <div className="mt-1">
@@ -145,16 +149,16 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
                   type="text"
                   autoComplete="organization"
                   required
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    errors.companyName ? 'border-red-300' : 'border-gray-300'
-                  } rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
+                  className={`input w-full ${
+                    errors.companyName ? 'error' : ''
+                  }`}
                   placeholder="Enter your company name"
                   value={formData.companyName}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
                 {errors.companyName && (
-                  <p className="mt-2 text-sm text-red-600" role="alert">
+                  <p className="mt-2 text-small text-error" role="alert">
                     {errors.companyName}
                   </p>
                 )}
@@ -163,7 +167,7 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
 
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="block text-sm font-medium text-neutral-700">
                 Work email
               </label>
               <div className="mt-1">
@@ -173,20 +177,20 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
                   type="email"
                   autoComplete="email"
                   required
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    errors.email ? 'border-red-300' : 'border-gray-300'
-                  } rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
+                  className={`input w-full ${
+                    errors.email ? 'error' : ''
+                  }`}
                   placeholder="Enter your work email"
                   value={formData.email}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
                 {errors.email && (
-                  <p className="mt-2 text-sm text-red-600" role="alert">
+                  <p className="mt-2 text-small text-error" role="alert">
                     {errors.email}
                   </p>
                 )}
-                <p className="mt-2 text-sm text-gray-500">
+                <p className="mt-2 text-small text-neutral-400">
                   We'll use this to send you account updates and reconciliation reports
                 </p>
               </div>
@@ -194,7 +198,7 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-neutral-700">
                 Password
               </label>
               <div className="mt-1">
@@ -204,33 +208,33 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
                   type="password"
                   autoComplete="new-password"
                   required
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    errors.password ? 'border-red-300' : 'border-gray-300'
-                  } rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
+                  className={`input w-full ${
+                    errors.password ? 'error' : ''
+                  }`}
                   placeholder="Create a secure password"
                   value={formData.password}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
                 {errors.password && (
-                  <p className="mt-2 text-sm text-red-600" role="alert">
+                  <p className="mt-2 text-small text-error" role="alert">
                     {errors.password}
                   </p>
                 )}
                 <div className="mt-2 space-y-1">
                   <div className="flex items-center space-x-2 text-sm">
                     <div className={`w-2 h-2 rounded-full ${
-                      formData.password.length >= 8 ? 'bg-green-500' : 'bg-gray-300'
+                      formData.password.length >= 8 ? 'bg-success' : 'bg-neutral-200'
                     }`}></div>
-                    <span className={formData.password.length >= 8 ? 'text-green-600' : 'text-gray-400'}>
+                    <span className={formData.password.length >= 8 ? 'text-success' : 'text-neutral-400'}>
                       At least 8 characters
                     </span>
                   </div>
                   <div className="flex items-center space-x-2 text-sm">
                     <div className={`w-2 h-2 rounded-full ${
-                      /(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password) ? 'bg-green-500' : 'bg-gray-300'
+                      /(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password) ? 'bg-success' : 'bg-neutral-200'
                     }`}></div>
-                    <span className={/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password) ? 'text-green-600' : 'text-gray-400'}>
+                    <span className={/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password) ? 'text-success' : 'text-neutral-400'}>
                       Uppercase, lowercase, and number
                     </span>
                   </div>
@@ -240,7 +244,7 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
 
             {/* Confirm Password Field */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-neutral-700">
                 Confirm password
               </label>
               <div className="mt-1">
@@ -250,16 +254,16 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
                   type="password"
                   autoComplete="new-password"
                   required
-                  className={`appearance-none block w-full px-3 py-2 border ${
-                    errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
-                  } rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
+                  className={`input w-full ${
+                    errors.confirmPassword ? 'error' : ''
+                  }`}
                   placeholder="Confirm your password"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   disabled={isLoading}
                 />
                 {errors.confirmPassword && (
-                  <p className="mt-2 text-sm text-red-600" role="alert">
+                  <p className="mt-2 text-small text-error" role="alert">
                     {errors.confirmPassword}
                   </p>
                 )}
@@ -268,22 +272,22 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
 
             {/* Submit Error */}
             {errors.submit && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <p className="text-sm text-red-600" role="alert">
+              <div className="bg-error-50 border border-error-200 rounded-md p-4">
+                <p className="text-sm text-error-600" role="alert">
                   {errors.submit}
                 </p>
               </div>
             )}
 
             {/* Terms Agreement */}
-            <div className="bg-gray-50 rounded-md p-4">
-              <p className="text-sm text-gray-600">
+            <div className="bg-neutral-50 rounded-md p-4">
+              <p className="text-small text-neutral-600">
                 By creating an account, you agree to our{' '}
-                <a href="/terms" className="font-medium text-blue-600 hover:text-blue-500">
+                <a href="/terms" className="font-medium text-primary-500 hover:text-primary-700">
                   Terms of Service
                 </a>{' '}
                 and{' '}
-                <a href="/privacy" className="font-medium text-blue-600 hover:text-blue-500">
+                <a href="/privacy" className="font-medium text-primary-500 hover:text-primary-700">
                   Privacy Policy
                 </a>
               </p>
@@ -294,10 +298,10 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
+                className="btn-primary w-full"
               >
                 {isLoading ? (
-                  <div className="flex items-center">
+                  <div className="flex items-center justify-center">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                     Creating account...
                   </div>
@@ -310,11 +314,11 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
 
           <div className="mt-6">
             <div className="text-center">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-neutral-600">
                 Already have an account?{' '}
                 <button
                   type="button"
-                  className="font-medium text-blue-600 hover:text-blue-500"
+                  className="font-medium text-primary-500 hover:text-primary-700"
                   onClick={onSwitchToLogin}
                 >
                   Sign in here
@@ -328,36 +332,36 @@ const Register = ({ onSwitchToLogin, onBackToHome }) => {
         <div className="mt-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
             <div className="flex flex-col items-center space-y-2">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-8 h-8 bg-primary-100 rounded-md flex items-center justify-center">
+                <svg className="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">Fast Setup</p>
-                <p className="text-sm text-gray-400">Ready in minutes</p>
+                <p className="text-sm font-medium text-neutral-900">Fast Setup</p>
+                <p className="text-small text-neutral-400">Ready in minutes</p>
               </div>
             </div>
             <div className="flex flex-col items-center space-y-2">
-              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-8 h-8 bg-success-100 rounded-md flex items-center justify-center">
+                <svg className="w-4 h-4 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">Auto Match</p>
-                <p className="text-sm text-gray-400">AI-powered matching</p>
+                <p className="text-sm font-medium text-neutral-900">Auto Match</p>
+                <p className="text-small text-neutral-400">AI-powered matching</p>
               </div>
             </div>
             <div className="flex flex-col items-center space-y-2">
-              <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-8 h-8 bg-warning-100 rounded-md flex items-center justify-center">
+                <svg className="w-4 h-4 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">Secure</p>
-                <p className="text-sm text-gray-400">Bank-grade security</p>
+                <p className="text-sm font-medium text-neutral-900">Secure</p>
+                <p className="text-small text-neutral-400">Bank-grade security</p>
               </div>
             </div>
           </div>
