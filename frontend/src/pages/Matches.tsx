@@ -50,15 +50,19 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
    */
   useEffect(() => {
     const checkXeroConnection = async () => {
+      console.log('🔍 Checking Xero connection...');
       if (!isLoggedIn) {
+        console.log('❌ User not logged in, skipping Xero check');
         setCheckingXero(false);
         return;
       }
 
       try {
         const connections = await xeroService.getConnections();
+        console.log('✅ Xero connections found:', connections.length);
         setIsXeroConnected(connections.length > 0);
       } catch (error) {
+        console.error('❌ Error checking Xero connection:', error);
         setIsXeroConnected(false);
       } finally {
         setCheckingXero(false);
@@ -149,17 +153,27 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
    * Handle Xero button click
    */
   const handleXeroClick = () => {
+    console.log('🎯 Xero button clicked!');
+    console.log('   isXeroConnected:', isXeroConnected);
+    console.log('   checkingXero:', checkingXero);
+    console.log('   showXeroModal:', showXeroModal);
+    
     if (!isXeroConnected) {
+      console.log('⚠️ Xero not connected, showing warning toast');
       showToast('Please connect to Xero first from the Connections page', 'warning');
       return;
     }
+    
+    console.log('✅ Opening Xero modal...');
     setShowXeroModal(true);
+    console.log('   showXeroModal state should now be true');
   };
 
   /**
    * Handle Xero data selection
    */
   const handleXeroDataSelected = (data: { invoices: TransactionRecord[]; customerName: string; invoiceCount: number }) => {
+    console.log('📊 Xero data selected:', data.customerName, data.invoiceCount, 'invoices');
     setXeroData({
       invoices: data.invoices,
       customerName: data.customerName
@@ -178,6 +192,11 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
     setXeroData(null);
     showToast('Xero data cleared', 'info');
   };
+
+  // Debug log for modal state changes
+  useEffect(() => {
+    console.log('🔄 showXeroModal changed to:', showXeroModal);
+  }, [showXeroModal]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -448,13 +467,18 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
       )}
 
       {/* Xero Data Selection Modal */}
+      {console.log('🎨 Rendering Modal with isOpen:', showXeroModal)}
       <Modal
         isOpen={showXeroModal}
-        onClose={() => setShowXeroModal(false)}
+        onClose={() => {
+          console.log('🚪 Modal onClose called');
+          setShowXeroModal(false);
+        }}
         title="Select Xero Customer"
         description="Choose a customer to load their invoice data for matching"
         size="lg"
       >
+        {console.log('📋 Modal children rendering...')}
         <XeroDataSelector
           onDataSelected={handleXeroDataSelected}
           onError={(error) => {
