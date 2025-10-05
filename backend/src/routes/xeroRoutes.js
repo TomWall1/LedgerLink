@@ -14,7 +14,7 @@ const getXeroClient = () => {
   return new XeroClient({
     clientId: process.env.XERO_CLIENT_ID,
     clientSecret: process.env.XERO_CLIENT_SECRET,
-    redirectUris: [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/api/xero/callback'],
+    redirectUris: [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.vercel.app/auth/xero/callback'],
     scopes: ['offline_access', 'accounting.transactions.read', 'accounting.contacts.read', 'accounting.settings.read'],
     state: crypto.randomBytes(20).toString('hex'),
     httpTimeout: 30000
@@ -32,8 +32,8 @@ router.get('/connections', async (req, res) => {
     
     if (!tokens) {
       return res.json({
-        connections: [],
-        isAuthenticated: false
+        success: true,
+        data: []
       });
     }
     
@@ -45,24 +45,25 @@ router.get('/connections', async (req, res) => {
     const tenants = await xero.updateTenants();
     
     const connections = tenants.map(tenant => ({
-      id: tenant.tenantId,
-      name: tenant.tenantName,
-      type: tenant.tenantType,
-      status: 'connected',
-      createdAt: tenant.createdDateUtc
+      _id: tenant.tenantId,
+      tenantId: tenant.tenantId,
+      tenantName: tenant.tenantName,
+      tenantType: tenant.tenantType,
+      status: 'active',
+      lastSyncAt: new Date().toISOString(),
+      lastSyncStatus: 'success'
     }));
     
     res.json({
-      connections,
-      isAuthenticated: true,
-      companyId
+      success: true,
+      data: connections
     });
   } catch (error) {
     console.error('Error fetching Xero connections:', error);
     res.status(500).json({
-      error: 'Failed to fetch connections',
-      details: error.message,
-      connections: []
+      success: false,
+      message: 'Failed to fetch connections',
+      error: error.message
     });
   }
 });
@@ -86,16 +87,20 @@ router.get('/auth', async (req, res) => {
     // Build the consent URL
     const consentUrl = await xero.buildConsentUrl();
     
-    // Return the consent URL for frontend to redirect
+    // Return the consent URL for frontend to redirect - wrapped in success/data format
     res.json({
-      authUrl: consentUrl,
-      state
+      success: true,
+      data: {
+        authUrl: consentUrl,
+        state
+      }
     });
   } catch (error) {
     console.error('Error generating consent URL:', error);
     res.status(500).json({ 
-      error: 'Failed to start Xero connection',
-      details: error.message 
+      success: false,
+      message: 'Failed to start Xero connection',
+      error: error.message 
     });
   }
 });
