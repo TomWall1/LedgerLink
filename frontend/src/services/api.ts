@@ -14,12 +14,12 @@ const getApiUrl = (): string => {
   
   // Production environment detection
   if (process.env.NODE_ENV === 'production') {
-    // Use your production backend URL
-    return 'https://ledgerlink.onrender.com/api';
+    // Use your production backend URL with trailing slash
+    return 'https://ledgerlink.onrender.com/api/';
   }
   
-  // Development fallback
-  return 'http://localhost:3002/api';
+  // Development fallback with trailing slash
+  return 'http://localhost:3002/api/';
 };
 
 // Create base API client
