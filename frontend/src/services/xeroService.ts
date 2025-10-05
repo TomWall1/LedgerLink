@@ -74,7 +74,7 @@ class XeroService {
    */
   async initiateConnection(companyId: string): Promise<{ authUrl: string; state: string }> {
     try {
-      const response = await apiClient.get(`/xero/auth`, {
+      const response = await apiClient.get(`xero/auth`, {
         params: { companyId }
       });
       
@@ -97,7 +97,7 @@ class XeroService {
       const params: any = {};
       if (companyId) params.companyId = companyId;
       
-      const response = await apiClient.get('/xero/connections', { params });
+      const response = await apiClient.get('xero/connections', { params });
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch Xero connections');
@@ -115,7 +115,7 @@ class XeroService {
    */
   async disconnectConnection(connectionId: string): Promise<void> {
     try {
-      const response = await apiClient.delete(`/xero/connections/${connectionId}`);
+      const response = await apiClient.delete(`xero/connections/${connectionId}`);
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to disconnect Xero');
@@ -131,7 +131,7 @@ class XeroService {
    */
   async checkConnectionHealth(connectionId: string): Promise<XeroConnectionHealth> {
     try {
-      const response = await apiClient.get(`/xero/health/${connectionId}`);
+      const response = await apiClient.get(`xero/health/${connectionId}`);
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to check connection health');
@@ -156,7 +156,7 @@ class XeroService {
     status?: string;
   }): Promise<{ invoices: XeroInvoice[]; pagination: any }> {
     try {
-      const response = await apiClient.get('/xero/invoices', {
+      const response = await apiClient.get('xero/invoices', {
         params: {
           page: 1,
           limit: 100,
@@ -184,7 +184,7 @@ class XeroService {
     limit?: number;
   }): Promise<{ contacts: XeroContact[]; pagination: any }> {
     try {
-      const response = await apiClient.get('/xero/contacts', {
+      const response = await apiClient.get('xero/contacts', {
         params: {
           page: 1,
           limit: 100,
@@ -208,7 +208,7 @@ class XeroService {
    */
   async syncConnection(connectionId: string): Promise<{ lastSyncAt: string; status: string }> {
     try {
-      const response = await apiClient.post('/xero/sync', {
+      const response = await apiClient.post('xero/sync', {
         connectionId
       });
       
