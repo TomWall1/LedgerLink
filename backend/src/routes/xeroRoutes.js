@@ -14,9 +14,8 @@ const getXeroClient = () => {
   return new XeroClient({
     clientId: process.env.XERO_CLIENT_ID,
     clientSecret: process.env.XERO_CLIENT_SECRET,
-    redirectUris: [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.vercel.app/auth/xero/callback'],
+    redirectUris: [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/api/xero/callback'],
     scopes: ['offline_access', 'accounting.transactions.read', 'accounting.contacts.read', 'accounting.settings.read'],
-    state: crypto.randomBytes(20).toString('hex'),
     httpTimeout: 30000
   });
 };
@@ -74,25 +73,18 @@ router.get('/auth', async (req, res) => {
     const { companyId } = req.query;
     console.log('GET /api/xero/auth - Initiating OAuth for companyId:', companyId);
     
-    // Generate a new state value for security
-    const state = crypto.randomBytes(20).toString('hex');
-    
-    // Store companyId in state if needed
-    const stateData = JSON.stringify({ state, companyId });
-    
-    // Create a new Xero client with the generated state
+    // Create a Xero client
     const xero = getXeroClient();
-    xero.config.state = state;
     
-    // Build the consent URL
+    // Build the consent URL (this will generate and set the state internally)
     const consentUrl = await xero.buildConsentUrl();
     
-    // Return the consent URL for frontend to redirect - wrapped in success/data format
+    // Return the consent URL for frontend to redirect
     res.json({
       success: true,
       data: {
         authUrl: consentUrl,
-        state
+        state: xero.config.state
       }
     });
   } catch (error) {
@@ -149,12 +141,8 @@ router.get('/status', async (req, res) => {
 // Connect endpoint (redirects to OAuth)
 router.get('/connect', async (req, res) => {
   try {
-    // Generate a new state value for security
-    const state = crypto.randomBytes(20).toString('hex');
-    
-    // Create a new Xero client with the generated state
+    // Create a Xero client
     const xero = getXeroClient();
-    xero.config.state = state;
     
     // Build the consent URL
     const consentUrl = await xero.buildConsentUrl();
@@ -179,7 +167,7 @@ router.get('/callback', async (req, res) => {
       throw new Error('No authorization code received');
     }
     
-    // Create a new Xero client
+    // Create a Xero client
     const xero = getXeroClient();
     
     // Exchange the authorization code for tokens
