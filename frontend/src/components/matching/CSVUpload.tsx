@@ -4,6 +4,8 @@
  * This component provides a modern drag-and-drop interface for uploading
  * CSV files and running the matching algorithm. It's like a digital inbox
  * that's smart enough to validate and preview your files before processing.
+ * 
+ * Now supports mixing Xero data with CSV uploads for flexible matching.
  */
 
 import React, { useState, useRef, useCallback } from 'react';
@@ -11,12 +13,14 @@ import { Button } from '../ui/Button';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import matchingService from '../../services/matchingService';
-import { DateFormat, MatchingResults, UploadStatus } from '../../types/matching';
+import { DateFormat, MatchingResults, UploadStatus, TransactionRecord } from '../../types/matching';
 
 interface CSVUploadProps {
   onMatchingComplete: (results: MatchingResults) => void;
   onError: (error: string) => void;
   disabled?: boolean;
+  xeroData?: TransactionRecord[];
+  xeroCustomerName?: string;
 }
 
 interface FileWithPreview {
@@ -40,7 +44,9 @@ const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string; example: string }
 export const CSVUpload: React.FC<CSVUploadProps> = ({
   onMatchingComplete,
   onError,
-  disabled = false
+  disabled = false,
+  xeroData,
+  xeroCustomerName
 }) => {
   // State management for the component
   const [company1File, setCompany1File] = useState<FileWithPreview | null>(null);
@@ -56,6 +62,9 @@ export const CSVUpload: React.FC<CSVUploadProps> = ({
   // Refs for file inputs
   const file1InputRef = useRef<HTMLInputElement>(null);
   const file2InputRef = useRef<HTMLInputElement>(null);
+
+  // Determine if we're using Xero data
+  const hasXeroData = !!xeroData && xeroData.length > 0;
 
   /**
    * Validate and process a selected file
@@ -152,26 +161,47 @@ export const CSVUpload: React.FC<CSVUploadProps> = ({
    * Process the matching operation
    */
   const handleRunMatching = useCallback(async () => {
-    if (!company1File?.file || !company2File?.file) {
-      onError('Please select both CSV files');
+    // Check if we have the required data
+    const hasCompany1Data = hasXeroData || company1File?.file;
+    const hasCompany2Data = company2File?.file;
+
+    if (!hasCompany1Data || !hasCompany2Data) {
+      onError('Please select data for both companies');
       return;
     }
 
-    if (company1File.error || company2File.error) {
+    if (company1File?.error || company2File?.error) {
       onError('Please fix file errors before proceeding');
       return;
     }
 
-    setUploadStatus({ isUploading: true, message: 'Uploading files and running matching...' });
+    setUploadStatus({ isUploading: true, message: 'Running matching algorithm...' });
 
     try {
-      const results = await matchingService.uploadAndMatch(
-        company1File.file,
-        company2File.file,
-        dateFormat1,
-        dateFormat2,
-        notes || undefined
-      );
+      let results: MatchingResults;
+
+      if (hasXeroData) {
+        // Matching with Xero data + CSV
+        results = await matchingService.matchFromERP(
+          xeroData!,
+          [] as TransactionRecord[], // Will be populated by backend from CSV
+          {
+            dateFormat2: dateFormat2,
+            sourceType1: 'xero',
+            sourceType2: 'csv',
+            notes: notes || undefined
+          }
+        );
+      } else {
+        // Traditional CSV-to-CSV matching
+        results = await matchingService.uploadAndMatch(
+          company1File!.file,
+          company2File!.file,
+          dateFormat1,
+          dateFormat2,
+          notes || undefined
+        );
+      }
 
       setUploadStatus({ isUploading: false });
       onMatchingComplete(results);
@@ -185,9 +215,9 @@ export const CSVUpload: React.FC<CSVUploadProps> = ({
       
     } catch (error) {
       setUploadStatus({ isUploading: false });
-      onError(error instanceof Error ? error.message : 'Upload failed');
+      onError(error instanceof Error ? error.message : 'Matching failed');
     }
-  }, [company1File, company2File, dateFormat1, dateFormat2, notes, onMatchingComplete, onError]);
+  }, [hasXeroData, xeroData, company1File, company2File, dateFormat1, dateFormat2, notes, onMatchingComplete, onError]);
 
   /**
    * Render file upload area
@@ -325,23 +355,28 @@ export const CSVUpload: React.FC<CSVUploadProps> = ({
     );
   };
 
-  const canRunMatching = company1File?.file && company2File?.file && 
-                        !company1File.error && !company2File.error && 
+  const canRunMatching = (hasXeroData || (company1File?.file && !company1File.error)) && 
+                        (company2File?.file && !company2File.error) && 
                         !uploadStatus.isUploading;
 
   return (
     <Card>
       <CardHeader>
-        <h2 className="text-xl font-semibold text-neutral-900">CSV Upload & Matching</h2>
+        <h2 className="text-xl font-semibold text-neutral-900">
+          {hasXeroData ? 'Upload Counterparty CSV' : 'CSV Upload & Matching'}
+        </h2>
         <p className="text-neutral-600">
-          Upload CSV files from both companies to find matches and discrepancies
+          {hasXeroData 
+            ? `Upload a CSV file to match against ${xeroCustomerName || 'Xero data'}`
+            : 'Upload CSV files from both companies to find matches and discrepancies'
+          }
         </p>
       </CardHeader>
       
       <CardContent className="space-y-6">
         {/* File Upload Areas */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderFileUploadArea(
+          {!hasXeroData && renderFileUploadArea(
             'company1',
             'Company 1 CSV (Your Records)',
             company1File,
@@ -351,7 +386,7 @@ export const CSVUpload: React.FC<CSVUploadProps> = ({
           
           {renderFileUploadArea(
             'company2',
-            'Company 2 CSV (Counterparty Records)',
+            hasXeroData ? 'Counterparty CSV' : 'Company 2 CSV (Counterparty Records)',
             company2File,
             setCompany2File,
             file2InputRef
@@ -359,28 +394,30 @@ export const CSVUpload: React.FC<CSVUploadProps> = ({
         </div>
 
         {/* Date Format Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Company 1 Date Format
-            </label>
-            <select
-              value={dateFormat1}
-              onChange={(e) => setDateFormat1(e.target.value as DateFormat)}
-              className="input w-full"
-              disabled={disabled || uploadStatus.isUploading}
-            >
-              {DATE_FORMAT_OPTIONS.map((format) => (
-                <option key={format.value} value={format.value}>
-                  {format.label} (e.g., {format.example})
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className={`grid grid-cols-1 ${hasXeroData ? 'md:grid-cols-1' : 'md:grid-cols-2'} gap-6`}>
+          {!hasXeroData && (
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Company 1 Date Format
+              </label>
+              <select
+                value={dateFormat1}
+                onChange={(e) => setDateFormat1(e.target.value as DateFormat)}
+                className="input w-full"
+                disabled={disabled || uploadStatus.isUploading}
+              >
+                {DATE_FORMAT_OPTIONS.map((format) => (
+                  <option key={format.value} value={format.value}>
+                    {format.label} (e.g., {format.example})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Company 2 Date Format
+              {hasXeroData ? 'CSV Date Format' : 'Company 2 Date Format'}
             </label>
             <select
               value={dateFormat2}
@@ -421,8 +458,9 @@ export const CSVUpload: React.FC<CSVUploadProps> = ({
               </div>
             ) : (
               <span>
-                Files ready: {(company1File?.file && company2File?.file) ? '✓' : 
-                            `${(company1File?.file ? 1 : 0) + (company2File?.file ? 1 : 0)}/2`}
+                Data ready: {canRunMatching ? '✓' : 
+                           hasXeroData ? (company2File?.file ? '✓' : '0/1') : 
+                           `${(company1File?.file ? 1 : 0) + (company2File?.file ? 1 : 0)}/2`}
               </span>
             )}
           </div>
@@ -447,13 +485,16 @@ export const CSVUpload: React.FC<CSVUploadProps> = ({
 
         {/* Help Text */}
         <div className="bg-blue-50 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-blue-900 mb-2">CSV Format Tips</h4>
+          <h4 className="text-sm font-medium text-blue-900 mb-2">
+            {hasXeroData ? 'CSV Requirements' : 'CSV Format Tips'}
+          </h4>
           <ul className="text-sm text-blue-800 space-y-1">
             <li>• Include headers in the first row</li>
             <li>• Required columns: transaction_number, amount, date</li>
             <li>• Optional columns: due_date, status, reference, vendor</li>
             <li>• Maximum file size: 10MB per file</li>
             <li>• Use consistent date formats within each file</li>
+            {hasXeroData && <li>• Xero data will be automatically matched against your CSV</li>}
           </ul>
         </div>
       </CardContent>
