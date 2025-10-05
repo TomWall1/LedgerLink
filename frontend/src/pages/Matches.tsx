@@ -10,11 +10,14 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Toast } from '../components/ui/Toast';
+import { Modal } from '../components/ui/Modal';
 import CSVUpload from '../components/matching/CSVUpload';
 import MatchingResultsDisplay from '../components/matching/MatchingResults';
 import MatchingStats from '../components/matching/MatchingStats';
-import { MatchingResults } from '../types/matching';
+import XeroDataSelector from '../components/xero/XeroDataSelector';
+import { MatchingResults, TransactionRecord } from '../types/matching';
 import matchingService from '../services/matchingService';
+import { xeroService } from '../services/xeroService';
 
 interface MatchesProps {
   isLoggedIn: boolean;
@@ -32,6 +35,38 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
     type: 'success' | 'error' | 'warning' | 'info';
   } | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
+  // Xero integration state
+  const [isXeroConnected, setIsXeroConnected] = useState(false);
+  const [checkingXero, setCheckingXero] = useState(true);
+  const [showXeroModal, setShowXeroModal] = useState(false);
+  const [xeroData, setXeroData] = useState<{
+    invoices: TransactionRecord[];
+    customerName: string;
+  } | null>(null);
+
+  /**
+   * Check if Xero is connected
+   */
+  useEffect(() => {
+    const checkXeroConnection = async () => {
+      if (!isLoggedIn) {
+        setCheckingXero(false);
+        return;
+      }
+
+      try {
+        const connections = await xeroService.getConnections();
+        setIsXeroConnected(connections.length > 0);
+      } catch (error) {
+        setIsXeroConnected(false);
+      } finally {
+        setCheckingXero(false);
+      }
+    };
+
+    checkXeroConnection();
+  }, [isLoggedIn]);
 
   /**
    * Show toast notification
@@ -66,6 +101,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   const handleStartNew = () => {
     setCurrentResults(null);
     setSelectedHistoryId(null);
+    setXeroData(null);
     setViewMode('upload');
   };
 
@@ -107,6 +143,40 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         'error'
       );
     }
+  };
+
+  /**
+   * Handle Xero button click
+   */
+  const handleXeroClick = () => {
+    if (!isXeroConnected) {
+      showToast('Please connect to Xero first from the Connections page', 'warning');
+      return;
+    }
+    setShowXeroModal(true);
+  };
+
+  /**
+   * Handle Xero data selection
+   */
+  const handleXeroDataSelected = (data: { invoices: TransactionRecord[]; customerName: string; invoiceCount: number }) => {
+    setXeroData({
+      invoices: data.invoices,
+      customerName: data.customerName
+    });
+    setShowXeroModal(false);
+    showToast(
+      `Loaded ${data.invoiceCount} invoice${data.invoiceCount !== 1 ? 's' : ''} from Xero for ${data.customerName}`,
+      'success'
+    );
+  };
+
+  /**
+   * Clear Xero data
+   */
+  const handleClearXeroData = () => {
+    setXeroData(null);
+    showToast('Xero data cleared', 'info');
   };
 
   return (
@@ -177,12 +247,52 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         {/* Upload Mode */}
         {viewMode === 'upload' && (
           <div className="space-y-6">
+            {/* Show Xero data if loaded */}
+            {xeroData && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-xl font-semibold text-neutral-900">Xero Data Loaded</h2>
+                      <p className="text-neutral-600">
+                        {xeroData.invoices.length} invoice{xeroData.invoices.length !== 1 ? 's' : ''} from {xeroData.customerName}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearXeroData}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <svg className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-primary-900">Data Source 1: Xero</p>
+                        <p className="text-sm text-primary-700 mt-1">
+                          Upload a CSV file for Data Source 2 to begin matching, or select another Xero customer.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <CSVUpload
               onMatchingComplete={handleMatchingComplete}
               onError={handleMatchingError}
+              xeroData={xeroData?.invoices}
+              xeroCustomerName={xeroData?.customerName}
             />
 
-            {/* ERP Integration Placeholder */}
+            {/* ERP Integration */}
             {isLoggedIn && (
               <Card>
                 <CardHeader>
@@ -193,19 +303,33 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300">
+                    <Button 
+                      variant="ghost" 
+                      className={`h-20 border-2 ${isXeroConnected ? 'border-primary-300 bg-primary-50' : 'border-dashed border-neutral-300'}`}
+                      onClick={handleXeroClick}
+                      disabled={checkingXero}
+                    >
                       <div className="text-center">
-                        <div className="text-lg font-medium">Xero</div>
-                        <div className="text-sm text-neutral-600">Connected</div>
+                        <div className="text-lg font-medium flex items-center justify-center">
+                          {isXeroConnected && (
+                            <svg className="w-5 h-5 text-success-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          Xero
+                        </div>
+                        <div className="text-sm text-neutral-600">
+                          {checkingXero ? 'Checking...' : isXeroConnected ? 'Click to Select Data' : 'Not Connected'}
+                        </div>
                       </div>
                     </Button>
-                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300">
+                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300" disabled>
                       <div className="text-center">
                         <div className="text-lg font-medium">QuickBooks</div>
                         <div className="text-sm text-neutral-600">Coming Soon</div>
                       </div>
                     </Button>
-                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300">
+                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300" disabled>
                       <div className="text-center">
                         <div className="text-lg font-medium">SAP</div>
                         <div className="text-sm text-neutral-600">Coming Soon</div>
@@ -282,9 +406,9 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                 </div>
-                <h3 className="font-semibold text-neutral-900 mb-2">1. Upload Files</h3>
+                <h3 className="font-semibold text-neutral-900 mb-2">1. Select Data Sources</h3>
                 <p className="text-sm text-neutral-600">
-                  Upload CSV files from both companies containing invoice/transaction data
+                  Upload CSV files or connect to Xero to import invoice data
                 </p>
               </div>
 
@@ -314,15 +438,30 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
             </div>
 
             <div className="bg-blue-50 rounded-lg p-4 mt-6">
-              <h4 className="font-medium text-blue-900 mb-2">Supported File Formats</h4>
+              <h4 className="font-medium text-blue-900 mb-2">Supported Data Sources</h4>
               <p className="text-sm text-blue-800">
-                CSV files with transaction_number, amount, and date columns. 
-                Optional: due_date, status, reference, vendor, description fields.
+                CSV files with transaction_number, amount, and date columns, or connect directly to Xero for automatic data import.
               </p>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Xero Data Selection Modal */}
+      <Modal
+        isOpen={showXeroModal}
+        onClose={() => setShowXeroModal(false)}
+        title="Select Xero Customer"
+        description="Choose a customer to load their invoice data for matching"
+        size="lg"
+      >
+        <XeroDataSelector
+          onDataSelected={handleXeroDataSelected}
+          onError={(error) => {
+            showToast(error, 'error');
+          }}
+        />
+      </Modal>
 
       {/* Toast Notifications */}
       {toast && (
