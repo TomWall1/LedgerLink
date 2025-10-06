@@ -400,21 +400,65 @@ router.get('/customers', async (req, res) => {
     const firstTenant = tenants[0];
     console.log('   Using tenant:', firstTenant.tenantName, firstTenant.tenantId);
     
-    // Get contacts
-    console.log('   Calling Xero API to get contacts...');
-    const contactsResponse = await xero.accountingApi.getContacts(firstTenant.tenantId);
+    // Get contacts with more parameters to see what we get
+    console.log('   Calling Xero API to get contacts with parameters...');
+    const contactsResponse = await xero.accountingApi.getContacts(
+      firstTenant.tenantId,
+      undefined, // ifModifiedSince
+      undefined, // where
+      undefined, // order
+      undefined, // IDs
+      undefined, // page
+      undefined, // includeArchived - try getting archived too
+      undefined, // summaryOnly
+      undefined  // searchTerm
+    );
+    
     console.log('   Contacts response received');
+    console.log('   Response status:', contactsResponse?.response?.statusCode);
+    console.log('   Response body keys:', contactsResponse?.body ? Object.keys(contactsResponse.body) : 'no body');
     
     // Safely access contacts
-    const allContacts = contactsResponse?.body?.Contacts || [];
+    const allContacts = contactsResponse?.body?.contacts || contactsResponse?.body?.Contacts || [];
     console.log('   Total contacts:', allContacts.length);
     
-    // Filter for customers (contacts with IsCustomer=true or ContactStatus=ACTIVE)
-    const customers = allContacts.filter(contact => 
-      contact.IsCustomer === true || 
-      (contact.ContactStatus === 'ACTIVE' && !contact.IsSupplier)
-    );
-    console.log('   Customer contacts:', customers.length);
+    // Log first contact if any exist (to see structure)
+    if (allContacts.length > 0) {
+      console.log('   First contact sample:', JSON.stringify({
+        ContactID: allContacts[0].ContactID,
+        Name: allContacts[0].Name,
+        IsCustomer: allContacts[0].IsCustomer,
+        IsSupplier: allContacts[0].IsSupplier,
+        ContactStatus: allContacts[0].ContactStatus
+      }, null, 2));
+    }
+    
+    // Try different filtering strategies
+    let customers = [];
+    
+    // Strategy 1: IsCustomer === true
+    customers = allContacts.filter(contact => contact.IsCustomer === true);
+    console.log('   Strategy 1 (IsCustomer===true):', customers.length);
+    
+    // Strategy 2: If no results, try ContactStatus ACTIVE and not IsSupplier
+    if (customers.length === 0) {
+      customers = allContacts.filter(contact => 
+        contact.ContactStatus === 'ACTIVE' && !contact.IsSupplier
+      );
+      console.log('   Strategy 2 (ACTIVE && !IsSupplier):', customers.length);
+    }
+    
+    // Strategy 3: If still no results, just return all ACTIVE contacts
+    if (customers.length === 0) {
+      customers = allContacts.filter(contact => contact.ContactStatus === 'ACTIVE');
+      console.log('   Strategy 3 (ACTIVE only):', customers.length);
+    }
+    
+    // Strategy 4: If STILL no results, return ALL contacts
+    if (customers.length === 0 && allContacts.length > 0) {
+      customers = allContacts;
+      console.log('   Strategy 4 (ALL contacts):', customers.length);
+    }
     
     res.json({
       success: true,
