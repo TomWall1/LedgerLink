@@ -422,15 +422,10 @@ router.get('/customers', async (req, res) => {
     const allContacts = contactsResponse?.body?.contacts || contactsResponse?.body?.Contacts || [];
     console.log('   Total contacts:', allContacts.length);
     
-    // Log first contact if any exist (to see structure)
+    // Log FULL first contact to see what Xero is actually returning
     if (allContacts.length > 0) {
-      console.log('   First contact sample:', JSON.stringify({
-        ContactID: allContacts[0].ContactID,
-        Name: allContacts[0].Name,
-        IsCustomer: allContacts[0].IsCustomer,
-        IsSupplier: allContacts[0].IsSupplier,
-        ContactStatus: allContacts[0].ContactStatus
-      }, null, 2));
+      console.log('   First contact sample (FULL OBJECT):', JSON.stringify(allContacts[0], null, 2));
+      console.log('   First contact keys:', Object.keys(allContacts[0]));
     }
     
     // Try different filtering strategies
