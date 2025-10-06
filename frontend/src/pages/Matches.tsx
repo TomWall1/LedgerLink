@@ -18,6 +18,7 @@ import XeroDataSelector from '../components/xero/XeroDataSelector';
 import { MatchingResults, TransactionRecord } from '../types/matching';
 import matchingService from '../services/matchingService';
 import { xeroService } from '../services/xeroService';
+import { downloadCSVTemplate, getTemplateInfo } from '../utils/csvTemplate';
 
 interface MatchesProps {
   isLoggedIn: boolean;
@@ -35,6 +36,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
     type: 'success' | 'error' | 'warning' | 'info';
   } | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showTemplateInfo, setShowTemplateInfo] = useState(false);
   
   // Xero integration state
   const [isXeroConnected, setIsXeroConnected] = useState(false);
@@ -150,6 +152,18 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   };
 
   /**
+   * Handle CSV template download
+   */
+  const handleDownloadTemplate = () => {
+    try {
+      downloadCSVTemplate();
+      showToast('CSV template downloaded successfully!', 'success');
+    } catch (error) {
+      showToast('Failed to download template', 'error');
+    }
+  };
+
+  /**
    * Handle Xero button click
    */
   const handleXeroClick = () => {
@@ -197,6 +211,9 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   useEffect(() => {
     console.log('🔄 showXeroModal changed to:', showXeroModal);
   }, [showXeroModal]);
+
+  // Get template info for display
+  const templateInfo = getTemplateInfo();
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -266,6 +283,78 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         {/* Upload Mode */}
         {viewMode === 'upload' && (
           <div className="space-y-6">
+            {/* CSV Template Download Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-neutral-900">CSV Template</h2>
+                    <p className="text-neutral-600">
+                      Download our template to ensure your data is formatted correctly
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={handleDownloadTemplate}
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download Template
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-neutral-50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-start space-x-3">
+                    <svg className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-neutral-900 mb-2">Required Columns:</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        {templateInfo.columns.filter(col => col.required).map(col => (
+                          <div key={col.name} className="flex items-start space-x-2">
+                            <svg className="w-4 h-4 text-success-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <div>
+                              <span className="font-medium text-neutral-900">{col.name}</span>
+                              <span className="text-neutral-600"> - {col.description}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setShowTemplateInfo(!showTemplateInfo)}
+                        className="text-sm text-primary-600 hover:text-primary-700 mt-3 font-medium"
+                      >
+                        {showTemplateInfo ? 'Hide' : 'Show'} optional columns
+                      </button>
+                      {showTemplateInfo && (
+                        <div className="mt-3 pt-3 border-t border-neutral-200">
+                          <p className="text-sm font-medium text-neutral-900 mb-2">Optional Columns:</p>
+                          <div className="space-y-2 text-sm">
+                            {templateInfo.columns.filter(col => !col.required).map(col => (
+                              <div key={col.name} className="flex items-start space-x-2">
+                                <svg className="w-4 h-4 text-neutral-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                <div>
+                                  <span className="font-medium text-neutral-900">{col.name}</span>
+                                  <span className="text-neutral-600"> - {col.description}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Show Xero data if loaded */}
             {xeroData && (
               <Card>
