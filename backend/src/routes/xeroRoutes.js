@@ -20,6 +20,43 @@ const getXeroClient = () => {
   });
 };
 
+// Helper function to make direct Xero API calls (more reliable than SDK)
+async function callXeroApi(url, accessToken, tenantId) {
+  try {
+    console.log('   Making direct API call to Xero:', url);
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Xero-tenant-id': tenantId,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const text = await response.text();
+    console.log(`   Response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      console.error('   API call failed:', {
+        status: response.status,
+        text: text.substring(0, 500)
+      });
+      throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      console.error('   Failed to parse response:', text.substring(0, 500));
+      throw new Error('Invalid JSON response from Xero');
+    }
+  } catch (error) {
+    console.error('   Error in callXeroApi:', error);
+    throw error;
+  }
+}
+
 // Get Xero connections for a company (frontend expects this)
 router.get('/connections', async (req, res) => {
   try {
@@ -360,7 +397,7 @@ router.get('/debug-auth', async (req, res) => {
   }
 });
 
-// Get Xero customers
+// Get Xero customers - NOW USING DIRECT API CALLS (more reliable)
 router.get('/customers', async (req, res) => {
   try {
     console.log('GET /api/xero/customers - Fetching customers from Xero...');
@@ -378,7 +415,7 @@ router.get('/customers', async (req, res) => {
       });
     }
     
-    // Create Xero client and set tokens
+    // Create Xero client to get tenants (still need SDK for this)
     const xero = getXeroClient();
     xero.setTokenSet(tokens);
     console.log('   Xero client created and tokens set');
@@ -400,71 +437,36 @@ router.get('/customers', async (req, res) => {
     const firstTenant = tenants[0];
     console.log('   Using tenant:', firstTenant.tenantName, firstTenant.tenantId);
     
-    // Get contacts with more parameters to see what we get
-    console.log('   Calling Xero API to get contacts with parameters...');
-    const contactsResponse = await xero.accountingApi.getContacts(
-      firstTenant.tenantId,
-      undefined, // ifModifiedSince
-      undefined, // where
-      undefined, // order
-      undefined, // IDs
-      undefined, // page
-      undefined, // includeArchived - try getting archived too
-      undefined, // summaryOnly
-      undefined  // searchTerm
+    // NOW USE DIRECT API CALL with where clause - this is the proven approach from Ledger-Match
+    console.log('   Calling Xero API directly with IsCustomer filter...');
+    const customersData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Contacts?where=IsCustomer==true',
+      tokens.access_token,
+      firstTenant.tenantId
     );
     
-    console.log('   Contacts response received');
-    console.log('   Response status:', contactsResponse?.response?.statusCode);
-    console.log('   Response body keys:', contactsResponse?.body ? Object.keys(contactsResponse.body) : 'no body');
+    console.log('   Response received');
+    const customers = customersData.Contacts || [];
+    console.log('   ✅ Total customers found:', customers.length);
     
-    // Safely access contacts
-    const allContacts = contactsResponse?.body?.contacts || contactsResponse?.body?.Contacts || [];
-    console.log('   Total contacts:', allContacts.length);
-    
-    // Log FULL first contact to see what Xero is actually returning
-    if (allContacts.length > 0) {
-      console.log('   First contact sample (FULL OBJECT):', JSON.stringify(allContacts[0], null, 2));
-      console.log('   First contact keys:', Object.keys(allContacts[0]));
-    }
-    
-    // Try different filtering strategies
-    let customers = [];
-    
-    // Strategy 1: IsCustomer === true
-    customers = allContacts.filter(contact => contact.IsCustomer === true);
-    console.log('   Strategy 1 (IsCustomer===true):', customers.length);
-    
-    // Strategy 2: If no results, try ContactStatus ACTIVE and not IsSupplier
-    if (customers.length === 0) {
-      customers = allContacts.filter(contact => 
-        contact.ContactStatus === 'ACTIVE' && !contact.IsSupplier
-      );
-      console.log('   Strategy 2 (ACTIVE && !IsSupplier):', customers.length);
-    }
-    
-    // Strategy 3: If still no results, just return all ACTIVE contacts
-    if (customers.length === 0) {
-      customers = allContacts.filter(contact => contact.ContactStatus === 'ACTIVE');
-      console.log('   Strategy 3 (ACTIVE only):', customers.length);
-    }
-    
-    // Strategy 4: If STILL no results, return ALL contacts
-    if (customers.length === 0 && allContacts.length > 0) {
-      customers = allContacts;
-      console.log('   Strategy 4 (ALL contacts):', customers.length);
+    // Log first customer for debugging
+    if (customers.length > 0) {
+      console.log('   First customer sample:', JSON.stringify({
+        ContactID: customers[0].ContactID,
+        Name: customers[0].Name,
+        ContactStatus: customers[0].ContactStatus
+      }, null, 2));
     }
     
     res.json({
       success: true,
-      customers: customers || []
+      customers: customers
     });
   } catch (error) {
     console.error('❌ Error fetching Xero customers:', error);
     console.error('   Error details:', {
       message: error.message,
-      stack: error.stack,
-      response: error.response?.data
+      stack: error.stack
     });
     
     // Return a friendly error instead of crashing
