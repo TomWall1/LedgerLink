@@ -363,46 +363,77 @@ router.get('/debug-auth', async (req, res) => {
 // Get Xero customers
 router.get('/customers', async (req, res) => {
   try {
+    console.log('GET /api/xero/customers - Fetching customers from Xero...');
+    
     // Get valid tokens
     const tokens = await tokenStore.getValidTokens();
+    console.log('   Tokens retrieved:', !!tokens);
     
     if (!tokens) {
+      console.log('   ❌ No valid tokens found');
       return res.status(401).json({
-        error: 'Not authenticated with Xero'
+        success: false,
+        error: 'Not authenticated with Xero',
+        customers: []
       });
     }
     
     // Create Xero client and set tokens
     const xero = getXeroClient();
     xero.setTokenSet(tokens);
+    console.log('   Xero client created and tokens set');
     
     // Get available tenant connections
     const tenants = await xero.updateTenants();
+    console.log('   Tenants found:', tenants ? tenants.length : 0);
     
     if (!tenants || tenants.length === 0) {
-      return res.status(400).json({
-        error: 'No Xero organizations found for this connection'
+      console.log('   ❌ No Xero organizations found');
+      return res.json({
+        success: false,
+        error: 'No Xero organizations found for this connection',
+        customers: []
       });
     }
     
     // Use the first tenant ID (most common scenario)
     const firstTenant = tenants[0];
+    console.log('   Using tenant:', firstTenant.tenantName, firstTenant.tenantId);
     
     // Get contacts
+    console.log('   Calling Xero API to get contacts...');
     const contactsResponse = await xero.accountingApi.getContacts(firstTenant.tenantId);
+    console.log('   Contacts response received');
     
-    // Filter for customers (contacts with IsCustomer=true)
-    const customers = contactsResponse.body.Contacts.filter(contact => contact.IsCustomer);
+    // Safely access contacts
+    const allContacts = contactsResponse?.body?.Contacts || [];
+    console.log('   Total contacts:', allContacts.length);
+    
+    // Filter for customers (contacts with IsCustomer=true or ContactStatus=ACTIVE)
+    const customers = allContacts.filter(contact => 
+      contact.IsCustomer === true || 
+      (contact.ContactStatus === 'ACTIVE' && !contact.IsSupplier)
+    );
+    console.log('   Customer contacts:', customers.length);
     
     res.json({
       success: true,
-      customers
+      customers: customers || []
     });
   } catch (error) {
-    console.error('Error fetching Xero customers:', error);
+    console.error('❌ Error fetching Xero customers:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data
+    });
+    
+    // Return a friendly error instead of crashing
     res.status(500).json({
+      success: false,
       error: 'Failed to fetch Xero customers',
-      details: error.message
+      details: error.message,
+      customers: []
     });
   }
 });
@@ -412,12 +443,14 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
   try {
     const { contactId } = req.params;
     const { includeHistory } = req.query;
+    console.log(`GET /api/xero/customers/${contactId}/invoices - includeHistory:`, includeHistory);
     
     // Get valid tokens
     const tokens = await tokenStore.getValidTokens();
     
     if (!tokens) {
       return res.status(401).json({
+        success: false,
         error: 'Not authenticated with Xero'
       });
     }
@@ -430,39 +463,47 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
     const tenants = await xero.updateTenants();
     
     if (!tenants || tenants.length === 0) {
-      return res.status(400).json({
-        error: 'No Xero organizations found for this connection'
+      return res.json({
+        success: false,
+        error: 'No Xero organizations found for this connection',
+        invoices: []
       });
     }
     
     // Use the first tenant ID
     const firstTenant = tenants[0];
+    console.log('   Using tenant:', firstTenant.tenantName);
     
     // Build the 'where' clause to filter invoices by contact ID
     const where = `Contact.ContactID=="${contactId}"`;
+    console.log('   Where clause:', where);
     
     // Get invoices for the contact
     const invoicesResponse = await xero.accountingApi.getInvoices(firstTenant.tenantId, undefined, where);
+    console.log('   Invoices found:', invoicesResponse?.body?.Invoices?.length || 0);
     
-    // Filter invoices if we're not including history
-    let invoices = invoicesResponse.body.Invoices;
+    // Safely access invoices
+    let invoices = invoicesResponse?.body?.Invoices || [];
     
     if (includeHistory !== 'true') {
       // Only include outstanding invoices
       invoices = invoices.filter(invoice => 
         invoice.Status !== 'PAID' && invoice.Status !== 'VOIDED'
       );
+      console.log('   Outstanding invoices:', invoices.length);
     }
     
     res.json({
       success: true,
-      invoices
+      invoices: invoices
     });
   } catch (error) {
-    console.error('Error fetching customer invoices:', error);
+    console.error('❌ Error fetching customer invoices:', error);
     res.status(500).json({
+      success: false,
       error: 'Failed to fetch customer invoices',
-      details: error.message
+      details: error.message,
+      invoices: []
     });
   }
 });
@@ -490,6 +531,7 @@ router.get('/test', (req, res) => {
       'connect': '/api/xero/connect',
       'callback': '/api/xero/callback',
       'disconnect': '/api/xero/disconnect',
+      'customers': '/api/xero/customers',
       'test': '/api/xero/test'
     }
   });
