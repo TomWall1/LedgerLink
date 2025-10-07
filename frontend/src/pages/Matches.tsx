@@ -1,20 +1,23 @@
 /**
- * Enhanced Matches Page
+ * Enhanced Matches Page with Step-by-Step Workflow
  * 
  * This is the main page for invoice matching functionality.
- * It integrates the CSV upload, results display, and statistics
- * components into a complete matching workflow.
+ * Now features a clear, progressive workflow for selecting data sources
+ * and performing matches.
  */
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Toast } from '../components/ui/Toast';
-import { Modal } from '../components/ui/Modal';
 import CSVUpload from '../components/matching/CSVUpload';
 import MatchingResultsDisplay from '../components/matching/MatchingResults';
 import MatchingStats from '../components/matching/MatchingStats';
-import XeroDataSelector from '../components/xero/XeroDataSelector';
+import LedgerTypeSelector from '../components/matching/workflow/LedgerTypeSelector';
+import DataSourceDropdown, { DataSourceType } from '../components/matching/workflow/DataSourceDropdown';
+import CustomerSelectorDropdown from '../components/matching/workflow/CustomerSelectorDropdown';
+import DataSourceSummary from '../components/matching/workflow/DataSourceSummary';
+import MatchReadyCard from '../components/matching/workflow/MatchReadyCard';
 import { MatchingResults, TransactionRecord } from '../types/matching';
 import matchingService from '../services/matchingService';
 import { xeroService } from '../services/xeroService';
@@ -25,6 +28,14 @@ interface MatchesProps {
 }
 
 type ViewMode = 'upload' | 'results' | 'history';
+
+interface LoadedDataSource {
+  type: 'xero' | 'csv';
+  invoices: TransactionRecord[];
+  customerName?: string;
+  fileName?: string;
+  invoiceCount: number;
+}
 
 export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   // State management
@@ -41,11 +52,13 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   // Xero integration state
   const [isXeroConnected, setIsXeroConnected] = useState(false);
   const [checkingXero, setCheckingXero] = useState(true);
-  const [showXeroModal, setShowXeroModal] = useState(false);
-  const [xeroData, setXeroData] = useState<{
-    invoices: TransactionRecord[];
-    customerName: string;
-  } | null>(null);
+
+  // Workflow state
+  const [ledgerType, setLedgerType] = useState<'AR' | 'AP' | null>(null);
+  const [dataSource1Type, setDataSource1Type] = useState<DataSourceType>(null);
+  const [dataSource1, setDataSource1] = useState<LoadedDataSource | null>(null);
+  const [dataSource2Type, setDataSource2Type] = useState<DataSourceType>(null);
+  const [dataSource2, setDataSource2] = useState<LoadedDataSource | null>(null);
 
   /**
    * Check if Xero is connected
@@ -107,7 +120,11 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   const handleStartNew = () => {
     setCurrentResults(null);
     setSelectedHistoryId(null);
-    setXeroData(null);
+    setLedgerType(null);
+    setDataSource1Type(null);
+    setDataSource1(null);
+    setDataSource2Type(null);
+    setDataSource2(null);
     setViewMode('upload');
   };
 
@@ -164,53 +181,116 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   };
 
   /**
-   * Handle Xero button click
+   * Handle Xero customer selection and data loading
    */
-  const handleXeroClick = () => {
-    console.log('🎯 Xero button clicked!');
-    console.log('   isXeroConnected:', isXeroConnected);
-    console.log('   checkingXero:', checkingXero);
-    console.log('   showXeroModal:', showXeroModal);
-    
-    if (!isXeroConnected) {
-      console.log('⚠️ Xero not connected, showing warning toast');
-      showToast('Please connect to Xero first from the Connections page', 'warning');
+  const handleXeroDataLoad = async (customer: any) => {
+    try {
+      console.log('📊 Loading invoices for customer:', customer.Name);
+      const invoices = await xeroService.getInvoices(customer.ContactID);
+      
+      const loadedData: LoadedDataSource = {
+        type: 'xero',
+        invoices: invoices,
+        customerName: customer.Name,
+        invoiceCount: invoices.length
+      };
+
+      if (!dataSource1) {
+        setDataSource1(loadedData);
+        showToast(
+          `Loaded ${invoices.length} invoice${invoices.length !== 1 ? 's' : ''} from Xero for ${customer.Name}`,
+          'success'
+        );
+      } else {
+        setDataSource2(loadedData);
+        showToast(
+          `Loaded ${invoices.length} invoice${invoices.length !== 1 ? 's' : ''} from Xero for ${customer.Name}`,
+          'success'
+        );
+      }
+    } catch (error) {
+      console.error('Error loading Xero invoices:', error);
+      showToast('Failed to load invoices from Xero', 'error');
+    }
+  };
+
+  /**
+   * Handle CSV file upload for Data Source 1
+   */
+  const handleCSV1Upload = (file: File, invoices: TransactionRecord[]) => {
+    const loadedData: LoadedDataSource = {
+      type: 'csv',
+      invoices: invoices,
+      fileName: file.name,
+      invoiceCount: invoices.length
+    };
+
+    setDataSource1(loadedData);
+    showToast(`Loaded ${invoices.length} invoices from ${file.name}`, 'success');
+  };
+
+  /**
+   * Clear data source
+   */
+  const handleClearDataSource = (sourceNumber: 1 | 2) => {
+    if (sourceNumber === 1) {
+      setDataSource1(null);
+      setDataSource1Type(null);
+      // Also clear source 2 since workflow requires source 1 first
+      setDataSource2(null);
+      setDataSource2Type(null);
+    } else {
+      setDataSource2(null);
+      setDataSource2Type(null);
+    }
+  };
+
+  /**
+   * Handle going back to a previous step
+   */
+  const handleBackToStep = (step: 1 | 2) => {
+    if (step === 1) {
+      // Back to ledger type selection
+      setLedgerType(null);
+      setDataSource1Type(null);
+      setDataSource1(null);
+      setDataSource2Type(null);
+      setDataSource2(null);
+    } else if (step === 2) {
+      // Back to data source 1 selection
+      setDataSource1Type(null);
+      setDataSource1(null);
+      setDataSource2Type(null);
+      setDataSource2(null);
+    }
+  };
+
+  /**
+   * Start matching when both sources are ready
+   */
+  const handleStartMatching = async () => {
+    if (!dataSource1 || !dataSource2) {
+      showToast('Both data sources are required', 'error');
       return;
     }
-    
-    console.log('✅ Opening Xero modal...');
-    setShowXeroModal(true);
-    console.log('   showXeroModal state should now be true');
-  };
 
-  /**
-   * Handle Xero data selection
-   */
-  const handleXeroDataSelected = (data: { invoices: TransactionRecord[]; customerName: string; invoiceCount: number }) => {
-    console.log('📊 Xero data selected:', data.customerName, data.invoiceCount, 'invoices');
-    setXeroData({
-      invoices: data.invoices,
-      customerName: data.customerName
-    });
-    setShowXeroModal(false);
-    showToast(
-      `Loaded ${data.invoiceCount} invoice${data.invoiceCount !== 1 ? 's' : ''} from Xero for ${data.customerName}`,
-      'success'
-    );
-  };
+    try {
+      const results = await matchingService.matchFromERP(
+        dataSource1.invoices,
+        dataSource2.invoices,
+        {
+          sourceType1: dataSource1.type,
+          sourceType2: dataSource2.type,
+        }
+      );
 
-  /**
-   * Clear Xero data
-   */
-  const handleClearXeroData = () => {
-    setXeroData(null);
-    showToast('Xero data cleared', 'info');
+      handleMatchingComplete(results);
+    } catch (error) {
+      handleMatchingError(
+        error instanceof Error ? error.message : 'Matching failed'
+      );
+    }
   };
-
-  // Debug log for modal state changes
-  useEffect(() => {
-    console.log('🔄 showXeroModal changed to:', showXeroModal);
-  }, [showXeroModal]);
 
   // Get template info for display
   const templateInfo = getTemplateInfo();
@@ -355,97 +435,188 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
               </CardContent>
             </Card>
 
-            {/* Show Xero data if loaded */}
-            {xeroData && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-xl font-semibold text-neutral-900">Xero Data Loaded</h2>
-                      <p className="text-neutral-600">
-                        {xeroData.invoices.length} invoice{xeroData.invoices.length !== 1 ? 's' : ''} from {xeroData.customerName}
-                      </p>
-                    </div>
+            {/* NEW: Matching Workflow Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-neutral-900">Matching Workflow</h2>
+                    <p className="text-neutral-600">
+                      Follow the steps below to set up your invoice matching
+                    </p>
+                  </div>
+                  {ledgerType && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={handleClearXeroData}
+                      onClick={() => handleBackToStep(1)}
                     >
-                      Clear
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
-                    <div className="flex items-start space-x-3">
-                      <svg className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                       </svg>
+                      Start Over
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-8">
+                {/* Step 1: Select Ledger Type */}
+                <LedgerTypeSelector
+                  selectedType={ledgerType}
+                  onSelect={setLedgerType}
+                />
+
+                {/* Step 2: Select Data Source 1 (only show if ledger type selected) */}
+                {ledgerType && (
+                  <div className="space-y-4 pt-6 border-t border-neutral-200">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-primary-900">Data Source 1: Xero</p>
-                        <p className="text-sm text-primary-700 mt-1">
-                          Upload a CSV file for Data Source 2 to begin matching, or select another Xero customer.
+                        <h3 className="text-h3 text-neutral-900 mb-2">
+                          Step 2: Select Your Ledger (Data Source 1)
+                        </h3>
+                        <p className="text-small text-neutral-600">
+                          Choose where to load your {ledgerType === 'AR' ? 'receivables' : 'payables'} data from
                         </p>
                       </div>
+                      {dataSource1Type && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleBackToStep(2)}
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                          </svg>
+                          Back
+                        </Button>
+                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
-            <CSVUpload
-              onMatchingComplete={handleMatchingComplete}
-              onError={handleMatchingError}
-              xeroData={xeroData?.invoices}
-              xeroCustomerName={xeroData?.customerName}
-            />
+                    {!dataSource1 ? (
+                      <>
+                        <DataSourceDropdown
+                          value={dataSource1Type}
+                          onChange={setDataSource1Type}
+                          isXeroConnected={isXeroConnected}
+                          label="Choose data source"
+                          description="Select where you want to load your invoice data from"
+                        />
 
-            {/* ERP Integration */}
-            {isLoggedIn && (
-              <Card>
-                <CardHeader>
-                  <h2 className="text-xl font-semibold text-neutral-900">ERP Integration</h2>
-                  <p className="text-neutral-600">
-                    Connect your accounting systems for automatic matching
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Button 
-                      variant="ghost" 
-                      className={`h-20 border-2 ${isXeroConnected ? 'border-primary-300 bg-primary-50' : 'border-dashed border-neutral-300'}`}
-                      onClick={handleXeroClick}
-                      disabled={checkingXero}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg font-medium flex items-center justify-center">
-                          {isXeroConnected && (
-                            <svg className="w-5 h-5 text-success-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                          Xero
-                        </div>
-                        <div className="text-sm text-neutral-600">
-                          {checkingXero ? 'Checking...' : isXeroConnected ? 'Click to Select Data' : 'Not Connected'}
-                        </div>
-                      </div>
-                    </Button>
-                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300" disabled>
-                      <div className="text-center">
-                        <div className="text-lg font-medium">QuickBooks</div>
-                        <div className="text-sm text-neutral-600">Coming Soon</div>
-                      </div>
-                    </Button>
-                    <Button variant="ghost" className="h-20 border-2 border-dashed border-neutral-300" disabled>
-                      <div className="text-center">
-                        <div className="text-lg font-medium">SAP</div>
-                        <div className="text-sm text-neutral-600">Coming Soon</div>
-                      </div>
-                    </Button>
+                        {/* Show Xero customer selector if Xero is selected */}
+                        {dataSource1Type === 'xero' && isXeroConnected && (
+                          <div className="mt-4 p-4 bg-neutral-50 rounded-lg">
+                            <CustomerSelectorDropdown
+                              onLoadData={handleXeroDataLoad}
+                              onError={(error) => showToast(error, 'error')}
+                            />
+                          </div>
+                        )}
+
+                        {/* Show CSV upload if CSV is selected */}
+                        {dataSource1Type === 'csv' && (
+                          <div className="mt-4 p-4 bg-neutral-50 rounded-lg">
+                            <p className="text-small text-neutral-700 mb-3">
+                              Upload your CSV file to continue
+                            </p>
+                            <div className="text-small text-neutral-600">
+                              CSV upload will be enabled once this step is complete. Please use the full CSV upload section below for now.
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <DataSourceSummary
+                        source={dataSource1.type}
+                        customerName={dataSource1.customerName}
+                        fileName={dataSource1.fileName}
+                        invoiceCount={dataSource1.invoiceCount}
+                        onClear={() => handleClearDataSource(1)}
+                        label="Data Source 1"
+                      />
+                    )}
                   </div>
-                </CardContent>
-              </Card>
+                )}
+
+                {/* Step 3: Select Data Source 2 (only show if Data Source 1 is loaded) */}
+                {dataSource1 && (
+                  <div className="space-y-4 pt-6 border-t border-neutral-200">
+                    <h3 className="text-h3 text-neutral-900 mb-2">
+                      Step 3: Select Counterparty Ledger (Data Source 2)
+                    </h3>
+                    <p className="text-small text-neutral-600 mb-4">
+                      Choose where to load the counterparty's data from
+                    </p>
+
+                    {!dataSource2 ? (
+                      <>
+                        <DataSourceDropdown
+                          value={dataSource2Type}
+                          onChange={setDataSource2Type}
+                          isXeroConnected={isXeroConnected}
+                          label="Choose counterparty data source"
+                        />
+
+                        {/* Show Xero customer selector if Xero is selected */}
+                        {dataSource2Type === 'xero' && isXeroConnected && (
+                          <div className="mt-4 p-4 bg-neutral-50 rounded-lg">
+                            <CustomerSelectorDropdown
+                              onLoadData={handleXeroDataLoad}
+                              onError={(error) => showToast(error, 'error')}
+                            />
+                          </div>
+                        )}
+
+                        {/* Show CSV upload instruction if CSV is selected */}
+                        {dataSource2Type === 'csv' && (
+                          <div className="mt-4 p-4 bg-neutral-50 rounded-lg">
+                            <p className="text-small text-neutral-700 mb-3">
+                              Use the CSV upload section below to upload the counterparty's file
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <DataSourceSummary
+                        source={dataSource2.type}
+                        customerName={dataSource2.customerName}
+                        fileName={dataSource2.fileName}
+                        invoiceCount={dataSource2.invoiceCount}
+                        onClear={() => handleClearDataSource(2)}
+                        label="Data Source 2"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Ready to Match Summary (only show when both sources loaded) */}
+                {dataSource1 && dataSource2 && (
+                  <div className="pt-6">
+                    <MatchReadyCard
+                      source1={{
+                        type: dataSource1.type,
+                        name: dataSource1.customerName || dataSource1.fileName || 'Source 1',
+                        invoiceCount: dataSource1.invoiceCount
+                      }}
+                      source2={{
+                        type: dataSource2.type,
+                        name: dataSource2.customerName || dataSource2.fileName || 'Source 2',
+                        invoiceCount: dataSource2.invoiceCount
+                      }}
+                      onStartMatching={handleStartMatching}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* CSV Upload Component (for when CSV is selected in workflow) */}
+            {(dataSource2Type === 'csv' || (!ledgerType && !dataSource1)) && (
+              <CSVUpload
+                onMatchingComplete={handleMatchingComplete}
+                onError={handleMatchingError}
+                xeroData={dataSource1?.invoices}
+                xeroCustomerName={dataSource1?.customerName}
+              />
             )}
 
             {/* Quick Stats Preview */}
@@ -511,24 +682,24 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
               <div className="text-center">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <h3 className="font-semibold text-neutral-900 mb-2">1. Select Data Sources</h3>
+                <h3 className="font-semibold text-neutral-900 mb-2">1. Select Ledger Type</h3>
                 <p className="text-sm text-neutral-600">
-                  Upload CSV files or connect to Xero to import invoice data
+                  Choose AR (customer invoices) or AP (supplier invoices)
                 </p>
               </div>
 
               <div className="text-center">
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                 </div>
-                <h3 className="font-semibold text-neutral-900 mb-2">2. Smart Matching</h3>
+                <h3 className="font-semibold text-neutral-900 mb-2">2. Load Data Sources</h3>
                 <p className="text-sm text-neutral-600">
-                  Our algorithm finds matches based on transaction numbers, amounts, and dates
+                  Connect to Xero or upload CSV files for both parties
                 </p>
               </div>
 
@@ -540,7 +711,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                 </div>
                 <h3 className="font-semibold text-neutral-900 mb-2">3. View Results</h3>
                 <p className="text-sm text-neutral-600">
-                  Get detailed reports showing matches, mismatches, and reconciliation insights
+                  Get detailed reports showing matches and discrepancies
                 </p>
               </div>
             </div>
@@ -548,33 +719,12 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
             <div className="bg-blue-50 rounded-lg p-4 mt-6">
               <h4 className="font-medium text-blue-900 mb-2">Supported Data Sources</h4>
               <p className="text-sm text-blue-800">
-                CSV files with transaction_number, amount, and date columns, or connect directly to Xero for automatic data import.
+                Connect directly to Xero for automatic data import, or upload CSV files with transaction_number, amount, and date columns.
               </p>
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Xero Data Selection Modal */}
-      {console.log('🎨 Rendering Modal with isOpen:', showXeroModal)}
-      <Modal
-        isOpen={showXeroModal}
-        onClose={() => {
-          console.log('🚪 Modal onClose called');
-          setShowXeroModal(false);
-        }}
-        title="Select Xero Customer"
-        description="Choose a customer to load their invoice data for matching"
-        size="lg"
-      >
-        {console.log('📋 Modal children rendering...')}
-        <XeroDataSelector
-          onDataSelected={handleXeroDataSelected}
-          onError={(error) => {
-            showToast(error, 'error');
-          }}
-        />
-      </Modal>
 
       {/* Toast Notifications */}
       {toast && (
