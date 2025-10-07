@@ -12,13 +12,40 @@ import { apiClient } from '../../../services/api';
 interface Customer {
   ContactID: string;
   Name: string;
-  ContactNumber?: string;
   EmailAddress?: string;
-  ContactStatus?: string;
+  ContactStatus: string;
+  Balances?: {
+    AccountsReceivable?: {
+      Outstanding?: number;
+    };
+  };
+}
+
+interface XeroInvoice {
+  InvoiceID: string;
+  InvoiceNumber: string;
+  Type: string;
+  Contact: {
+    ContactID: string;
+    Name: string;
+  };
+  Date: string;
+  DueDate: string;
+  Status: string;
+  SubTotal: number;
+  TotalTax: number;
+  Total: number;
+  AmountDue: number;
+  AmountPaid: number;
+  Reference?: string;
 }
 
 interface CustomerSelectorDropdownProps {
-  onLoadData: (customer: Customer) => void;
+  onLoadData: (data: { 
+    invoices: any[];
+    customerName: string;
+    invoiceCount: number;
+  }) => void;
   onError: (error: string) => void;
   disabled?: boolean;
 }
@@ -56,7 +83,6 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           
           if (customersList.length === 0) {
             console.log('⚠️ No customers found in Xero account');
-            onError('No customers found in your Xero account. Please add customers in Xero first.');
           }
         } else {
           throw new Error(data.error || data.message || 'Failed to fetch customers');
@@ -70,7 +96,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           || 'Failed to load customers from Xero. Please try again.';
         console.error('   Error message:', errorMessage);
         onError(errorMessage);
-        setCustomers([]); // Ensure customers is empty array on error
+        setCustomers([]);
       } finally {
         setLoading(false);
       }
@@ -82,11 +108,56 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
   const handleLoadData = async () => {
     if (!selectedCustomer) return;
 
-    setLoadingData(true);
     try {
-      await onLoadData(selectedCustomer);
-    } catch (error) {
-      console.error('Error loading customer data:', error);
+      console.log('📞 Fetching invoices for customer:', selectedCustomer.Name);
+      setLoadingData(true);
+      
+      // Fetch invoices for the selected customer - same endpoint as XeroDataSelector
+      const response = await apiClient.get(`xero/customers/${selectedCustomer.ContactID}/invoices`, {
+        params: { includeHistory: 'false' }
+      });
+      
+      console.log('📦 Invoices response:', response.status, response.data);
+      
+      const data = response?.data || {};
+      const success = data.success !== false;
+      const invoicesList = data.invoices || [];
+      
+      if (success && Array.isArray(invoicesList)) {
+        console.log('   Invoices found:', invoicesList.length);
+        
+        // Transform Xero invoices to TransactionRecord format (same as XeroDataSelector)
+        const transformedInvoices = invoicesList.map((invoice: XeroInvoice) => ({
+          transaction_number: invoice.InvoiceNumber || '',
+          transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
+          amount: invoice.Total || 0,
+          issue_date: invoice.Date || '',
+          due_date: invoice.DueDate || '',
+          status: invoice.Status || '',
+          reference: invoice.Reference || '',
+          contact_name: invoice.Contact?.Name || selectedCustomer.Name,
+          xero_id: invoice.InvoiceID || '',
+          source: 'xero' as const
+        }));
+        
+        console.log('✅ Transformed invoices:', transformedInvoices.length);
+        
+        onLoadData({
+          invoices: transformedInvoices,
+          customerName: selectedCustomer.Name,
+          invoiceCount: transformedInvoices.length
+        });
+      } else {
+        throw new Error(data.error || data.message || 'Failed to fetch invoices');
+      }
+    } catch (error: any) {
+      console.error('❌ Error loading customer data:', error);
+      const errorMessage = error.response?.data?.error 
+        || error.response?.data?.message
+        || error.response?.data?.details
+        || error.message 
+        || 'Failed to load customer invoices. Please try again.';
+      onError(errorMessage);
     } finally {
       setLoadingData(false);
     }
