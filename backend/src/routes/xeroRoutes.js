@@ -515,8 +515,8 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
     const firstTenant = tenants[0];
     console.log('   Using tenant:', firstTenant.tenantName);
     
-    // FIXED: Build the 'where' clause with proper GUID format and double equals for Xero API
-    // Xero requires GUIDs to be wrapped in Guid() function AND uses == for equality comparison
+    // CRITICAL FIX: Xero API requires double equals (==) for comparisons, not single equals (=)
+    // Build the 'where' clause with proper GUID format and double equals
     const where = `Contact.ContactID==Guid("${contactId}")`;
     console.log('   Where clause:', where);
     
