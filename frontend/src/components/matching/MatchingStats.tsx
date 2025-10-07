@@ -25,6 +25,7 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
   const [data, setData] = useState<MatchingHistoryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEndpointAvailable, setIsEndpointAvailable] = useState(true);
 
   /**
    * Load matching statistics and history
@@ -36,8 +37,16 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
         setError(null);
         const response = await matchingService.getMatchingHistory(5); // Get last 5 matches
         setData(response);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load statistics');
+        setIsEndpointAvailable(true);
+      } catch (err: any) {
+        // If it's a 404 or "not found" error, the endpoint doesn't exist yet
+        if (err.message?.includes('404') || err.message?.includes('not found') || err.message?.includes('endpoint not found')) {
+          console.log('📊 History endpoint not available yet - showing placeholder');
+          setIsEndpointAvailable(false);
+          setError(null);
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load statistics');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -97,6 +106,25 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
                 ))}
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // If endpoint doesn't exist yet, show a placeholder
+  if (!isEndpointAvailable) {
+    return (
+      <div className={className}>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <svg className="w-16 h-16 mx-auto mb-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 className="text-lg font-medium text-neutral-900 mb-2">Statistics Coming Soon</h3>
+            <p className="text-neutral-600 mb-4">
+              Upload your CSV files or connect to Xero to start matching invoices. Statistics and history will appear here once you've completed your first match.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -185,32 +213,32 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
           <CardContent className="p-0">
             <div className="divide-y divide-neutral-200">
               {history.map((item) => (
-                <div key={item._id} className="p-4 hover:bg-neutral-50 transition-colors">
+                <div key={item._id || item.id} className="p-4 hover:bg-neutral-50 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
                         <div>
                           <p className="font-medium text-neutral-900">
-                            {item.metadata.fileName1 && item.metadata.fileName2 ? (
+                            {item.metadata?.fileName1 && item.metadata?.fileName2 ? (
                               `${item.metadata.fileName1} vs ${item.metadata.fileName2}`
                             ) : (
-                              `${item.metadata.sourceType1 || 'Source 1'} vs ${item.metadata.sourceType2 || 'Source 2'}`
+                              `${item.metadata?.sourceType1 || 'Source 1'} vs ${item.metadata?.sourceType2 || 'Source 2'}`
                             )}
                           </p>
                           <p className="text-sm text-neutral-600">
-                            {formatDate(item.createdAt)} • {(item.metadata.processingTime / 1000).toFixed(1)}s
+                            {formatDate(item.createdAt)} • {((item.metadata?.processingTime || 0) / 1000).toFixed(1)}s
                           </p>
                         </div>
                         
-                        <Badge variant={getMatchRateBadge(item.statistics.matchRate)}>
-                          {item.statistics.matchRate.toFixed(1)}% matched
+                        <Badge variant={getMatchRateBadge(item.statistics?.matchRate || 0)}>
+                          {(item.statistics?.matchRate || 0).toFixed(1)}% matched
                         </Badge>
                       </div>
                       
                       <div className="mt-2 flex items-center space-x-4 text-sm text-neutral-600">
-                        <span>{item.statistics.totalRecords} records</span>
-                        <span>{formatCurrency(item.statistics.matchedAmount)} matched</span>
-                        {item.statistics.varianceAmount > 0 && (
+                        <span>{item.statistics?.totalRecords || 0} records</span>
+                        <span>{formatCurrency(item.statistics?.matchedAmount || 0)} matched</span>
+                        {(item.statistics?.varianceAmount || 0) > 0 && (
                           <span className="text-orange-600">
                             {formatCurrency(item.statistics.varianceAmount)} variance
                           </span>
@@ -222,7 +250,7 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onViewDetails(item._id)}
+                        onClick={() => onViewDetails(item._id || item.id)}
                       >
                         View
                       </Button>
@@ -246,9 +274,6 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
             <p className="text-neutral-600 mb-4">
               Upload your first CSV files to start reconciling invoices and see statistics here.
             </p>
-            <Button variant="primary">
-              Start Your First Match
-            </Button>
           </CardContent>
         </Card>
       )}
