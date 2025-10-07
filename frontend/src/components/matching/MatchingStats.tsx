@@ -93,6 +93,18 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
     return 'error';
   };
 
+  /**
+   * Get item ID safely
+   */
+  const getItemId = (item: any): string => {
+    // Try multiple possible ID fields
+    if (item?._id) return item._id;
+    if (item?.id) return item.id;
+    if (item?.matchId) return item.matchId;
+    // Fallback to creating a unique ID from timestamp
+    return `match-${item?.createdAt || Date.now()}`;
+  };
+
   if (isLoading) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -155,6 +167,9 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
   const stats = data?.statistics;
   const history = data?.history || [];
 
+  // Filter out any invalid items from history
+  const validHistory = history.filter(item => item && (item._id || item.id || item.matchId || item.createdAt));
+
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Overall Statistics */}
@@ -197,7 +212,7 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
       </Card>
 
       {/* Recent History */}
-      {history.length > 0 && (
+      {validHistory.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -212,59 +227,63 @@ export const MatchingStats: React.FC<MatchingStatsProps> = ({
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-neutral-200">
-              {history.map((item) => (
-                <div key={item._id || item.id} className="p-4 hover:bg-neutral-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3">
-                        <div>
-                          <p className="font-medium text-neutral-900">
-                            {item.metadata?.fileName1 && item.metadata?.fileName2 ? (
-                              `${item.metadata.fileName1} vs ${item.metadata.fileName2}`
-                            ) : (
-                              `${item.metadata?.sourceType1 || 'Source 1'} vs ${item.metadata?.sourceType2 || 'Source 2'}`
-                            )}
-                          </p>
-                          <p className="text-sm text-neutral-600">
-                            {formatDate(item.createdAt)} • {((item.metadata?.processingTime || 0) / 1000).toFixed(1)}s
-                          </p>
+              {validHistory.map((item) => {
+                const itemId = getItemId(item);
+                
+                return (
+                  <div key={itemId} className="p-4 hover:bg-neutral-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <div>
+                            <p className="font-medium text-neutral-900">
+                              {item.metadata?.fileName1 && item.metadata?.fileName2 ? (
+                                `${item.metadata.fileName1} vs ${item.metadata.fileName2}`
+                              ) : (
+                                `${item.metadata?.sourceType1 || 'Source 1'} vs ${item.metadata?.sourceType2 || 'Source 2'}`
+                              )}
+                            </p>
+                            <p className="text-sm text-neutral-600">
+                              {item.createdAt ? formatDate(item.createdAt) : 'Unknown date'} • {((item.metadata?.processingTime || 0) / 1000).toFixed(1)}s
+                            </p>
+                          </div>
+                          
+                          <Badge variant={getMatchRateBadge(item.statistics?.matchRate || 0)}>
+                            {(item.statistics?.matchRate || 0).toFixed(1)}% matched
+                          </Badge>
                         </div>
                         
-                        <Badge variant={getMatchRateBadge(item.statistics?.matchRate || 0)}>
-                          {(item.statistics?.matchRate || 0).toFixed(1)}% matched
-                        </Badge>
+                        <div className="mt-2 flex items-center space-x-4 text-sm text-neutral-600">
+                          <span>{item.statistics?.totalRecords || 0} records</span>
+                          <span>{formatCurrency(item.statistics?.matchedAmount || 0)} matched</span>
+                          {(item.statistics?.varianceAmount || 0) > 0 && (
+                            <span className="text-orange-600">
+                              {formatCurrency(item.statistics.varianceAmount)} variance
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      
-                      <div className="mt-2 flex items-center space-x-4 text-sm text-neutral-600">
-                        <span>{item.statistics?.totalRecords || 0} records</span>
-                        <span>{formatCurrency(item.statistics?.matchedAmount || 0)} matched</span>
-                        {(item.statistics?.varianceAmount || 0) > 0 && (
-                          <span className="text-orange-600">
-                            {formatCurrency(item.statistics.varianceAmount)} variance
-                          </span>
-                        )}
-                      </div>
-                    </div>
 
-                    {onViewDetails && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onViewDetails(item._id || item.id)}
-                      >
-                        View
-                      </Button>
-                    )}
+                      {onViewDetails && itemId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onViewDetails(itemId)}
+                        >
+                          View
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
       )}
 
       {/* No History State */}
-      {history.length === 0 && stats?.totalRuns === 0 && (
+      {validHistory.length === 0 && stats?.totalRuns === 0 && (
         <Card>
           <CardContent className="p-8 text-center">
             <svg className="w-16 h-16 mx-auto mb-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
