@@ -102,9 +102,7 @@ router.get('/connections', async (req, res) => {
       error: error.message
     });
   }
-});
-
-// Sync connection endpoint
+}); // Sync connection endpoint
 router.post('/sync', async (req, res) => {
   try {
     const { connectionId } = req.body;
@@ -515,8 +513,9 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
     const firstTenant = tenants[0];
     console.log('   Using tenant:', firstTenant.tenantName);
     
-    // Build the 'where' clause to filter invoices by contact ID
-    const where = `Contact.ContactID=="${contactId}"`;
+    // FIXED: Build the 'where' clause with proper GUID format for Xero API
+    // Xero requires GUIDs to be wrapped in Guid() function, not quoted as strings
+    const where = `Contact.ContactID=Guid("${contactId}")`;
     console.log('   Where clause:', where);
     
     // Get invoices for the contact
