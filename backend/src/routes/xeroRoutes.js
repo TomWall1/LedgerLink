@@ -479,7 +479,7 @@ router.get('/customers', async (req, res) => {
   }
 });
 
-// Get invoices for a customer
+// Get invoices for a customer - NOW USING DIRECT API CALL
 router.get('/customers/:contactId/invoices', async (req, res) => {
   try {
     const { contactId } = req.params;
@@ -496,7 +496,7 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
       });
     }
     
-    // Create Xero client and set tokens
+    // Create Xero client to get tenants
     const xero = getXeroClient();
     xero.setTokenSet(tokens);
     
@@ -515,24 +515,52 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
     const firstTenant = tenants[0];
     console.log('   Using tenant:', firstTenant.tenantName);
     
-    // CRITICAL FIX: Xero API requires double equals (==) for comparisons, not single equals (=)
-    // Build the 'where' clause with proper GUID format and double equals
-    const where = `Contact.ContactID==Guid("${contactId}")`;
-    console.log('   Where clause:', where);
+    // STEP 1: First, let's get ALL invoices to see what exists
+    console.log('   🔍 DEBUG: Fetching ALL invoices first...');
+    const allInvoicesData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Invoices',
+      tokens.access_token,
+      firstTenant.tenantId
+    );
     
-    // Get invoices for the contact
-    const invoicesResponse = await xero.accountingApi.getInvoices(firstTenant.tenantId, undefined, where);
-    console.log('   Invoices found:', invoicesResponse?.body?.Invoices?.length || 0);
+    const allInvoices = allInvoicesData.Invoices || [];
+    console.log('   📊 Total invoices in Xero:', allInvoices.length);
     
-    // Safely access invoices
-    let invoices = invoicesResponse?.body?.Invoices || [];
+    // Log details about all invoices
+    if (allInvoices.length > 0) {
+      console.log('   📋 All invoices:');
+      allInvoices.forEach((inv, index) => {
+        console.log(`      ${index + 1}. Invoice: ${inv.InvoiceNumber || 'N/A'}, Status: ${inv.Status}, Contact: ${inv.Contact?.Name || 'N/A'} (${inv.Contact?.ContactID || 'N/A'})`);
+      });
+    }
+    
+    // STEP 2: Now try with the where clause using direct API
+    const whereClause = `Contact.ContactID==Guid("${contactId}")`;
+    console.log('   🔍 Trying with where clause:', whereClause);
+    
+    const filteredInvoicesData = await callXeroApi(
+      `https://api.xero.com/api.xro/2.0/Invoices?where=${encodeURIComponent(whereClause)}`,
+      tokens.access_token,
+      firstTenant.tenantId
+    );
+    
+    let invoices = filteredInvoicesData.Invoices || [];
+    console.log('   📊 Invoices with where clause:', invoices.length);
+    
+    if (invoices.length > 0) {
+      console.log('   ✅ Found invoices:');
+      invoices.forEach((inv, index) => {
+        console.log(`      ${index + 1}. Invoice: ${inv.InvoiceNumber}, Status: ${inv.Status}, Amount: ${inv.Total}`);
+      });
+    }
     
     if (includeHistory !== 'true') {
       // Only include outstanding invoices
+      const originalCount = invoices.length;
       invoices = invoices.filter(invoice => 
         invoice.Status !== 'PAID' && invoice.Status !== 'VOIDED'
       );
-      console.log('   Outstanding invoices:', invoices.length);
+      console.log('   📊 Outstanding invoices (not PAID/VOIDED):', invoices.length, 'of', originalCount);
     }
     
     res.json({
