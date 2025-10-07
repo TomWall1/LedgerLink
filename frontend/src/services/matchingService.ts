@@ -164,6 +164,12 @@ class MatchingService {
       });
       return response.data;
     } catch (error: any) {
+      // Check specifically for 404 or endpoint not found errors
+      if (error.response?.status === 404 || 
+          error.message?.includes('endpoint not found') || 
+          error.message?.includes('backend implementation')) {
+        throw new Error('API endpoint not found - history feature not yet implemented');
+      }
       throw new Error(error.response?.data?.message || error.message || 'Failed to fetch history');
     }
   }
