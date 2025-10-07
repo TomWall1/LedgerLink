@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './api';
+import { TransactionRecord } from '../types/matching';
 
 export interface XeroConnection {
   _id: string;
@@ -145,32 +146,64 @@ class XeroService {
   }
   
   /**
-   * Get invoices from Xero
+   * Get Xero customers (contacts marked as customers)
    */
-  async getInvoices(params: {
-    connectionId: string;
-    page?: number;
-    limit?: number;
-    dateFrom?: string;
-    dateTo?: string;
-    status?: string;
-  }): Promise<{ invoices: XeroInvoice[]; pagination: any }> {
+  async getCustomers(): Promise<XeroContact[]> {
     try {
-      const response = await apiClient.get('xero/invoices', {
-        params: {
-          page: 1,
-          limit: 100,
-          ...params
-        }
+      console.log('Fetching Xero customers...');
+      const response = await apiClient.get('xero/customers');
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch customers');
+      }
+      
+      console.log('✅ Customers fetched:', response.data.customers?.length || 0);
+      return response.data.customers || [];
+    } catch (error: any) {
+      console.error('Failed to fetch Xero customers:', error);
+      throw new Error(error.response?.data?.message || 'Failed to fetch customers');
+    }
+  }
+  
+  /**
+   * Get invoices for a specific customer
+   * Returns invoices in TransactionRecord format for matching
+   */
+  async getInvoices(contactId: string, includeHistory: boolean = false): Promise<TransactionRecord[]> {
+    try {
+      console.log('Fetching invoices for customer:', contactId);
+      const response = await apiClient.get(`xero/customers/${contactId}/invoices`, {
+        params: { includeHistory: includeHistory ? 'true' : 'false' }
       });
+      
+      console.log('📦 Invoices response:', response.status, response.data);
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch invoices');
       }
       
-      return response.data.data;
+      const invoices = response.data.invoices || [];
+      console.log('   Invoices found:', invoices.length);
+      
+      // Transform Xero invoices to TransactionRecord format
+      const transformed = invoices.map((invoice: any) => ({
+        id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}`,
+        transaction_number: invoice.InvoiceNumber || '',
+        transaction_type: invoice.Type || 'ACCREC',
+        amount: invoice.Total || 0,
+        issue_date: invoice.Date || '',
+        due_date: invoice.DueDate || '',
+        status: invoice.Status || '',
+        reference: invoice.Reference || '',
+        contact_name: invoice.Contact?.Name || '',
+        xero_id: invoice.InvoiceID || '',
+        source: 'xero' as const
+      }));
+      
+      console.log('✅ Transformed invoices:', transformed.length);
+      return transformed;
     } catch (error: any) {
-      console.error('Failed to fetch Xero invoices:', error);
+      console.error('Failed to fetch customer invoices:', error);
       throw new Error(error.response?.data?.message || 'Failed to fetch invoices');
     }
   }
