@@ -21,6 +21,7 @@ import MatchReadyCard from '../components/matching/workflow/MatchReadyCard';
 import { MatchingResults, TransactionRecord } from '../types/matching';
 import matchingService from '../services/matchingService';
 import { xeroService } from '../services/xeroService';
+import { apiClient } from '../services/api';
 import { downloadCSVTemplate, getTemplateInfo } from '../utils/csvTemplate';
 
 interface MatchesProps {
@@ -35,6 +36,27 @@ interface LoadedDataSource {
   customerName?: string;
   fileName?: string;
   invoiceCount: number;
+}
+
+// Xero invoice type from API
+interface XeroInvoice {
+  InvoiceID: string;
+  InvoiceNumber: string;
+  Type: string;
+  Contact: {
+    ContactID: string;
+    Name: string;
+  };
+  Date: string;
+  DueDate: string;
+  Status: string;
+  LineAmountTypes: string;
+  SubTotal: number;
+  TotalTax: number;
+  Total: number;
+  AmountDue: number;
+  AmountPaid: number;
+  Reference?: string;
 }
 
 export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
@@ -186,31 +208,70 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   const handleXeroDataLoad = async (customer: any) => {
     try {
       console.log('📊 Loading invoices for customer:', customer.Name);
-      const invoices = await xeroService.getInvoices(customer.ContactID);
       
-      const loadedData: LoadedDataSource = {
-        type: 'xero',
-        invoices: invoices,
-        customerName: customer.Name,
-        invoiceCount: invoices.length
-      };
+      // Use the same API endpoint as XeroDataSelector
+      const response = await apiClient.get(`xero/customers/${customer.ContactID}/invoices`, {
+        params: { includeHistory: 'false' }
+      });
+      
+      console.log('📦 Invoices response:', response.status, response.data);
+      
+      // Safely access response data
+      const data = response?.data || {};
+      const success = data.success !== false;
+      const invoicesList = data.invoices || [];
+      
+      if (success && Array.isArray(invoicesList)) {
+        console.log('   Invoices found:', invoicesList.length);
+        
+        // Transform Xero invoices to TransactionRecord format
+        const transformedInvoices: TransactionRecord[] = invoicesList.map((invoice: XeroInvoice) => ({
+          transaction_number: invoice.InvoiceNumber || '',
+          transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
+          amount: invoice.Total || 0,
+          issue_date: invoice.Date || '',
+          due_date: invoice.DueDate || '',
+          status: invoice.Status || '',
+          reference: invoice.Reference || '',
+          contact_name: invoice.Contact?.Name || customer.Name,
+          xero_id: invoice.InvoiceID || '',
+          source: 'xero' as const
+        }));
+        
+        console.log('✅ Transformed invoices:', transformedInvoices.length);
+        
+        const loadedData: LoadedDataSource = {
+          type: 'xero',
+          invoices: transformedInvoices,
+          customerName: customer.Name,
+          invoiceCount: transformedInvoices.length
+        };
 
-      if (!dataSource1) {
-        setDataSource1(loadedData);
-        showToast(
-          `Loaded ${invoices.length} invoice${invoices.length !== 1 ? 's' : ''} from Xero for ${customer.Name}`,
-          'success'
-        );
+        if (!dataSource1) {
+          setDataSource1(loadedData);
+          showToast(
+            `Loaded ${transformedInvoices.length} invoice${transformedInvoices.length !== 1 ? 's' : ''} from Xero for ${customer.Name}`,
+            'success'
+          );
+        } else {
+          setDataSource2(loadedData);
+          showToast(
+            `Loaded ${transformedInvoices.length} invoice${transformedInvoices.length !== 1 ? 's' : ''} from Xero for ${customer.Name}`,
+            'success'
+          );
+        }
       } else {
-        setDataSource2(loadedData);
-        showToast(
-          `Loaded ${invoices.length} invoice${invoices.length !== 1 ? 's' : ''} from Xero for ${customer.Name}`,
-          'success'
-        );
+        throw new Error(data.error || data.message || 'Failed to fetch invoices');
       }
-    } catch (error) {
-      console.error('Error loading Xero invoices:', error);
-      showToast('Failed to load invoices from Xero', 'error');
+    } catch (error: any) {
+      console.error('❌ Error loading Xero invoices:', error);
+      const errorMessage = error.response?.data?.error 
+        || error.response?.data?.message
+        || error.response?.data?.details
+        || error.message 
+        || 'Failed to load customer invoices. Please try again.';
+      console.error('   Error message:', errorMessage);
+      showToast(errorMessage, 'error');
     }
   };
 
