@@ -152,11 +152,27 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       }
     } catch (error: any) {
       console.error('❌ Error loading customer data:', error);
-      const errorMessage = error.response?.data?.error 
-        || error.response?.data?.message
-        || error.response?.data?.details
-        || error.message 
-        || 'Failed to load customer invoices. Please try again.';
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to load customer invoices. ';
+      
+      if (error.response?.status === 500) {
+        errorMessage += 'The server encountered an error. This might be because: ' +
+                       '(1) Backend is starting up (wait 60s and retry), ' +
+                       '(2) Xero connection expired (reconnect in Connections page), ' +
+                       'or (3) Xero API issue. Please try again.';
+      } else if (error.response?.status === 401) {
+        errorMessage += 'Your Xero connection has expired. Please reconnect in the Connections page.';
+      } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        errorMessage += 'Request timed out. The backend might be waking up. Please try again in 30 seconds.';
+      } else {
+        errorMessage += error.response?.data?.error 
+          || error.response?.data?.message
+          || error.response?.data?.details
+          || error.message 
+          || 'Unknown error occurred.';
+      }
+      
       onError(errorMessage);
     } finally {
       setLoadingData(false);
@@ -168,6 +184,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
         <span className="ml-3 text-body text-neutral-600">Loading customers...</span>
+        <p className="text-xs text-neutral-500 mt-2">If this is your first request, the server may need 30-60 seconds to wake up...</p>
       </div>
     );
   }
@@ -238,6 +255,13 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           </>
         )}
       </Button>
+      
+      {/* Help text for first-time users */}
+      {selectedCustomer && !loadingData && (
+        <div className="text-xs text-neutral-500 mt-2">
+          💡 Tip: If the first request fails, wait 30-60 seconds for the backend to wake up, then try again.
+        </div>
+      )}
     </div>
   );
 };
