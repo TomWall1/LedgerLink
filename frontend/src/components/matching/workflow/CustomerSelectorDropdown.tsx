@@ -7,12 +7,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../ui/Button';
-import { xeroService } from '../../../services/xeroService';
+import { apiClient } from '../../../services/api';
 
 interface Customer {
   ContactID: string;
   Name: string;
   ContactNumber?: string;
+  EmailAddress?: string;
+  ContactStatus?: string;
 }
 
 interface CustomerSelectorDropdownProps {
@@ -35,11 +37,40 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     const fetchCustomers = async () => {
       try {
         setLoading(true);
-        const fetchedCustomers = await xeroService.getCustomers();
-        setCustomers(fetchedCustomers);
-      } catch (error) {
-        console.error('Error fetching customers:', error);
-        onError('Failed to load Xero customers. Please try again.');
+        console.log('📞 Fetching customers from Xero...');
+        
+        // Use the same endpoint as XeroDataSelector
+        const response = await apiClient.get('xero/customers');
+        console.log('📦 Response received:', response.status, response.data);
+        
+        // Safely access response data
+        const data = response?.data || {};
+        const success = data.success !== false;
+        const customersList = data.customers || [];
+        
+        console.log('   Success:', success);
+        console.log('   Customers count:', customersList.length);
+        
+        if (success && Array.isArray(customersList)) {
+          setCustomers(customersList);
+          
+          if (customersList.length === 0) {
+            console.log('⚠️ No customers found in Xero account');
+            onError('No customers found in your Xero account. Please add customers in Xero first.');
+          }
+        } else {
+          throw new Error(data.error || data.message || 'Failed to fetch customers');
+        }
+      } catch (error: any) {
+        console.error('❌ Error fetching customers:', error);
+        const errorMessage = error.response?.data?.error 
+          || error.response?.data?.message 
+          || error.response?.data?.details
+          || error.message 
+          || 'Failed to load customers from Xero. Please try again.';
+        console.error('   Error message:', errorMessage);
+        onError(errorMessage);
+        setCustomers([]); // Ensure customers is empty array on error
       } finally {
         setLoading(false);
       }
@@ -111,7 +142,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         {customers.map((customer) => (
           <option key={customer.ContactID} value={customer.ContactID}>
             {customer.Name}
-            {customer.ContactNumber ? ` (${customer.ContactNumber})` : ''}
+            {customer.EmailAddress ? ` (${customer.EmailAddress})` : ''}
           </option>
         ))}
       </select>
