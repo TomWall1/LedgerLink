@@ -3,7 +3,7 @@
  * 
  * This is the main page for invoice matching functionality.
  * Now features a clear, progressive workflow for selecting data sources
- * and performing matches.
+ * and performing matches, with automatic linked counterparty detection.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -18,9 +18,11 @@ import DataSourceDropdown, { DataSourceType } from '../components/matching/workf
 import CustomerSelectorDropdown from '../components/matching/workflow/CustomerSelectorDropdown';
 import DataSourceSummary from '../components/matching/workflow/DataSourceSummary';
 import MatchReadyCard from '../components/matching/workflow/MatchReadyCard';
+import LinkedCounterpartyCard from '../components/matching/workflow/LinkedCounterpartyCard';
 import { MatchingResults, TransactionRecord } from '../types/matching';
 import matchingService from '../services/matchingService';
 import { xeroService } from '../services/xeroService';
+import { counterpartyService, LinkedCounterparty } from '../services/counterpartyService';
 import { downloadCSVTemplate, getTemplateInfo } from '../utils/csvTemplate';
 
 interface MatchesProps {
@@ -33,6 +35,7 @@ interface LoadedDataSource {
   type: 'xero' | 'csv';
   invoices: TransactionRecord[];
   customerName?: string;
+  customerId?: string;
   fileName?: string;
   invoiceCount: number;
 }
@@ -59,6 +62,12 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   const [dataSource1, setDataSource1] = useState<LoadedDataSource | null>(null);
   const [dataSource2Type, setDataSource2Type] = useState<DataSourceType>(null);
   const [dataSource2, setDataSource2] = useState<LoadedDataSource | null>(null);
+  
+  // Linked counterparty state
+  const [linkedCounterparty, setLinkedCounterparty] = useState<LinkedCounterparty | null>(null);
+  const [checkingLinkedCounterparty, setCheckingLinkedCounterparty] = useState(false);
+  const [showLinkedCounterparty, setShowLinkedCounterparty] = useState(true);
+  const [loadingLinkedData, setLoadingLinkedData] = useState(false);
 
   /**
    * Check if Xero is connected
@@ -86,6 +95,43 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
     checkXeroConnection();
   }, [isLoggedIn]);
+
+  /**
+   * Check for linked counterparty when Data Source 1 is loaded
+   */
+  useEffect(() => {
+    const checkLinkedCounterparty = async () => {
+      if (!dataSource1 || !dataSource1.customerId || !dataSource1.customerName) {
+        setLinkedCounterparty(null);
+        return;
+      }
+
+      setCheckingLinkedCounterparty(true);
+      try {
+        console.log('🔗 Checking for linked counterparty...');
+        const linked = await counterpartyService.getLinkedCounterpartyWithFallback(
+          dataSource1.customerId,
+          dataSource1.customerName
+        );
+        
+        if (linked) {
+          console.log('✅ Found linked counterparty:', linked.name);
+          setLinkedCounterparty(linked);
+          setShowLinkedCounterparty(true);
+        } else {
+          console.log('ℹ️ No linked counterparty found');
+          setLinkedCounterparty(null);
+        }
+      } catch (error) {
+        console.error('Error checking linked counterparty:', error);
+        setLinkedCounterparty(null);
+      } finally {
+        setCheckingLinkedCounterparty(false);
+      }
+    };
+
+    checkLinkedCounterparty();
+  }, [dataSource1]);
 
   /**
    * Show toast notification
@@ -125,6 +171,8 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
     setDataSource1(null);
     setDataSource2Type(null);
     setDataSource2(null);
+    setLinkedCounterparty(null);
+    setShowLinkedCounterparty(true);
     setViewMode('upload');
   };
 
@@ -192,6 +240,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         type: 'xero',
         invoices: invoices,
         customerName: customer.Name,
+        customerId: customer.ContactID,
         invoiceCount: invoices.length
       };
 
@@ -215,18 +264,46 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   };
 
   /**
-   * Handle CSV file upload for Data Source 1
+   * Handle using linked counterparty account
    */
-  const handleCSV1Upload = (file: File, invoices: TransactionRecord[]) => {
-    const loadedData: LoadedDataSource = {
-      type: 'csv',
-      invoices: invoices,
-      fileName: file.name,
-      invoiceCount: invoices.length
-    };
+  const handleUseLinkedAccount = async () => {
+    if (!linkedCounterparty || !linkedCounterparty.xeroContactId) {
+      showToast('Cannot load linked account data', 'error');
+      return;
+    }
 
-    setDataSource1(loadedData);
-    showToast(`Loaded ${invoices.length} invoices from ${file.name}`, 'success');
+    setLoadingLinkedData(true);
+    try {
+      console.log('📊 Loading invoices for linked counterparty:', linkedCounterparty.name);
+      const invoices = await xeroService.getInvoices(linkedCounterparty.xeroContactId);
+      
+      const loadedData: LoadedDataSource = {
+        type: 'xero',
+        invoices: invoices,
+        customerName: linkedCounterparty.name,
+        customerId: linkedCounterparty.xeroContactId,
+        invoiceCount: invoices.length
+      };
+
+      setDataSource2(loadedData);
+      showToast(
+        `Loaded ${invoices.length} invoice${invoices.length !== 1 ? 's' : ''} from linked account: ${linkedCounterparty.name}`,
+        'success'
+      );
+    } catch (error) {
+      console.error('Error loading linked counterparty invoices:', error);
+      showToast('Failed to load invoices from linked account', 'error');
+    } finally {
+      setLoadingLinkedData(false);
+    }
+  };
+
+  /**
+   * Handle choosing different source (bypass linked counterparty)
+   */
+  const handleChooseDifferentSource = () => {
+    setShowLinkedCounterparty(false);
+    showToast('You can now choose a different data source', 'info');
   };
 
   /**
@@ -236,12 +313,15 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
     if (sourceNumber === 1) {
       setDataSource1(null);
       setDataSource1Type(null);
+      setLinkedCounterparty(null);
+      setShowLinkedCounterparty(true);
       // Also clear source 2 since workflow requires source 1 first
       setDataSource2(null);
       setDataSource2Type(null);
     } else {
       setDataSource2(null);
       setDataSource2Type(null);
+      setShowLinkedCounterparty(true);
     }
   };
 
@@ -256,12 +336,16 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
       setDataSource1(null);
       setDataSource2Type(null);
       setDataSource2(null);
+      setLinkedCounterparty(null);
+      setShowLinkedCounterparty(true);
     } else if (step === 2) {
       // Back to data source 1 selection
       setDataSource1Type(null);
       setDataSource1(null);
       setDataSource2Type(null);
       setDataSource2(null);
+      setLinkedCounterparty(null);
+      setShowLinkedCounterparty(true);
     }
   };
 
@@ -294,6 +378,14 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
   // Get template info for display
   const templateInfo = getTemplateInfo();
+
+  // Determine if we should show linked counterparty card
+  const shouldShowLinkedCounterparty = 
+    dataSource1 && 
+    !dataSource2 && 
+    linkedCounterparty && 
+    showLinkedCounterparty &&
+    !checkingLinkedCounterparty;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -547,7 +639,27 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                       Choose where to load the counterparty's data from
                     </p>
 
-                    {!dataSource2 ? (
+                    {/* Show checking status */}
+                    {checkingLinkedCounterparty && (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mr-2"></div>
+                        <span className="text-small text-neutral-600">Checking for linked counterparties...</span>
+                      </div>
+                    )}
+
+                    {/* Show Linked Counterparty Card if found */}
+                    {!dataSource2 && shouldShowLinkedCounterparty && (
+                      <LinkedCounterpartyCard
+                        customerName={dataSource1.customerName || 'Customer'}
+                        counterparty={linkedCounterparty}
+                        onUseLinkedAccount={handleUseLinkedAccount}
+                        onChooseDifferent={handleChooseDifferentSource}
+                        isLoading={loadingLinkedData}
+                      />
+                    )}
+
+                    {/* Show regular data source selection if no linked counterparty or user chose different */}
+                    {!dataSource2 && !checkingLinkedCounterparty && (!linkedCounterparty || !showLinkedCounterparty) && (
                       <>
                         <DataSourceDropdown
                           value={dataSource2Type}
@@ -575,7 +687,10 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                           </div>
                         )}
                       </>
-                    ) : (
+                    )}
+
+                    {/* Show summary if Data Source 2 is loaded */}
+                    {dataSource2 && (
                       <DataSourceSummary
                         source={dataSource2.type}
                         customerName={dataSource2.customerName}
@@ -699,7 +814,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                 </div>
                 <h3 className="font-semibold text-neutral-900 mb-2">2. Load Data Sources</h3>
                 <p className="text-sm text-neutral-600">
-                  Connect to Xero or upload CSV files for both parties
+                  Connect to Xero or upload CSV files - we'll suggest linked counterparties automatically
                 </p>
               </div>
 
@@ -719,7 +834,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
             <div className="bg-blue-50 rounded-lg p-4 mt-6">
               <h4 className="font-medium text-blue-900 mb-2">Supported Data Sources</h4>
               <p className="text-sm text-blue-800">
-                Connect directly to Xero for automatic data import, or upload CSV files with transaction_number, amount, and date columns.
+                Connect directly to Xero for automatic data import and smart counterparty suggestions, or upload CSV files with transaction_number, amount, and date columns.
               </p>
             </div>
           </CardContent>
