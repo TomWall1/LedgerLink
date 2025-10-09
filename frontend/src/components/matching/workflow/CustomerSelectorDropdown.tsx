@@ -126,8 +126,10 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       if (success && Array.isArray(invoicesList)) {
         console.log('   Invoices found:', invoicesList.length);
         
-        // Transform Xero invoices to TransactionRecord format (same as XeroDataSelector)
+        // Transform Xero invoices to TransactionRecord format
+        // CRITICAL: Must include 'id' field!
         const transformedInvoices = invoicesList.map((invoice: XeroInvoice) => ({
+          id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}`, // ADDED ID FIELD
           transaction_number: invoice.InvoiceNumber || '',
           transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
           amount: invoice.Total || 0,
@@ -141,6 +143,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         }));
         
         console.log('✅ Transformed invoices:', transformedInvoices.length);
+        console.log('   First invoice sample:', transformedInvoices[0]);
         
         onLoadData({
           invoices: transformedInvoices,
