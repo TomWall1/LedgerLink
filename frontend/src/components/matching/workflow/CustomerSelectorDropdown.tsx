@@ -128,28 +128,39 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         
         // Transform Xero invoices to TransactionRecord format
         // CRITICAL: Must include 'id' field!
-        const transformedInvoices = invoicesList.map((invoice: XeroInvoice) => ({
-          id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}`, // ADDED ID FIELD
-          transaction_number: invoice.InvoiceNumber || '',
-          transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
-          amount: invoice.Total || 0,
-          issue_date: invoice.Date || '',
-          due_date: invoice.DueDate || '',
-          status: invoice.Status || '',
-          reference: invoice.Reference || '',
-          contact_name: invoice.Contact?.Name || selectedCustomer.Name,
-          xero_id: invoice.InvoiceID || '',
-          source: 'xero' as const
-        }));
+        const transformedInvoices = invoicesList.map((invoice: XeroInvoice, index: number) => {
+          const transformed = {
+            id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}-${index}`,
+            transaction_number: invoice.InvoiceNumber || '',
+            transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
+            amount: invoice.Total || 0,
+            issue_date: invoice.Date || '',
+            due_date: invoice.DueDate || '',
+            status: invoice.Status || '',
+            reference: invoice.Reference || '',
+            contact_name: invoice.Contact?.Name || selectedCustomer.Name,
+            xero_id: invoice.InvoiceID || '',
+            source: 'xero' as const
+          };
+          
+          console.log(`   🔍 DIAGNOSTIC: Transformed invoice ${index + 1}:`, JSON.stringify(transformed, null, 2));
+          return transformed;
+        });
         
         console.log('✅ Transformed invoices:', transformedInvoices.length);
-        console.log('   First invoice sample:', transformedInvoices[0]);
+        console.log('   🔍 DIAGNOSTIC: Full transformed array:', JSON.stringify(transformedInvoices, null, 2));
         
-        onLoadData({
+        const dataToPass = {
           invoices: transformedInvoices,
           customerName: selectedCustomer.Name,
           invoiceCount: transformedInvoices.length
-        });
+        };
+        
+        console.log('   🔍 DIAGNOSTIC: Data being passed to parent:', JSON.stringify(dataToPass, null, 2));
+        
+        onLoadData(dataToPass);
+        
+        console.log('   ✅ DIAGNOSTIC: onLoadData called successfully');
       } else {
         throw new Error(data.error || data.message || 'Failed to fetch invoices');
       }
