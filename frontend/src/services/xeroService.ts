@@ -177,7 +177,11 @@ class XeroService {
       });
       
       console.log('📦 [xeroService] Invoices response status:', response.status);
-      console.log('📦 [xeroService] Response data:', JSON.stringify(response.data, null, 2));
+      console.log('📦 [xeroService] Response data structure:', {
+        success: response.data.success,
+        hasInvoices: !!response.data.invoices,
+        invoicesLength: response.data.invoices?.length
+      });
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch invoices');
@@ -186,38 +190,93 @@ class XeroService {
       const invoices = response.data.invoices || [];
       console.log('📊 [xeroService] Raw invoices from API:', invoices.length);
       
-      // Log the first raw invoice to see its structure
-      if (invoices.length > 0) {
-        console.log('📋 [xeroService] First raw invoice structure:', JSON.stringify(invoices[0], null, 2));
+      // Handle empty invoices array
+      if (invoices.length === 0) {
+        console.log('ℹ️ [xeroService] No invoices found for this customer');
+        return [];
       }
       
-      // Transform Xero invoices to TransactionRecord format
+      // Log the first raw invoice to see its structure
+      if (invoices.length > 0) {
+        console.log('📋 [xeroService] First raw invoice structure:', {
+          InvoiceID: invoices[0].InvoiceID,
+          InvoiceNumber: invoices[0].InvoiceNumber,
+          Type: invoices[0].Type,
+          Total: invoices[0].Total,
+          Status: invoices[0].Status,
+          hasContact: !!invoices[0].Contact
+        });
+      }
+      
+      // Transform Xero invoices to TransactionRecord format with robust error handling
       const transformed = invoices.map((invoice: any, index: number) => {
-        const transformedInvoice = {
-          id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}-${index}`,
-          transaction_number: invoice.InvoiceNumber || '',
-          transaction_type: invoice.Type || 'ACCREC',
-          amount: invoice.Total || 0,
-          issue_date: invoice.Date || '',
-          due_date: invoice.DueDate || '',
-          status: invoice.Status || '',
-          reference: invoice.Reference || '',
-          contact_name: invoice.Contact?.Name || '',
-          xero_id: invoice.InvoiceID || '',
-          source: 'xero' as const
-        };
-        
-        console.log(`✅ [xeroService] Transformed invoice ${index}:`, JSON.stringify(transformedInvoice, null, 2));
-        return transformedInvoice;
+        try {
+          // Generate a unique ID - use InvoiceID first, then InvoiceNumber, finally a fallback
+          const id = invoice.InvoiceID || invoice.InvoiceNumber || `TEMP-${Date.now()}-${index}`;
+          
+          if (!id) {
+            console.warn(`⚠️ [xeroService] Invoice ${index} has no ID, using fallback`);
+          }
+          
+          const transformedInvoice: TransactionRecord = {
+            id: String(id), // Ensure it's a string
+            transaction_number: String(invoice.InvoiceNumber || invoice.InvoiceID || ''),
+            transaction_type: invoice.Type || 'ACCREC',
+            amount: parseFloat(invoice.Total) || 0,
+            issue_date: invoice.Date || invoice.DateString || '',
+            due_date: invoice.DueDate || invoice.DueDateString || '',
+            status: invoice.Status || '',
+            reference: invoice.Reference || '',
+            contact_name: invoice.Contact?.Name || '',
+            xero_id: invoice.InvoiceID || '',
+            source: 'xero' as const
+          };
+          
+          // Log only the first transformed invoice to avoid spam
+          if (index === 0) {
+            console.log(`✅ [xeroService] Transformed first invoice:`, {
+              id: transformedInvoice.id,
+              transaction_number: transformedInvoice.transaction_number,
+              amount: transformedInvoice.amount,
+              status: transformedInvoice.status
+            });
+          }
+          
+          return transformedInvoice;
+        } catch (transformError) {
+          console.error(`❌ [xeroService] Error transforming invoice ${index}:`, transformError);
+          // Return a minimal valid record to prevent complete failure
+          return {
+            id: `ERROR-${Date.now()}-${index}`,
+            transaction_number: 'ERROR',
+            transaction_type: 'ACCREC',
+            amount: 0,
+            issue_date: '',
+            due_date: '',
+            status: 'ERROR',
+            reference: 'Error processing invoice',
+            contact_name: '',
+            xero_id: '',
+            source: 'xero' as const
+          };
+        }
       });
       
-      console.log('✅ [xeroService] Total transformed invoices:', transformed.length);
-      console.log('✅ [xeroService] Returning invoices array:', JSON.stringify(transformed, null, 2));
+      console.log('✅ [xeroService] Successfully transformed invoices:', transformed.length);
+      
+      // Validate that all invoices have an id
+      const invalidInvoices = transformed.filter(inv => !inv.id);
+      if (invalidInvoices.length > 0) {
+        console.error('❌ [xeroService] Found invoices without ID:', invalidInvoices.length);
+      }
       
       return transformed;
     } catch (error: any) {
       console.error('❌ [xeroService] Failed to fetch customer invoices:', error);
-      console.error('❌ [xeroService] Error details:', error.response?.data);
+      console.error('❌ [xeroService] Error details:', {
+        message: error.message,
+        response: error.response?.data
+      });
       throw new Error(error.response?.data?.message || 'Failed to fetch invoices');
     }
   }
