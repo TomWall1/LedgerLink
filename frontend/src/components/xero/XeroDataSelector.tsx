@@ -128,26 +128,45 @@ const XeroDataSelector: React.FC<XeroDataSelectorProps> = ({ onDataSelected, onE
         console.log('   Invoices found:', invoicesList.length);
         
         // Transform Xero invoices to TransactionRecord format
-        const transformedInvoices: TransactionRecord[] = invoicesList.map((invoice: XeroInvoice) => ({
-          transaction_number: invoice.InvoiceNumber || '',
-          transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
-          amount: invoice.Total || 0,
-          issue_date: invoice.Date || '',
-          due_date: invoice.DueDate || '',
-          status: invoice.Status || '',
-          reference: invoice.Reference || '',
-          contact_name: invoice.Contact?.Name || customer.Name,
-          xero_id: invoice.InvoiceID || '',
-          source: 'xero' as const
-        }));
+        // IMPORTANT: Added 'id' field to fix "Cannot read properties of undefined (reading 'id')" error
+        const transformedInvoices: TransactionRecord[] = invoicesList.map((invoice: XeroInvoice) => {
+          console.log('   🔍 DIAGNOSTIC: Transforming invoice:', invoice.InvoiceNumber || 'NO_NUMBER', {
+            InvoiceID: invoice.InvoiceID || 'NO_ID',
+            Total: invoice.Total || 0
+          });
+          
+          return {
+            id: invoice.InvoiceID || '',  // FIXED: Added id field - this was causing the error!
+            transaction_number: invoice.InvoiceNumber || '',
+            transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
+            amount: invoice.Total || 0,
+            issue_date: invoice.Date || '',
+            due_date: invoice.DueDate || '',
+            status: invoice.Status || '',
+            reference: invoice.Reference || '',
+            contact_name: invoice.Contact?.Name || customer.Name,
+            xero_id: invoice.InvoiceID || '',
+            source: 'xero' as const
+          };
+        });
         
         console.log('✅ Transformed invoices:', transformedInvoices.length);
+        console.log('   🔍 DIAGNOSTIC: First transformed invoice:', transformedInvoices.length > 0 ? JSON.stringify(transformedInvoices[0], null, 2) : 'None');
+        console.log('   🔍 DIAGNOSTIC: Full transformed array:', JSON.stringify(transformedInvoices, null, 2));
+        
+        console.log('   🔍 DIAGNOSTIC: Data being passed to parent:', {
+          invoices: transformedInvoices,
+          customerName: customer.Name,
+          invoiceCount: transformedInvoices.length
+        });
         
         onDataSelected({
           invoices: transformedInvoices,
           customerName: customer.Name,
           invoiceCount: transformedInvoices.length
         });
+        
+        console.log('   ✅ DIAGNOSTIC: onLoadData called successfully');
       } else {
         throw new Error(data.error || data.message || 'Failed to fetch invoices');
       }
