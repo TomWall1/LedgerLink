@@ -28,100 +28,210 @@ const Login = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <Link to="/" className="inline-block mb-4">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">LL</span>
+    <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8" style={{ backgroundColor: '#f8fafc' }}>
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <Link to="/" className="inline-block">
+            <div className="mx-auto w-16 h-16 rounded-xl flex items-center justify-center mb-6" style={{ backgroundColor: '#2a8fe6' }}>
+              <span className="text-white font-bold text-2xl" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>LL</span>
             </div>
           </Link>
-          <h2 className="text-3xl font-bold text-[#1B365D]">Welcome Back</h2>
-          <p className="mt-2 text-gray-600">Sign in to your account</p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center">
-                <svg className="h-5 w-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <span className="text-red-700 font-medium">Error:</span>
-                <span className="text-red-600 ml-1">{error}</span>
-              </div>
-            </div>
-          )}
-          
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your email"
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your password"
-              />
-            </div>
+        {/* Login Card */}
+        <div className="bg-white rounded-xl p-8 shadow-md" style={{ boxShadow: '0 6px 18px rgba(14,25,40,0.08)' }}>
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-semibold mb-2" style={{ 
+              color: '#0f1724', 
+              fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+              fontWeight: 600 
+            }}>
+              Log in to LedgerLink
+            </h1>
           </div>
           
-          <div>
+          <form onSubmit={handleSubmit}>
+            {error && (
+              <div className="mb-6 p-4 rounded-lg" style={{ 
+                backgroundColor: '#fef2f2', 
+                border: '1px solid #fecaca' 
+              }}>
+                <div className="flex items-start">
+                  <svg className="h-5 w-5 mt-0.5 mr-2" style={{ color: '#ef4444' }} fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-sm" style={{ color: '#dc2626', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
+                    {error}
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-5">
+              {/* Email Input */}
+              <div>
+                <label 
+                  htmlFor="email" 
+                  className="block text-sm font-medium mb-2"
+                  style={{ 
+                    color: '#334155',
+                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+                  }}
+                >
+                  Email address
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 rounded-lg transition-all duration-200"
+                  style={{
+                    height: '40px',
+                    border: '1px solid #e6eef9',
+                    backgroundColor: '#ffffff',
+                    fontSize: '14px',
+                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                    outline: 'none'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#2a8fe6';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(42,143,230,0.12)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#e6eef9';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                  placeholder="you@example.com"
+                />
+              </div>
+              
+              {/* Password Input */}
+              <div>
+                <label 
+                  htmlFor="password" 
+                  className="block text-sm font-medium mb-2"
+                  style={{ 
+                    color: '#334155',
+                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+                  }}
+                >
+                  Password
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 rounded-lg transition-all duration-200"
+                  style={{
+                    height: '40px',
+                    border: '1px solid #e6eef9',
+                    backgroundColor: '#ffffff',
+                    fontSize: '14px',
+                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                    outline: 'none'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#2a8fe6';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(42,143,230,0.12)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#e6eef9';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                  placeholder="Enter your password"
+                />
+              </div>
+            </div>
+            
+            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full mt-6 rounded-lg text-white font-medium text-sm transition-all duration-200"
+              style={{
+                height: '40px',
+                backgroundColor: loading ? '#94a3b8' : '#2a8fe6',
+                boxShadow: loading ? 'none' : '0 6px 18px rgba(42,143,230,0.12)',
+                fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.target.style.backgroundColor = '#1464a6';
+                  e.target.style.transform = 'translateY(-1px)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.target.style.backgroundColor = '#2a8fe6';
+                  e.target.style.transform = 'translateY(0)';
+                }
+              }}
             >
               {loading ? (
-                <>
+                <span className="flex items-center justify-center">
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  Signing in...
-                </>
+                  Logging in...
+                </span>
               ) : (
-                'Sign in'
+                'Log in'
               )}
             </button>
-          </div>
+          </form>
           
-          <div className="text-center">
-            <span className="text-gray-600">Don't have an account? </span>
-            <Link to="/register" className="text-blue-600 hover:text-blue-500 font-medium">
-              Sign up
-            </Link>
+          {/* Links */}
+          <div className="mt-6 pt-6 border-t" style={{ borderColor: '#e6eef9' }}>
+            <div className="text-center text-sm" style={{ 
+              color: '#334155',
+              fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+            }}>
+              <span>Can't log in? </span>
+              <a href="#" className="font-medium" style={{ color: '#2a8fe6' }}>
+                Get help
+              </a>
+            </div>
           </div>
-          
-          <div className="text-center">
-            <Link to="/" className="text-gray-500 hover:text-gray-700 text-sm">
-              ← Back to home
-            </Link>
-          </div>
-        </form>
+        </div>
+        
+        {/* Sign up link */}
+        <div className="mt-6 text-center text-sm" style={{ 
+          color: '#334155',
+          fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+        }}>
+          <span>Don't have an account? </span>
+          <Link to="/register" className="font-medium" style={{ color: '#2a8fe6' }}>
+            Sign up
+          </Link>
+        </div>
+        
+        {/* Back to home */}
+        <div className="mt-4 text-center">
+          <Link 
+            to="/" 
+            className="text-sm inline-flex items-center"
+            style={{ 
+              color: '#94a3b8',
+              fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+            }}
+          >
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to home
+          </Link>
+        </div>
       </div>
     </div>
   );
