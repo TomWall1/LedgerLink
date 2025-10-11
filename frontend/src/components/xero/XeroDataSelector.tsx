@@ -127,32 +127,36 @@ const XeroDataSelector: React.FC<XeroDataSelectorProps> = ({ onDataSelected, onE
       if (success && Array.isArray(invoicesList)) {
         console.log('   Invoices found:', invoicesList.length);
         
-        // Transform Xero invoices to TransactionRecord format
-        // IMPORTANT: Added 'id' field to fix "Cannot read properties of undefined (reading 'id')" error
+        // FIXED: Transform Xero invoices to match TransactionRecord interface (camelCase properties)
         const transformedInvoices: TransactionRecord[] = invoicesList.map((invoice: XeroInvoice) => {
           console.log('   🔍 DIAGNOSTIC: Transforming invoice:', invoice.InvoiceNumber || 'NO_NUMBER', {
             InvoiceID: invoice.InvoiceID || 'NO_ID',
             Total: invoice.Total || 0
           });
           
+          // Create properly formatted TransactionRecord with camelCase properties
           return {
-            id: invoice.InvoiceID || '',  // FIXED: Added id field - this was causing the error!
-            transaction_number: invoice.InvoiceNumber || '',
-            transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
+            // Required fields matching TransactionRecord interface
+            transactionNumber: invoice.InvoiceNumber || '',  // FIXED: Changed from transaction_number
             amount: invoice.Total || 0,
-            issue_date: invoice.Date || '',
-            due_date: invoice.DueDate || '',
+            date: invoice.Date || '',  // FIXED: Changed from issue_date
+            
+            // Optional fields
+            dueDate: invoice.DueDate || '',  // FIXED: Changed from due_date
             status: invoice.Status || '',
             reference: invoice.Reference || '',
-            contact_name: invoice.Contact?.Name || customer.Name,
-            xero_id: invoice.InvoiceID || '',
-            source: 'xero' as const
+            type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',  // FIXED: Changed from transaction_type
+            vendor: invoice.Contact?.Name || customer.Name,  // FIXED: Changed from contact_name to vendor
+            
+            // Additional metadata fields (allowed by [key: string]: any in TransactionRecord)
+            xeroId: invoice.InvoiceID || '',  // FIXED: Changed from xero_id to xeroId
+            source: 'xero' as const,
+            contactName: invoice.Contact?.Name || customer.Name,  // Keep contact name as additional field
           };
         });
         
         console.log('✅ Transformed invoices:', transformedInvoices.length);
         console.log('   🔍 DIAGNOSTIC: First transformed invoice:', transformedInvoices.length > 0 ? JSON.stringify(transformedInvoices[0], null, 2) : 'None');
-        console.log('   🔍 DIAGNOSTIC: Full transformed array:', JSON.stringify(transformedInvoices, null, 2));
         
         console.log('   🔍 DIAGNOSTIC: Data being passed to parent:', {
           invoices: transformedInvoices,
@@ -166,7 +170,7 @@ const XeroDataSelector: React.FC<XeroDataSelectorProps> = ({ onDataSelected, onE
           invoiceCount: transformedInvoices.length
         });
         
-        console.log('   ✅ DIAGNOSTIC: onLoadData called successfully');
+        console.log('   ✅ DIAGNOSTIC: onDataSelected called successfully');
       } else {
         throw new Error(data.error || data.message || 'Failed to fetch invoices');
       }
