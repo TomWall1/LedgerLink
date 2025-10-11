@@ -182,46 +182,64 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
   /**
    * Handle Xero customer selection and data loading
-   * FIXED: Now validates camelCase properties to match TransactionRecord interface
+   * CRITICAL FIX: Strengthened null/undefined checks to prevent property access errors
    */
   const handleXeroDataLoad = (data: { invoices: any[]; customerName: string; invoiceCount: number }) => {
     try {
       console.log('📊 Received Xero data:', data.customerName, data.invoiceCount, 'invoices');
       
-      // DEFENSIVE VALIDATION: Ensure invoices is an array and all invoices are valid
+      // DEFENSIVE VALIDATION: Ensure invoices is an array
       if (!Array.isArray(data.invoices)) {
         console.error('❌ Invoices is not an array:', data.invoices);
         showToast('Invalid invoice data received', 'error');
         return;
       }
 
-      // FIXED: Filter to ensure all invoices have required camelCase fields
+      // CRITICAL FIX: Strengthen validation with explicit null/undefined checks BEFORE any property access
       const validInvoices = data.invoices.filter((invoice, index) => {
-        if (!invoice) {
+        // FIRST: Check for null or undefined IMMEDIATELY - this prevents ANY property access on bad values
+        if (invoice === null || invoice === undefined) {
           console.warn(`⚠️ Filtering out null/undefined invoice at index ${index}`);
           return false;
         }
-        // Check for id field
-        if (typeof invoice.id === 'undefined') {
-          console.warn(`⚠️ Filtering out invoice without id at index ${index}:`, invoice);
+        
+        // SECOND: Verify it's actually an object (not a primitive)
+        if (typeof invoice !== 'object') {
+          console.warn(`⚠️ Filtering out non-object invoice at index ${index}:`, typeof invoice);
           return false;
         }
-        // Check for transactionNumber field (camelCase - matches TransactionRecord interface)
-        if (typeof invoice.transactionNumber === 'undefined') {
-          console.warn(`⚠️ Filtering out invoice without transactionNumber at index ${index}:`, invoice);
+        
+        // NOW it's safe to access properties - wrap in try-catch for extra safety
+        try {
+          // Check for required id field
+          if (typeof invoice.id === 'undefined' || invoice.id === null) {
+            console.warn(`⚠️ Filtering out invoice without id at index ${index}:`, invoice);
+            return false;
+          }
+          
+          // Check for transactionNumber field (camelCase - matches TransactionRecord interface)
+          if (typeof invoice.transactionNumber === 'undefined') {
+            console.warn(`⚠️ Filtering out invoice without transactionNumber at index ${index}:`, invoice);
+            return false;
+          }
+          
+          // Check for amount field
+          if (typeof invoice.amount === 'undefined') {
+            console.warn(`⚠️ Filtering out invoice without amount at index ${index}:`, invoice);
+            return false;
+          }
+          
+          // Check for date field (camelCase - matches TransactionRecord interface)
+          if (typeof invoice.date === 'undefined') {
+            console.warn(`⚠️ Filtering out invoice without date at index ${index}:`, invoice);
+            return false;
+          }
+          
+          return true;
+        } catch (error) {
+          console.error(`❌ Error validating invoice at index ${index}:`, error);
           return false;
         }
-        // Check for amount field
-        if (typeof invoice.amount === 'undefined') {
-          console.warn(`⚠️ Filtering out invoice without amount at index ${index}:`, invoice);
-          return false;
-        }
-        // Check for date field (camelCase - matches TransactionRecord interface)
-        if (typeof invoice.date === 'undefined') {
-          console.warn(`⚠️ Filtering out invoice without date at index ${index}:`, invoice);
-          return false;
-        }
-        return true;
       });
 
       if (validInvoices.length !== data.invoices.length) {
