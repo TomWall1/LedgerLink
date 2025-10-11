@@ -195,24 +195,24 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         return;
       }
 
-      // FIXED: Filter to ensure all invoices have required fields (using camelCase property names)
+      // FIXED: Filter to ensure all invoices have required fields (using snake_case property names)
       const validInvoices = data.invoices.filter((invoice, index) => {
         if (!invoice) {
           console.warn(`⚠️ Filtering out null/undefined invoice at index ${index}`);
           return false;
         }
-        // Check for transactionNumber (camelCase, not snake_case)
-        if (typeof invoice.transactionNumber === 'undefined') {
-          console.warn(`⚠️ Filtering out invoice without transactionNumber at index ${index}:`, invoice);
+        // Check for transaction_number (snake_case - this is what CustomerSelectorDropdown actually creates)
+        if (typeof invoice.transaction_number === 'undefined') {
+          console.warn(`⚠️ Filtering out invoice without transaction_number at index ${index}:`, invoice);
           return false;
         }
         if (typeof invoice.amount === 'undefined') {
           console.warn(`⚠️ Filtering out invoice without amount at index ${index}:`, invoice);
           return false;
         }
-        // date is also required (camelCase)
-        if (typeof invoice.date === 'undefined') {
-          console.warn(`⚠️ Filtering out invoice without date at index ${index}:`, invoice);
+        // issue_date is also required (snake_case - this is what CustomerSelectorDropdown creates)
+        if (typeof invoice.issue_date === 'undefined') {
+          console.warn(`⚠️ Filtering out invoice without issue_date at index ${index}:`, invoice);
           return false;
         }
         return true;
