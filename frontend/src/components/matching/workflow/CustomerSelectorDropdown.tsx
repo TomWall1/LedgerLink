@@ -127,33 +127,61 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         console.log('   Invoices found:', invoicesList.length);
         
         // Transform Xero invoices to TransactionRecord format
-        // CRITICAL: Must include 'id' field!
-        const transformedInvoices = invoicesList.map((invoice: XeroInvoice, index: number) => {
-          const transformed = {
-            id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}-${index}`,
-            transaction_number: invoice.InvoiceNumber || '',
-            transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
-            amount: invoice.Total || 0,
-            issue_date: invoice.Date || '',
-            due_date: invoice.DueDate || '',
-            status: invoice.Status || '',
-            reference: invoice.Reference || '',
-            contact_name: invoice.Contact?.Name || selectedCustomer.Name,
-            xero_id: invoice.InvoiceID || '',
-            source: 'xero' as const
-          };
-          
-          console.log(`   🔍 DIAGNOSTIC: Transformed invoice ${index + 1}:`, JSON.stringify(transformed, null, 2));
-          return transformed;
-        });
+        // CRITICAL: Must include 'id' field and filter out any invalid entries!
+        const transformedInvoices = invoicesList
+          .map((invoice: XeroInvoice, index: number) => {
+            // Skip if invoice is null or undefined
+            if (!invoice) {
+              console.warn(`⚠️ Skipping null/undefined invoice at index ${index}`);
+              return null;
+            }
+
+            const transformed = {
+              id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}-${index}`,
+              transaction_number: invoice.InvoiceNumber || '',
+              transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
+              amount: invoice.Total || 0,
+              issue_date: invoice.Date || '',
+              due_date: invoice.DueDate || '',
+              status: invoice.Status || '',
+              reference: invoice.Reference || '',
+              contact_name: invoice.Contact?.Name || selectedCustomer.Name,
+              xero_id: invoice.InvoiceID || '',
+              source: 'xero' as const
+            };
+            
+            console.log(`   🔍 DIAGNOSTIC: Transformed invoice ${index + 1}:`, JSON.stringify(transformed, null, 2));
+            return transformed;
+          })
+          .filter((invoice): invoice is NonNullable<typeof invoice> => {
+            // Filter out any null/undefined invoices and ensure 'id' exists
+            if (!invoice) return false;
+            if (!invoice.id) {
+              console.warn('⚠️ Filtering out invoice without id:', invoice);
+              return false;
+            }
+            return true;
+          });
         
         console.log('✅ Transformed invoices:', transformedInvoices.length);
         console.log('   🔍 DIAGNOSTIC: Full transformed array:', JSON.stringify(transformedInvoices, null, 2));
         
+        // Final validation: Ensure all invoices have required fields
+        const validInvoices = transformedInvoices.filter(invoice => 
+          invoice && 
+          invoice.id && 
+          typeof invoice.transaction_number !== 'undefined' &&
+          typeof invoice.amount !== 'undefined'
+        );
+
+        if (validInvoices.length !== transformedInvoices.length) {
+          console.warn(`⚠️ Filtered ${transformedInvoices.length - validInvoices.length} invalid invoices`);
+        }
+        
         const dataToPass = {
-          invoices: transformedInvoices,
+          invoices: validInvoices,
           customerName: selectedCustomer.Name,
-          invoiceCount: transformedInvoices.length
+          invoiceCount: validInvoices.length
         };
         
         console.log('   🔍 DIAGNOSTIC: Data being passed to parent:', JSON.stringify(dataToPass, null, 2));
