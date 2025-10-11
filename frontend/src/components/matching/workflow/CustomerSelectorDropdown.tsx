@@ -124,59 +124,115 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       const invoicesList = data.invoices || [];
       
       if (success && Array.isArray(invoicesList)) {
-        console.log('   Invoices found:', invoicesList.length);
+        console.log('   Raw invoices found:', invoicesList.length);
+        
+        // CRITICAL FIX: Filter out null/undefined invoices BEFORE transformation
+        const validRawInvoices = invoicesList.filter((invoice, index) => {
+          if (invoice === null || invoice === undefined) {
+            console.warn(`⚠️ Skipping null/undefined invoice at index ${index}`);
+            return false;
+          }
+          // Also check that it's actually an object
+          if (typeof invoice !== 'object') {
+            console.warn(`⚠️ Skipping non-object invoice at index ${index}:`, typeof invoice);
+            return false;
+          }
+          return true;
+        });
+
+        console.log('   Valid raw invoices after null filtering:', validRawInvoices.length);
         
         // FIXED: Transform Xero invoices to TransactionRecord format using camelCase
         // This matches the TypeScript interface defined in frontend/src/types/matching.ts
-        const transformedInvoices = invoicesList
+        const transformedInvoices = validRawInvoices
           .map((invoice: XeroInvoice, index: number) => {
-            // Skip if invoice is null or undefined
+            // Extra safety check (should be redundant after above filter, but defensive)
             if (!invoice) {
-              console.warn(`⚠️ Skipping null/undefined invoice at index ${index}`);
+              console.warn(`⚠️ Unexpected null invoice after filtering at index ${index}`);
               return null;
             }
 
-            // CRITICAL FIX: Use camelCase property names to match TransactionRecord interface
-            const transformed = {
-              id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}-${index}`,
-              transactionNumber: invoice.InvoiceNumber || '',  // ← FIXED: camelCase
-              type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',  // ← FIXED: camelCase
-              amount: invoice.Total || 0,
-              date: invoice.Date || '',  // ← FIXED: camelCase (was issue_date)
-              dueDate: invoice.DueDate || '',  // ← FIXED: camelCase
-              status: invoice.Status || '',
-              reference: invoice.Reference || '',
-              vendor: invoice.Contact?.Name || selectedCustomer.Name,  // ← FIXED: camelCase
-              xeroId: invoice.InvoiceID || '',  // ← FIXED: camelCase
-              source: 'xero' as const
-            };
-            
-            console.log(`   ✅ Transformed invoice ${index + 1}:`, JSON.stringify(transformed, null, 2));
-            return transformed;
+            try {
+              // CRITICAL FIX: Use camelCase property names to match TransactionRecord interface
+              const transformed = {
+                id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}-${index}`,
+                transactionNumber: invoice.InvoiceNumber || '',  // ← camelCase
+                type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',  // ← camelCase
+                amount: invoice.Total || 0,
+                date: invoice.Date || '',  // ← camelCase (was issue_date)
+                dueDate: invoice.DueDate || '',  // ← camelCase
+                status: invoice.Status || '',
+                reference: invoice.Reference || '',
+                vendor: invoice.Contact?.Name || selectedCustomer.Name,  // ← camelCase
+                xeroId: invoice.InvoiceID || '',  // ← camelCase
+                source: 'xero' as const
+              };
+              
+              console.log(`   ✅ Transformed invoice ${index + 1}:`, {
+                id: transformed.id,
+                transactionNumber: transformed.transactionNumber,
+                amount: transformed.amount,
+                date: transformed.date
+              });
+              
+              return transformed;
+            } catch (transformError) {
+              console.error(`❌ Error transforming invoice at index ${index}:`, transformError);
+              return null;
+            }
           })
           .filter((invoice): invoice is NonNullable<typeof invoice> => {
-            // Filter out any null/undefined invoices and ensure 'id' exists
-            if (!invoice) return false;
-            if (!invoice.id) {
-              console.warn('⚠️ Filtering out invoice without id:', invoice);
+            // Filter out any null invoices that resulted from transformation errors
+            if (!invoice) {
+              console.warn('⚠️ Filtering out null invoice from transformation');
               return false;
             }
             return true;
           });
         
-        console.log('✅ Transformed invoices:', transformedInvoices.length);
+        console.log('   Transformed invoices count:', transformedInvoices.length);
         
         // Final validation: Ensure all invoices have required fields (using camelCase)
-        const validInvoices = transformedInvoices.filter(invoice => 
-          invoice && 
-          invoice.id && 
-          typeof invoice.transactionNumber !== 'undefined' &&  // ← FIXED: camelCase
-          typeof invoice.amount !== 'undefined' &&
-          typeof invoice.date !== 'undefined'  // ← FIXED: camelCase
-        );
+        const validInvoices = transformedInvoices.filter((invoice, index) => {
+          // Critical: Check invoice exists first
+          if (!invoice) {
+            console.warn(`⚠️ Invoice ${index} is null/undefined`);
+            return false;
+          }
+          
+          // Check for required id field
+          if (!invoice.id) {
+            console.warn(`⚠️ Filtering out invoice without id at index ${index}:`, invoice);
+            return false;
+          }
+          
+          // Check for required camelCase fields
+          if (typeof invoice.transactionNumber === 'undefined') {
+            console.warn(`⚠️ Filtering out invoice without transactionNumber at index ${index}`);
+            return false;
+          }
+          
+          if (typeof invoice.amount === 'undefined') {
+            console.warn(`⚠️ Filtering out invoice without amount at index ${index}`);
+            return false;
+          }
+          
+          if (typeof invoice.date === 'undefined') {
+            console.warn(`⚠️ Filtering out invoice without date at index ${index}`);
+            return false;
+          }
+          
+          return true;
+        });
 
         if (validInvoices.length !== transformedInvoices.length) {
           console.warn(`⚠️ Filtered ${transformedInvoices.length - validInvoices.length} invalid invoices`);
+        }
+        
+        console.log('   ✅ Final valid invoices count:', validInvoices.length);
+        
+        if (validInvoices.length === 0) {
+          throw new Error('No valid invoices found after filtering. The data might be in an unexpected format.');
         }
         
         const dataToPass = {
@@ -228,9 +284,9 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
+      <div className="flex flex-col items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-        <span className="ml-3 text-body text-neutral-600">Loading customers...</span>
+        <span className="ml-3 text-body text-neutral-600 mt-3">Loading customers...</span>
         <p className="text-xs text-neutral-500 mt-2">If this is your first request, the server may need 30-60 seconds to wake up...</p>
       </div>
     );
