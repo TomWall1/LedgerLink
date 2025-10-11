@@ -126,8 +126,8 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       if (success && Array.isArray(invoicesList)) {
         console.log('   Invoices found:', invoicesList.length);
         
-        // Transform Xero invoices to TransactionRecord format
-        // CRITICAL: Must include 'id' field and filter out any invalid entries!
+        // FIXED: Transform Xero invoices to TransactionRecord format using camelCase
+        // This matches the TypeScript interface defined in frontend/src/types/matching.ts
         const transformedInvoices = invoicesList
           .map((invoice: XeroInvoice, index: number) => {
             // Skip if invoice is null or undefined
@@ -136,21 +136,22 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
               return null;
             }
 
+            // CRITICAL FIX: Use camelCase property names to match TransactionRecord interface
             const transformed = {
               id: invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}-${index}`,
-              transaction_number: invoice.InvoiceNumber || '',
-              transaction_type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
+              transactionNumber: invoice.InvoiceNumber || '',  // ← FIXED: camelCase
+              type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',  // ← FIXED: camelCase
               amount: invoice.Total || 0,
-              issue_date: invoice.Date || '',
-              due_date: invoice.DueDate || '',
+              date: invoice.Date || '',  // ← FIXED: camelCase (was issue_date)
+              dueDate: invoice.DueDate || '',  // ← FIXED: camelCase
               status: invoice.Status || '',
               reference: invoice.Reference || '',
-              contact_name: invoice.Contact?.Name || selectedCustomer.Name,
-              xero_id: invoice.InvoiceID || '',
+              vendor: invoice.Contact?.Name || selectedCustomer.Name,  // ← FIXED: camelCase
+              xeroId: invoice.InvoiceID || '',  // ← FIXED: camelCase
               source: 'xero' as const
             };
             
-            console.log(`   🔍 DIAGNOSTIC: Transformed invoice ${index + 1}:`, JSON.stringify(transformed, null, 2));
+            console.log(`   ✅ Transformed invoice ${index + 1}:`, JSON.stringify(transformed, null, 2));
             return transformed;
           })
           .filter((invoice): invoice is NonNullable<typeof invoice> => {
@@ -164,14 +165,14 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           });
         
         console.log('✅ Transformed invoices:', transformedInvoices.length);
-        console.log('   🔍 DIAGNOSTIC: Full transformed array:', JSON.stringify(transformedInvoices, null, 2));
         
-        // Final validation: Ensure all invoices have required fields
+        // Final validation: Ensure all invoices have required fields (using camelCase)
         const validInvoices = transformedInvoices.filter(invoice => 
           invoice && 
           invoice.id && 
-          typeof invoice.transaction_number !== 'undefined' &&
-          typeof invoice.amount !== 'undefined'
+          typeof invoice.transactionNumber !== 'undefined' &&  // ← FIXED: camelCase
+          typeof invoice.amount !== 'undefined' &&
+          typeof invoice.date !== 'undefined'  // ← FIXED: camelCase
         );
 
         if (validInvoices.length !== transformedInvoices.length) {
@@ -184,11 +185,15 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           invoiceCount: validInvoices.length
         };
         
-        console.log('   🔍 DIAGNOSTIC: Data being passed to parent:', JSON.stringify(dataToPass, null, 2));
+        console.log('   📤 Passing data to parent:', {
+          invoiceCount: dataToPass.invoiceCount,
+          customerName: dataToPass.customerName,
+          sampleInvoice: dataToPass.invoices[0]
+        });
         
         onLoadData(dataToPass);
         
-        console.log('   ✅ DIAGNOSTIC: onLoadData called successfully');
+        console.log('   ✅ onLoadData called successfully');
       } else {
         throw new Error(data.error || data.message || 'Failed to fetch invoices');
       }
