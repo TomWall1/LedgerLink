@@ -182,7 +182,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
   /**
    * Handle Xero customer selection and data loading
-   * CustomerSelectorDropdown now handles fetching invoices and returns complete data
+   * FIXED: Now validates camelCase properties to match TransactionRecord interface
    */
   const handleXeroDataLoad = (data: { invoices: any[]; customerName: string; invoiceCount: number }) => {
     try {
@@ -195,24 +195,30 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         return;
       }
 
-      // FIXED: Filter to ensure all invoices have required fields (using snake_case property names)
+      // FIXED: Filter to ensure all invoices have required camelCase fields
       const validInvoices = data.invoices.filter((invoice, index) => {
         if (!invoice) {
           console.warn(`⚠️ Filtering out null/undefined invoice at index ${index}`);
           return false;
         }
-        // Check for transaction_number (snake_case - this is what CustomerSelectorDropdown actually creates)
-        if (typeof invoice.transaction_number === 'undefined') {
-          console.warn(`⚠️ Filtering out invoice without transaction_number at index ${index}:`, invoice);
+        // Check for id field
+        if (typeof invoice.id === 'undefined') {
+          console.warn(`⚠️ Filtering out invoice without id at index ${index}:`, invoice);
           return false;
         }
+        // Check for transactionNumber field (camelCase - matches TransactionRecord interface)
+        if (typeof invoice.transactionNumber === 'undefined') {
+          console.warn(`⚠️ Filtering out invoice without transactionNumber at index ${index}:`, invoice);
+          return false;
+        }
+        // Check for amount field
         if (typeof invoice.amount === 'undefined') {
           console.warn(`⚠️ Filtering out invoice without amount at index ${index}:`, invoice);
           return false;
         }
-        // issue_date is also required (snake_case - this is what CustomerSelectorDropdown creates)
-        if (typeof invoice.issue_date === 'undefined') {
-          console.warn(`⚠️ Filtering out invoice without issue_date at index ${index}:`, invoice);
+        // Check for date field (camelCase - matches TransactionRecord interface)
+        if (typeof invoice.date === 'undefined') {
+          console.warn(`⚠️ Filtering out invoice without date at index ${index}:`, invoice);
           return false;
         }
         return true;
@@ -228,7 +234,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         return;
       }
 
-      console.log(`✅ Validated ${validInvoices.length} invoices`);
+      console.log(`✅ Validated ${validInvoices.length} invoices with camelCase properties`);
       
       const loadedData: LoadedDataSource = {
         type: 'xero',
