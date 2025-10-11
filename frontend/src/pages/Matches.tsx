@@ -195,22 +195,24 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         return;
       }
 
-      // Filter to ensure all invoices have required fields
+      // FIXED: Filter to ensure all invoices have required fields (using camelCase property names)
       const validInvoices = data.invoices.filter((invoice, index) => {
         if (!invoice) {
           console.warn(`⚠️ Filtering out null/undefined invoice at index ${index}`);
           return false;
         }
-        if (!invoice.id) {
-          console.warn(`⚠️ Filtering out invoice without id at index ${index}:`, invoice);
-          return false;
-        }
-        if (typeof invoice.transaction_number === 'undefined') {
-          console.warn(`⚠️ Filtering out invoice without transaction_number at index ${index}:`, invoice);
+        // Check for transactionNumber (camelCase, not snake_case)
+        if (typeof invoice.transactionNumber === 'undefined') {
+          console.warn(`⚠️ Filtering out invoice without transactionNumber at index ${index}:`, invoice);
           return false;
         }
         if (typeof invoice.amount === 'undefined') {
           console.warn(`⚠️ Filtering out invoice without amount at index ${index}:`, invoice);
+          return false;
+        }
+        // date is also required (camelCase)
+        if (typeof invoice.date === 'undefined') {
+          console.warn(`⚠️ Filtering out invoice without date at index ${index}:`, invoice);
           return false;
         }
         return true;
@@ -761,7 +763,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
             <div className="bg-blue-50 rounded-lg p-4 mt-6">
               <h4 className="font-medium text-blue-900 mb-2">Supported Data Sources</h4>
               <p className="text-sm text-blue-800">
-                Connect directly to Xero for automatic data import, or upload CSV files with transaction_number, amount, and date columns.
+                Connect directly to Xero for automatic data import, or upload CSV files with transactionNumber, amount, and date columns.
               </p>
             </div>
           </CardContent>
