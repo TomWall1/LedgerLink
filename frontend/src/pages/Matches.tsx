@@ -188,23 +188,65 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
     try {
       console.log('📊 Received Xero data:', data.customerName, data.invoiceCount, 'invoices');
       
+      // DEFENSIVE VALIDATION: Ensure invoices is an array and all invoices are valid
+      if (!Array.isArray(data.invoices)) {
+        console.error('❌ Invoices is not an array:', data.invoices);
+        showToast('Invalid invoice data received', 'error');
+        return;
+      }
+
+      // Filter to ensure all invoices have required fields
+      const validInvoices = data.invoices.filter((invoice, index) => {
+        if (!invoice) {
+          console.warn(`⚠️ Filtering out null/undefined invoice at index ${index}`);
+          return false;
+        }
+        if (!invoice.id) {
+          console.warn(`⚠️ Filtering out invoice without id at index ${index}:`, invoice);
+          return false;
+        }
+        if (typeof invoice.transaction_number === 'undefined') {
+          console.warn(`⚠️ Filtering out invoice without transaction_number at index ${index}:`, invoice);
+          return false;
+        }
+        if (typeof invoice.amount === 'undefined') {
+          console.warn(`⚠️ Filtering out invoice without amount at index ${index}:`, invoice);
+          return false;
+        }
+        return true;
+      });
+
+      if (validInvoices.length !== data.invoices.length) {
+        console.warn(`⚠️ Filtered ${data.invoices.length - validInvoices.length} invalid invoices from Xero data`);
+      }
+
+      if (validInvoices.length === 0) {
+        console.error('❌ No valid invoices after filtering');
+        showToast('No valid invoices found in the data', 'error');
+        return;
+      }
+
+      console.log(`✅ Validated ${validInvoices.length} invoices`);
+      
       const loadedData: LoadedDataSource = {
         type: 'xero',
-        invoices: data.invoices,
+        invoices: validInvoices,
         customerName: data.customerName,
-        invoiceCount: data.invoiceCount
+        invoiceCount: validInvoices.length
       };
 
       if (!dataSource1) {
+        console.log('📥 Setting as Data Source 1');
         setDataSource1(loadedData);
         showToast(
-          `Loaded ${data.invoiceCount} invoice${data.invoiceCount !== 1 ? 's' : ''} from Xero for ${data.customerName}`,
+          `Loaded ${validInvoices.length} invoice${validInvoices.length !== 1 ? 's' : ''} from Xero for ${data.customerName}`,
           'success'
         );
       } else {
+        console.log('📥 Setting as Data Source 2');
         setDataSource2(loadedData);
         showToast(
-          `Loaded ${data.invoiceCount} invoice${data.invoiceCount !== 1 ? 's' : ''} from Xero for ${data.customerName}`,
+          `Loaded ${validInvoices.length} invoice${validInvoices.length !== 1 ? 's' : ''} from Xero for ${data.customerName}`,
           'success'
         );
       }
