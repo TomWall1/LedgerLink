@@ -27,6 +27,31 @@ export const MatchReadyCard: React.FC<MatchReadyCardProps> = ({
   onStartMatching,
   isMatching = false,
 }) => {
+  // DIAGNOSTIC LOGGING
+  console.log('🎨 [MatchReadyCard] Rendering with props:', {
+    source1,
+    source2,
+    isMatching,
+    propsReceived: {
+      source1: {
+        exists: !!source1,
+        type: typeof source1,
+        hasType: source1 ? typeof source1.type : 'N/A',
+        hasName: source1 ? typeof source1.name : 'N/A',
+        hasInvoiceCount: source1 ? typeof source1.invoiceCount : 'N/A',
+      },
+      source2: {
+        exists: !!source2,
+        type: typeof source2,
+        hasType: source2 ? typeof source2.type : 'N/A',
+        hasName: source2 ? typeof source2.name : 'N/A',
+        hasInvoiceCount: source2 ? typeof source2.invoiceCount : 'N/A',
+      },
+      onStartMatching: typeof onStartMatching,
+      isMatching: typeof isMatching
+    }
+  });
+
   return (
     <div className="p-6 bg-primary-50 border-2 border-primary-200 rounded-lg">
       <div className="space-y-4">
