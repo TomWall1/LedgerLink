@@ -25,6 +25,23 @@ export const DataSourceSummary: React.FC<DataSourceSummaryProps> = ({
   onClear,
   label,
 }) => {
+  // DIAGNOSTIC LOGGING
+  console.log('🎨 [DataSourceSummary] Rendering with props:', {
+    source,
+    customerName,
+    fileName,
+    invoiceCount,
+    label,
+    propsReceived: {
+      source: typeof source,
+      customerName: typeof customerName,
+      fileName: typeof fileName,
+      invoiceCount: typeof invoiceCount,
+      onClear: typeof onClear,
+      label: typeof label
+    }
+  });
+
   const getSourceDisplay = () => {
     if (source === 'xero' && customerName) {
       return `Xero - ${customerName}`;
@@ -36,6 +53,9 @@ export const DataSourceSummary: React.FC<DataSourceSummaryProps> = ({
       return 'Xero';
     }
   };
+
+  const sourceDisplay = getSourceDisplay();
+  console.log('🎨 [DataSourceSummary] Computed sourceDisplay:', sourceDisplay);
 
   return (
     <div className="p-4 bg-success-50 border-2 border-success-200 rounded-md">
@@ -51,7 +71,7 @@ export const DataSourceSummary: React.FC<DataSourceSummaryProps> = ({
               ✓ {label} Loaded
             </div>
             <div className="text-small text-success-700">
-              <span className="font-medium">{getSourceDisplay()}</span>
+              <span className="font-medium">{sourceDisplay}</span>
               <span className="mx-2">•</span>
               <span>{invoiceCount} invoice{invoiceCount !== 1 ? 's' : ''}</span>
             </div>
