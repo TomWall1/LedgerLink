@@ -4,6 +4,8 @@
  * This is the main page for invoice matching functionality.
  * Now features a clear, progressive workflow for selecting data sources
  * and performing matches.
+ * 
+ * FIX: Added 'id' property to toast state to prevent crash in Toast component
  */
 
 import React, { useState, useEffect } from 'react';
@@ -37,15 +39,19 @@ interface LoadedDataSource {
   invoiceCount: number;
 }
 
+// FIX: Updated toast interface to include required 'id' property
+interface ToastState {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+}
+
 export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   // State management
   const [viewMode, setViewMode] = useState<ViewMode>('upload');
   const [currentResults, setCurrentResults] = useState<MatchingResults | null>(null);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{
-    message: string;
-    type: 'success' | 'error' | 'warning' | 'info';
-  } | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showTemplateInfo, setShowTemplateInfo] = useState(false);
   
@@ -89,9 +95,11 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
   /**
    * Show toast notification
+   * FIX: Now generates a unique 'id' for each toast
    */
   const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
-    setToast({ message, type });
+    const id = Math.random().toString(36).substr(2, 9);
+    setToast({ id, message, type });
     setTimeout(() => setToast(null), 5000);
   };
 
@@ -794,12 +802,16 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         </Card>
       )}
 
-      {/* Toast Notifications */}
+      {/* Toast Notifications - FIX: Now passes toast object with required 'id' property */}
       {toast && (
         <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
+          toast={{
+            id: toast.id,
+            title: toast.message,
+            variant: toast.type === 'info' ? 'default' : toast.type,
+            duration: 5000
+          }}
+          onDismiss={() => setToast(null)}
         />
       )}
     </div>
