@@ -78,236 +78,434 @@ const Login = ({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8" style={{ backgroundColor: '#f8fafc' }}>
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 rounded-xl flex items-center justify-center mb-6" style={{ backgroundColor: '#2a8fe6' }}>
-            <span className="text-white font-bold text-2xl" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>LL</span>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#f8fafc',
+      padding: '24px'
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: '440px',
+        animation: 'fadeIn 0.4s ease-in-out'
+      }}>
+        {/* Logo Section */}
+        <div style={{
+          textAlign: 'center',
+          marginBottom: '32px'
+        }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            margin: '0 auto 24px',
+            backgroundColor: '#2a8fe6',
+            borderRadius: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 6px 18px rgba(42, 143, 230, 0.15)'
+          }}>
+            <svg 
+              width="32" 
+              height="32" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="white" 
+              strokeWidth="2.5" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+              <line x1="9" y1="11" x2="15" y2="11" />
+            </svg>
           </div>
+          <h1 style={{
+            fontSize: '28px',
+            fontWeight: '700',
+            color: '#0f1724',
+            marginBottom: '8px',
+            lineHeight: '1.2',
+            fontFamily: "'Inter', system-ui, sans-serif"
+          }}>
+            Log in to LedgerLink
+          </h1>
         </div>
-        
+
         {/* Login Card */}
-        <div className="bg-white rounded-xl p-8 shadow-md" style={{ boxShadow: '0 6px 18px rgba(14,25,40,0.08)' }}>
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold mb-2" style={{ 
-              color: '#0f1724', 
-              fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-              fontWeight: 600 
-            }}>
-              Log in to LedgerLink
-            </h1>
-          </div>
-          
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          padding: '40px 32px',
+          boxShadow: '0 6px 18px rgba(14, 25, 40, 0.08)',
+          border: '1px solid #e6eef9'
+        }}>
           <form onSubmit={handleSubmit}>
+            {/* Submit Error */}
             {errors.submit && (
-              <div className="mb-6 p-4 rounded-lg" style={{ 
-                backgroundColor: '#fef2f2', 
-                border: '1px solid #fecaca' 
+              <div style={{
+                backgroundColor: '#fee2e2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '24px'
               }}>
-                <div className="flex items-start">
-                  <svg className="h-5 w-5 mt-0.5 mr-2" style={{ color: '#ef4444' }} fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-sm" style={{ color: '#dc2626', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
-                    {errors.submit}
-                  </span>
-                </div>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#991b1b',
+                  margin: '0',
+                  fontFamily: "'Inter', system-ui, sans-serif"
+                }} role="alert">
+                  {errors.submit}
+                </p>
               </div>
             )}
-            
-            <div className="space-y-5">
-              {/* Email Input */}
-              <div>
-                <label 
-                  htmlFor="email" 
-                  className="block text-sm font-medium mb-2"
-                  style={{ 
-                    color: '#334155',
-                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
-                  }}
-                >
-                  Email address
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                  className="w-full px-3 rounded-lg transition-all duration-200"
-                  style={{
-                    height: '40px',
-                    border: errors.email ? '1px solid #ef4444' : '1px solid #e6eef9',
-                    backgroundColor: '#ffffff',
-                    fontSize: '14px',
-                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-                    outline: 'none'
-                  }}
-                  onFocus={(e) => {
-                    if (!errors.email) {
-                      e.target.style.borderColor = '#2a8fe6';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(42,143,230,0.12)';
-                    }
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = errors.email ? '#ef4444' : '#e6eef9';
+
+            {/* Email Field */}
+            <div style={{ marginBottom: '24px' }}>
+              <label 
+                htmlFor="email" 
+                style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#334155',
+                  marginBottom: '8px',
+                  fontFamily: "'Inter', system-ui, sans-serif"
+                }}
+              >
+                Email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                disabled={isLoading}
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="you@example.com"
+                style={{
+                  width: '100%',
+                  height: '48px',
+                  padding: '12px 16px',
+                  fontSize: '16px',
+                  border: errors.email ? '2px solid #ef4444' : '2px solid #e6eef9',
+                  borderRadius: '8px',
+                  backgroundColor: 'white',
+                  transition: 'all 0.12s ease',
+                  outline: 'none',
+                  fontFamily: "'Inter', system-ui, sans-serif"
+                }}
+                onFocus={(e) => {
+                  if (!errors.email) {
+                    e.target.style.borderColor = '#2a8fe6';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(42, 143, 230, 0.1)';
+                  }
+                }}
+                onBlur={(e) => {
+                  if (!errors.email) {
+                    e.target.style.borderColor = '#e6eef9';
                     e.target.style.boxShadow = 'none';
-                  }}
-                  placeholder="you@example.com"
-                />
-                {errors.email && (
-                  <p className="mt-2 text-sm" style={{ color: '#ef4444', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
-                    {errors.email}
-                  </p>
-                )}
-              </div>
-              
-              {/* Password Input */}
-              <div>
+                  }
+                }}
+              />
+              {errors.email && (
+                <p style={{
+                  marginTop: '6px',
+                  fontSize: '12px',
+                  color: '#ef4444',
+                  fontFamily: "'Inter', system-ui, sans-serif"
+                }} role="alert">
+                  {errors.email}
+                </p>
+              )}
+            </div>
+
+            {/* Password Field */}
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '8px'
+              }}>
                 <label 
                   htmlFor="password" 
-                  className="block text-sm font-medium mb-2"
-                  style={{ 
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: '500',
                     color: '#334155',
-                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+                    fontFamily: "'Inter', system-ui, sans-serif"
                   }}
                 >
                   Password
                 </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                  className="w-full px-3 rounded-lg transition-all duration-200"
+                <button
+                  type="button"
                   style={{
-                    height: '40px',
-                    border: errors.password ? '1px solid #ef4444' : '1px solid #e6eef9',
-                    backgroundColor: '#ffffff',
                     fontSize: '14px',
-                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-                    outline: 'none'
+                    color: '#2a8fe6',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0',
+                    textDecoration: 'none',
+                    fontWeight: '500',
+                    fontFamily: "'Inter', system-ui, sans-serif"
                   }}
-                  onFocus={(e) => {
-                    if (!errors.password) {
-                      e.target.style.borderColor = '#2a8fe6';
-                      e.target.style.boxShadow = '0 0 0 3px rgba(42,143,230,0.12)';
-                    }
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = errors.password ? '#ef4444' : '#e6eef9';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  placeholder="Enter your password"
-                />
-                {errors.password && (
-                  <p className="mt-2 text-sm" style={{ color: '#ef4444', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
-                    {errors.password}
-                  </p>
-                )}
+                  onMouseEnter={(e) => e.target.style.color = '#1464a6'}
+                  onMouseLeave={(e) => e.target.style.color = '#2a8fe6'}
+                  onClick={() => {/* Handle forgot password */}}
+                >
+                  Forgot password?
+                </button>
               </div>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                disabled={isLoading}
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="••••••••"
+                style={{
+                  width: '100%',
+                  height: '48px',
+                  padding: '12px 16px',
+                  fontSize: '16px',
+                  border: errors.password ? '2px solid #ef4444' : '2px solid #e6eef9',
+                  borderRadius: '8px',
+                  backgroundColor: 'white',
+                  transition: 'all 0.12s ease',
+                  outline: 'none',
+                  fontFamily: "'Inter', system-ui, sans-serif"
+                }}
+                onFocus={(e) => {
+                  if (!errors.password) {
+                    e.target.style.borderColor = '#2a8fe6';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(42, 143, 230, 0.1)';
+                  }
+                }}
+                onBlur={(e) => {
+                  if (!errors.password) {
+                    e.target.style.borderColor = '#e6eef9';
+                    e.target.style.boxShadow = 'none';
+                  }
+                }}
+              />
+              {errors.password && (
+                <p style={{
+                  marginTop: '6px',
+                  fontSize: '12px',
+                  color: '#ef4444',
+                  fontFamily: "'Inter', system-ui, sans-serif"
+                }} role="alert">
+                  {errors.password}
+                </p>
+              )}
             </div>
-            
+
             {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-6 rounded-lg text-white font-medium text-sm transition-all duration-200"
               style={{
-                height: '40px',
+                width: '100%',
+                height: '48px',
                 backgroundColor: isLoading ? '#94a3b8' : '#2a8fe6',
-                boxShadow: isLoading ? 'none' : '0 6px 18px rgba(42,143,230,0.12)',
-                fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-                cursor: isLoading ? 'not-allowed' : 'pointer'
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.12s ease',
+                boxShadow: '0 6px 18px rgba(42, 143, 230, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontFamily: "'Inter', system-ui, sans-serif"
               }}
               onMouseEnter={(e) => {
                 if (!isLoading) {
                   e.target.style.backgroundColor = '#1464a6';
                   e.target.style.transform = 'translateY(-1px)';
+                  e.target.style.boxShadow = '0 8px 24px rgba(42, 143, 230, 0.2)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isLoading) {
                   e.target.style.backgroundColor = '#2a8fe6';
                   e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 6px 18px rgba(42, 143, 230, 0.15)';
+                }
+              }}
+              onMouseDown={(e) => {
+                if (!isLoading) {
+                  e.target.style.transform = 'translateY(0)';
                 }
               }}
             >
               {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
+                <>
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid white',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'spin 0.6s linear infinite'
+                  }} />
                   Logging in...
-                </span>
+                </>
               ) : (
                 'Log in'
               )}
             </button>
           </form>
-          
-          {/* Links */}
-          <div className="mt-6 pt-6 border-t" style={{ borderColor: '#e6eef9' }}>
-            <div className="text-center text-sm" style={{ 
-              color: '#334155',
-              fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+        </div>
+
+        {/* Register Link */}
+        <div style={{
+          textAlign: 'center',
+          marginTop: '24px'
+        }}>
+          <p style={{
+            fontSize: '14px',
+            color: '#64748b',
+            margin: '0',
+            fontFamily: "'Inter', system-ui, sans-serif"
+          }}>
+            Don't have an account?{' '}
+            <button
+              type="button"
+              onClick={onSwitchToRegister}
+              style={{
+                color: '#2a8fe6',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                padding: '0',
+                textDecoration: 'none',
+                fontFamily: "'Inter', system-ui, sans-serif"
+              }}
+              onMouseEnter={(e) => e.target.style.color = '#1464a6'}
+              onMouseLeave={(e) => e.target.style.color = '#2a8fe6'}
+            >
+              Register here
+            </button>
+          </p>
+        </div>
+
+        {/* Back to home */}
+        {onBackToLanding && (
+          <div style={{
+            textAlign: 'center',
+            marginTop: '16px'
+          }}>
+            <button 
+              type="button"
+              onClick={onBackToLanding}
+              style={{
+                fontSize: '14px',
+                color: '#94a3b8',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '0',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontFamily: "'Inter', system-ui, sans-serif"
+              }}
+              onMouseEnter={(e) => e.target.style.color = '#64748b'}
+              onMouseLeave={(e) => e.target.style.color = '#94a3b8'}
+            >
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to home
+            </button>
+          </div>
+        )}
+
+        {/* Trust Indicators */}
+        <div style={{
+          marginTop: '32px',
+          textAlign: 'center'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '24px',
+            flexWrap: 'wrap',
+            marginBottom: '12px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              color: '#64748b',
+              fontFamily: "'Inter', system-ui, sans-serif"
             }}>
-              <span>Can't log in? </span>
-              <button 
-                type="button"
-                className="font-medium" 
-                style={{ color: '#2a8fe6' }}
-                onClick={() => {/* Handle forgot password */}}
-              >
-                Get help
-              </button>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+              <span>Secure login</span>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              color: '#64748b',
+              fontFamily: "'Inter', system-ui, sans-serif"
+            }}>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span>Bank-grade encryption</span>
             </div>
           </div>
         </div>
-        
-        {/* Sign up link */}
-        <div className="mt-6 text-center text-sm" style={{ 
-          color: '#334155',
-          fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
-        }}>
-          <span>Don't have an account? </span>
-          <button 
-            type="button"
-            className="font-medium" 
-            style={{ color: '#2a8fe6' }}
-            onClick={onSwitchToRegister}
-          >
-            Sign up
-          </button>
-        </div>
-        
-        {/* Back to home */}
-        <div className="mt-4 text-center">
-          <button 
-            type="button"
-            onClick={onBackToLanding}
-            className="text-sm inline-flex items-center"
-            style={{ 
-              color: '#94a3b8',
-              fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
-            }}
-          >
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to home
-          </button>
-        </div>
       </div>
+
+      {/* Add keyframe animation */}
+      <style>
+        {`
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+      </style>
     </div>
   );
 };
