@@ -5,6 +5,7 @@ import connectDB from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
 import xeroRoutes from './routes/xeroRoutes.js';
 import transactionRoutes from './routes/transactionRoutes.js';
+import counterpartyRoutes from './routes/counterpartyRoutes.js';
 import { errorHandler } from './middleware/errorMiddleware.js';
 
 // Load environment variables
@@ -44,7 +45,8 @@ app.get('/', (req, res) => {
       test: '/api/test',
       users: '/api/users',
       xero: '/api/xero',
-      transactions: '/api/transactions'
+      transactions: '/api/transactions',
+      counterparty: '/api/counterparty'
     }
   });
 });
@@ -69,7 +71,8 @@ app.get('/api/test', (req, res) => {
     routes: {
       users: '/api/users',
       xero: '/api/xero',
-      transactions: '/api/transactions'
+      transactions: '/api/transactions',
+      counterparty: '/api/counterparty'
     }
   });
 });
@@ -78,6 +81,7 @@ app.get('/api/test', (req, res) => {
 app.use('/api/users', userRoutes);
 app.use('/api/xero', xeroRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/counterparty', counterpartyRoutes);
 
 // 404 handler for unknown routes
 app.all('*', (req, res) => {
@@ -91,7 +95,8 @@ app.all('*', (req, res) => {
       test: '/api/test',
       users: '/api/users/*',
       xero: '/api/xero/*',
-      transactions: '/api/transactions/*'
+      transactions: '/api/transactions/*',
+      counterparty: '/api/counterparty/*'
     }
   });
 });
