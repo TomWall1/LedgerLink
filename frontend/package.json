@@ -1,6 +1,6 @@
 {
   "name": "ledgerlink-frontend",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "LedgerLink Frontend with Xero Integration",
   "private": true,
   "dependencies": {
@@ -32,7 +32,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "rm -rf build && DISABLE_ESLINT_PLUGIN=true GENERATE_SOURCEMAP=false TSC_COMPILE_ON_ERROR=true react-scripts build",
+    "build": "rm -rf build node_modules/.cache && DISABLE_ESLINT_PLUGIN=true GENERATE_SOURCEMAP=false TSC_COMPILE_ON_ERROR=true react-scripts build",
     "build-with-fallback": "npm run build || node scripts/build-fallback.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
