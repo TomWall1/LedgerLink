@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import LedgerLinkLogo from './ui/LedgerLinkLogo';
 
 const Login = ({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) => {
   const { login } = useAuth();
@@ -97,31 +98,11 @@ const Login = ({ onLoginSuccess, onSwitchToRegister, onBackToLanding }) => {
           marginBottom: '32px'
         }}>
           <div style={{
-            width: '64px',
-            height: '64px',
-            margin: '0 auto 24px',
-            backgroundColor: '#2a8fe6',
-            borderRadius: '16px',
             display: 'flex',
-            alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 6px 18px rgba(42, 143, 230, 0.15)'
+            marginBottom: '24px'
           }}>
-            <svg 
-              width="32" 
-              height="32" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="white" 
-              strokeWidth="2.5" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="9" y1="15" x2="15" y2="15" />
-              <line x1="9" y1="11" x2="15" y2="11" />
-            </svg>
+            <LedgerLinkLogo size={64} withText={false} color="#2a8fe6" />
           </div>
           <h1 style={{
             fontSize: '28px',
