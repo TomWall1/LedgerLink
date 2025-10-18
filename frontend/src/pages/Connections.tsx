@@ -4,6 +4,7 @@ import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { CustomerVendorList } from '../components/counterparty/CustomerVendorList';
 
 interface Connection {
   id: string;
@@ -20,6 +21,7 @@ interface Connection {
 export const Connections: React.FC = () => {
   const [connectionModal, setConnectionModal] = useState<{ open: boolean; connection?: Connection }>({ open: false });
   const [authCode, setAuthCode] = useState('');
+  const [activeTab, setActiveTab] = useState<'connections' | 'contacts'>('connections');
   
   // Mock connections data
   const [connections, setConnections] = useState<Connection[]>([
@@ -170,153 +172,188 @@ export const Connections: React.FC = () => {
         </p>
       </div>
       
-      {/* Current Connections */}
-      <div className="mb-12">
-        <h2 className="text-h2 text-neutral-900 mb-6">Active Connections</h2>
-        
-        {connections.length === 0 ? (
-          <Card className="text-center py-12">
-            <CardContent>
-              <div className="w-16 h-16 bg-neutral-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-              </div>
-              <h3 className="text-h3 text-neutral-900 mb-2">No connections yet</h3>
-              <p className="text-body text-neutral-600 max-w-md mx-auto">
-                Connect your first ERP or business system to start automatically reconciling your ledgers.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {connections.map((connection) => (
-              <Card key={connection.id} className="hover:shadow-lg transition-shadow duration-240">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                        <span className="text-2xl">🔷</span>
-                      </div>
-                      <div>
-                        <h3 className="text-h3 text-neutral-900">{connection.name}</h3>
-                        <p className="text-small text-neutral-600">{connection.platform}</p>
-                      </div>
-                    </div>
-                    {getStatusBadge(connection.status)}
-                  </div>
-                </CardHeader>
-                
-                <CardContent>
-                  <p className="text-body text-neutral-600 mb-4">{connection.description}</p>
-                  
-                  {connection.status === 'connected' && (
-                    <div className="space-y-2 text-small text-neutral-600">
-                      <div className="flex justify-between">
-                        <span>Last sync:</span>
-                        <span className="font-medium">{connection.lastSync}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Accounts:</span>
-                        <span className="font-medium">{connection.accountsConnected}</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {connection.status === 'error' && (
-                    <div className="bg-error-50 border border-error-200 rounded-md p-3">
-                      <p className="text-small text-error-700">
-                        Connection error: Authentication expired. Please reconnect to resume sync.
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-                
-                <CardFooter>
-                  <div className="flex space-x-2 w-full">
-                    {connection.status === 'connected' && (
-                      <>
-                        <Button variant="ghost" size="sm" className="flex-1">
-                          Sync Now
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="flex-1"
-                          onClick={() => handleDisconnect(connection.id)}
-                        >
-                          Disconnect
-                        </Button>
-                      </>
-                    )}
-                    
-                    {(connection.status === 'disconnected' || connection.status === 'error') && (
-                      <Button 
-                        variant="primary" 
-                        size="sm" 
-                        className="w-full"
-                        onClick={() => handleReconnect(connection.id)}
-                      >
-                        {connection.status === 'error' ? 'Reconnect' : 'Connect'}
-                      </Button>
-                    )}
-                  </div>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        )}
+      {/* Tabs */}
+      <div className="flex space-x-1 mb-6 border-b border-neutral-200">
+        <button
+          onClick={() => setActiveTab('connections')}
+          className={`px-4 py-2 text-sm font-medium transition-colors duration-120 border-b-2 ${
+            activeTab === 'connections'
+              ? 'text-primary-700 border-primary-500'
+              : 'text-neutral-600 border-transparent hover:text-neutral-900 hover:border-neutral-300'
+          }`}
+        >
+          System Connections
+        </button>
+        <button
+          onClick={() => setActiveTab('contacts')}
+          className={`px-4 py-2 text-sm font-medium transition-colors duration-120 border-b-2 ${
+            activeTab === 'contacts'
+              ? 'text-primary-700 border-primary-500'
+              : 'text-neutral-600 border-transparent hover:text-neutral-900 hover:border-neutral-300'
+          }`}
+        >
+          Customers & Vendors
+        </button>
       </div>
       
-      {/* Available Integrations */}
-      <div>
-        <h2 className="text-h2 text-neutral-900 mb-6">Available Integrations</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {availableIntegrations.map((integration) => {
-            const isConnected = connections.some(conn => 
-              conn.platform === integration.platform && conn.status === 'connected'
-            );
+      {activeTab === 'connections' ? (
+        <>
+          {/* Current Connections */}
+          <div className="mb-12">
+            <h2 className="text-h2 text-neutral-900 mb-6">Active Connections</h2>
             
-            return (
-              <Card key={integration.platform} className="hover:shadow-lg transition-shadow duration-240">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-neutral-100 rounded-lg flex items-center justify-center">
-                        <span className="text-2xl">{integration.logo}</span>
-                      </div>
-                      <div>
-                        <h3 className="text-h3 text-neutral-900">{integration.platform}</h3>
-                        <p className="text-small text-neutral-600 capitalize">{integration.type} System</p>
-                      </div>
-                    </div>
-                    {integration.popular && (
-                      <Badge variant="default">Popular</Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                
+            {connections.length === 0 ? (
+              <Card className="text-center py-12">
                 <CardContent>
-                  <p className="text-body text-neutral-600">{integration.description}</p>
+                  <div className="w-16 h-16 bg-neutral-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                  </div>
+                  <h3 className="text-h3 text-neutral-900 mb-2">No connections yet</h3>
+                  <p className="text-body text-neutral-600 max-w-md mx-auto">
+                    Connect your first ERP or business system to start automatically reconciling your ledgers.
+                  </p>
                 </CardContent>
-                
-                <CardFooter>
-                  <Button 
-                    variant={isConnected ? "ghost" : "primary"} 
-                    size="sm" 
-                    className="w-full"
-                    disabled={isConnected}
-                    onClick={() => handleConnect(integration.platform)}
-                  >
-                    {isConnected ? 'Already Connected' : 'Connect'}
-                  </Button>
-                </CardFooter>
               </Card>
-            );
-          })}
-        </div>
-      </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {connections.map((connection) => (
+                  <Card key={connection.id} className="hover:shadow-lg transition-shadow duration-240">
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                            <span className="text-2xl">🔷</span>
+                          </div>
+                          <div>
+                            <h3 className="text-h3 text-neutral-900">{connection.name}</h3>
+                            <p className="text-small text-neutral-600">{connection.platform}</p>
+                          </div>
+                        </div>
+                        {getStatusBadge(connection.status)}
+                      </div>
+                    </CardHeader>
+                    
+                    <CardContent>
+                      <p className="text-body text-neutral-600 mb-4">{connection.description}</p>
+                      
+                      {connection.status === 'connected' && (
+                        <div className="space-y-2 text-small text-neutral-600">
+                          <div className="flex justify-between">
+                            <span>Last sync:</span>
+                            <span className="font-medium">{connection.lastSync}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Accounts:</span>
+                            <span className="font-medium">{connection.accountsConnected}</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {connection.status === 'error' && (
+                        <div className="bg-error-50 border border-error-200 rounded-md p-3">
+                          <p className="text-small text-error-700">
+                            Connection error: Authentication expired. Please reconnect to resume sync.
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                    
+                    <CardFooter>
+                      <div className="flex space-x-2 w-full">
+                        {connection.status === 'connected' && (
+                          <>
+                            <Button variant="ghost" size="sm" className="flex-1">
+                              Sync Now
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="flex-1"
+                              onClick={() => handleDisconnect(connection.id)}
+                            >
+                              Disconnect
+                            </Button>
+                          </>
+                        )}
+                        
+                        {(connection.status === 'disconnected' || connection.status === 'error') && (
+                          <Button 
+                            variant="primary" 
+                            size="sm" 
+                            className="w-full"
+                            onClick={() => handleReconnect(connection.id)}
+                          >
+                            {connection.status === 'error' ? 'Reconnect' : 'Connect'}
+                          </Button>
+                        )}
+                      </div>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* Available Integrations */}
+          <div>
+            <h2 className="text-h2 text-neutral-900 mb-6">Available Integrations</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {availableIntegrations.map((integration) => {
+                const isConnected = connections.some(conn => 
+                  conn.platform === integration.platform && conn.status === 'connected'
+                );
+                
+                return (
+                  <Card key={integration.platform} className="hover:shadow-lg transition-shadow duration-240">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-neutral-100 rounded-lg flex items-center justify-center">
+                            <span className="text-2xl">{integration.logo}</span>
+                          </div>
+                          <div>
+                            <h3 className="text-h3 text-neutral-900">{integration.platform}</h3>
+                            <p className="text-small text-neutral-600 capitalize">{integration.type} System</p>
+                          </div>
+                        </div>
+                        {integration.popular && (
+                          <Badge variant="default">Popular</Badge>
+                        )}
+                      </div>
+                    </CardHeader>
+                    
+                    <CardContent>
+                      <p className="text-body text-neutral-600">{integration.description}</p>
+                    </CardContent>
+                    
+                    <CardFooter>
+                      <Button 
+                        variant={isConnected ? "ghost" : "primary"} 
+                        size="sm" 
+                        className="w-full"
+                        disabled={isConnected}
+                        onClick={() => handleConnect(integration.platform)}
+                      >
+                        {isConnected ? 'Already Connected' : 'Connect'}
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Customers & Vendors Tab */
+        <CustomerVendorList 
+          onInvite={(contact) => {
+            console.log('Invitation sent to:', contact);
+          }}
+        />
+      )}
       
       {/* Connection Setup Modal */}
       <Modal
