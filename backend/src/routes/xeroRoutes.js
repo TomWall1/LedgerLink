@@ -397,6 +397,111 @@ router.get('/debug-auth', async (req, res) => {
   }
 });
 
+// Get all Xero contacts (customers AND vendors) - NEW ENDPOINT
+router.get('/contacts', async (req, res) => {
+  try {
+    console.log('GET /api/xero/contacts - Fetching all contacts from Xero...');
+    
+    // Check for ERP connection ID in headers (from counterparty route)
+    const erpConnectionId = req.headers['x-erp-connection-id'];
+    console.log('   ERP Connection ID from header:', erpConnectionId);
+    
+    // Get valid tokens
+    const tokens = await tokenStore.getValidTokens();
+    console.log('   Tokens retrieved:', !!tokens);
+    
+    if (!tokens) {
+      console.log('   ❌ No valid tokens found');
+      return res.status(401).json({
+        success: false,
+        error: 'Not authenticated with Xero',
+        contacts: []
+      });
+    }
+    
+    // Create Xero client to get tenants
+    const xero = getXeroClient();
+    xero.setTokenSet(tokens);
+    console.log('   Xero client created and tokens set');
+    
+    // Get available tenant connections
+    const tenants = await xero.updateTenants();
+    console.log('   Tenants found:', tenants ? tenants.length : 0);
+    
+    if (!tenants || tenants.length === 0) {
+      console.log('   ❌ No Xero organizations found');
+      return res.json({
+        success: false,
+        error: 'No Xero organizations found for this connection',
+        contacts: []
+      });
+    }
+    
+    // Use the first tenant ID (most common scenario)
+    const firstTenant = tenants[0];
+    console.log('   Using tenant:', firstTenant.tenantName, firstTenant.tenantId);
+    
+    // Fetch ALL contacts - Xero will include IsCustomer and IsSupplier flags
+    console.log('   Calling Xero API to fetch all contacts...');
+    const contactsData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Contacts?where=ContactStatus=="ACTIVE"',
+      tokens.access_token,
+      firstTenant.tenantId
+    );
+    
+    console.log('   Response received');
+    const contacts = contactsData.Contacts || [];
+    console.log('   ✅ Total active contacts found:', contacts.length);
+    
+    // Format contacts with type information
+    const formattedContacts = contacts.map(contact => ({
+      contactID: contact.ContactID,
+      name: contact.Name || '',
+      emailAddress: contact.EmailAddress || '',
+      isCustomer: contact.IsCustomer || false,
+      isSupplier: contact.IsSupplier || false,
+      contactNumber: contact.ContactNumber || '',
+      accountNumber: contact.AccountNumber || '',
+      taxNumber: contact.TaxNumber || '',
+      contactStatus: contact.ContactStatus,
+      addresses: contact.Addresses || [],
+      phones: contact.Phones || [],
+      bankAccountDetails: contact.BankAccountDetails || ''
+    }));
+    
+    // Log summary
+    const customers = formattedContacts.filter(c => c.isCustomer);
+    const suppliers = formattedContacts.filter(c => c.isSupplier);
+    const both = formattedContacts.filter(c => c.isCustomer && c.isSupplier);
+    
+    console.log(`   📊 Summary: ${customers.length} customers, ${suppliers.length} vendors, ${both.length} both`);
+    
+    res.json({
+      success: true,
+      contacts: formattedContacts,
+      summary: {
+        total: formattedContacts.length,
+        customers: customers.length,
+        vendors: suppliers.length,
+        both: both.length
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching Xero contacts:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch Xero contacts',
+      details: error.message,
+      contacts: []
+    });
+  }
+});
+
 // Get Xero customers - NOW USING DIRECT API CALLS (more reliable)
 router.get('/customers', async (req, res) => {
   try {
@@ -601,6 +706,7 @@ router.get('/test', (req, res) => {
       'connect': '/api/xero/connect',
       'callback': '/api/xero/callback',
       'disconnect': '/api/xero/disconnect',
+      'contacts': '/api/xero/contacts',
       'customers': '/api/xero/customers',
       'test': '/api/xero/test'
     }
