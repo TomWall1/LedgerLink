@@ -53,3 +53,7 @@ export const admin = (req, res, next) => {
     });
   }
 };
+
+// Export authenticateToken as an alias for protect
+// This is used by some routes and maintains backward compatibility
+export const authenticateToken = protect;
