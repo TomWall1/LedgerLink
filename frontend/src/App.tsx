@@ -1,4 +1,4 @@
-// Force cache invalidation - v1.0.9 - COUNTERPARTY LINKING UPDATE
+// Force cache invalidation - v1.0.10 - COUNTERPARTIES ENABLED
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -13,6 +13,7 @@ import { LandingPage } from './pages/LandingPage';
 import Login from './components/Login';
 import Register from './components/Register';
 import Matches from './pages/Matches';
+import { Counterparties } from './pages/Counterparties';
 import { InviteAcceptance } from './components/counterparty/InviteAcceptance';
 
 import './styles/global.css';
@@ -258,11 +259,9 @@ const AppContent: React.FC = () => {
                 <Route 
                   path="/counterparties" 
                   element={
-                    <div className="p-8">
-                      <h1 className="text-2xl font-bold mb-4">Counterparties</h1>
-                      <p className="text-gray-600">Counterparty management functionality</p>
-                      <p className="text-sm text-gray-500 mt-2">This feature is available in the full version</p>
-                    </div>
+                    <ErrorBoundary>
+                      <Counterparties />
+                    </ErrorBoundary>
                   } 
                 />
                 <Route 
