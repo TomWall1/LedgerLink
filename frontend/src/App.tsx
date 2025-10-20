@@ -1,4 +1,4 @@
-// Force cache invalidation - v1.0.8 - LOGIN UPDATE DEPLOYED
+// Force cache invalidation - v1.0.9 - COUNTERPARTY LINKING UPDATE
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -13,6 +13,7 @@ import { LandingPage } from './pages/LandingPage';
 import Login from './components/Login';
 import Register from './components/Register';
 import Matches from './pages/Matches';
+import { InviteAcceptance } from './components/counterparty/InviteAcceptance';
 
 import './styles/global.css';
 
@@ -22,7 +23,7 @@ interface Company {
   ownerId: string;
 }
 
-type AppView = 'landing' | 'login' | 'register' | 'dashboard';
+type AppView = 'landing' | 'login' | 'register' | 'dashboard' | 'invite-acceptance';
 
 // Component to handle tab state based on current route
 const AppContent: React.FC = () => {
@@ -33,9 +34,19 @@ const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>('landing');
   const [company, setCompany] = useState<Company | null>(null);
   
+  // Check for invite acceptance route
+  useEffect(() => {
+    if (location.pathname === '/accept-invite') {
+      setCurrentView('invite-acceptance');
+    }
+  }, [location.pathname]);
+  
   // Check authentication status on mount
   useEffect(() => {
     if (loading) return;
+    
+    // Don't override invite-acceptance view
+    if (currentView === 'invite-acceptance') return;
     
     if (user) {
       // User is authenticated
@@ -60,7 +71,7 @@ const AppContent: React.FC = () => {
         });
       }
     }
-  }, [user, loading]);
+  }, [user, loading, currentView]);
   
   // Get active tab from current route (when in dashboard mode)
   const getActiveTab = () => {
@@ -139,6 +150,15 @@ const AppContent: React.FC = () => {
           <p className="text-neutral-600">Loading...</p>
         </div>
       </div>
+    );
+  }
+  
+  // Handle invite acceptance (can be accessed without auth)
+  if (currentView === 'invite-acceptance') {
+    return (
+      <ErrorBoundary>
+        <InviteAcceptance />
+      </ErrorBoundary>
     );
   }
   
@@ -263,6 +283,14 @@ const AppContent: React.FC = () => {
                       <p className="text-gray-600">Application settings</p>
                       <p className="text-sm text-gray-500 mt-2">This feature is available in the full version</p>
                     </div>
+                  } 
+                />
+                <Route 
+                  path="/accept-invite" 
+                  element={
+                    <ErrorBoundary>
+                      <InviteAcceptance />
+                    </ErrorBoundary>
                   } 
                 />
                 <Route 
