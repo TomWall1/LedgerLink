@@ -20,55 +20,71 @@ connectDB().catch(err => {
 const app = express();
 
 // Trust proxy - Required for Render/production deployment
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // CORS configuration - Allow your Vercel frontend
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
-  'https://ledgerlink.vercel.app',  // Fixed typo: removed double 'l'
+  'https://ledgerlink.vercel.app',
   process.env.FRONTEND_URL,
   process.env.CORS_ORIGIN
 ].filter(Boolean);
 
-console.log('🌐 CORS allowed origins:', allowedOrigins);
+// Remove duplicates
+const uniqueOrigins = [...new Set(allowedOrigins)];
 
-app.use(cors({
+console.log('🌐 CORS allowed origins:', uniqueOrigins);
+
+// Simple CORS configuration - allow all origins that match
+const corsOptions = {
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl requests, or same-origin)
+    // Allow requests with no origin (like mobile apps, curl, or same-origin requests)
     if (!origin) {
-      console.log('CORS: Allowing request with no origin');
       return callback(null, true);
     }
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log(`CORS: Allowing origin ${origin}`);
-      callback(null, true);
-    } else {
-      console.warn(`⚠️ CORS: Blocked origin ${origin}`);
-      console.warn(`   Allowed origins are: ${allowedOrigins.join(', ')}`);
-      // Still allow the request but without credentials
-      callback(null, true);
+    // Check if origin is in allowed list
+    if (uniqueOrigins.includes(origin)) {
+      return callback(null, true);
     }
+    
+    // For debugging - log rejected origins but still allow them in production
+    console.warn(`⚠️ CORS: Origin ${origin} not in whitelist, but allowing in production mode`);
+    return callback(null, true);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
   exposedHeaders: ['Content-Length', 'X-Request-Id'],
   preflightContinue: false,
-  optionsSuccessStatus: 204
-}));
+  optionsSuccessStatus: 204,
+  maxAge: 86400 // Cache preflight for 24 hours
+};
 
-// Handle preflight requests explicitly
-app.options('*', cors());
+// Apply CORS middleware
+app.use(cors(corsOptions));
 
-// Body parser middleware
+// Explicit handling for all OPTIONS requests (preflight)
+app.options('*', cors(corsOptions));
+
+// Body parser middleware - MUST come after CORS
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
+  const timestamp = new Date().toISOString();
+  const origin = req.headers.origin || 'none';
+  console.log(`${timestamp} - ${req.method} ${req.path} - Origin: ${origin}`);
   next();
 });
 
@@ -156,7 +172,7 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`📍 Server URL: http://${HOST}:${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://${HOST}:${PORT}/health`);
-  console.log(`🌐 CORS enabled for: ${allowedOrigins.join(', ')}`);
+  console.log(`🌐 CORS enabled for: ${uniqueOrigins.join(', ')}`);
   console.log(`🗄️  MongoDB URI configured: ${process.env.MONGODB_URI ? 'Yes' : 'No'}`);
   console.log('========================================');
 });
