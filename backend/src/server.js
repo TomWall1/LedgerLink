@@ -16,21 +16,45 @@ connectDB();
 
 const app = express();
 
-// CORS configuration
+// Trust proxy - Required for Render/production deployment
+app.set('trust proxy', true);
+
+// CORS configuration - Allow your Vercel frontend
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://ledgerlink.vercel.app',
+  'https://lledgerlink.vercel.app',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://ledgerlink.vercel.app',
-    'https://lledgerlink.vercel.app'
-  ],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS: Blocked origin ${origin}`);
+      callback(null, false);
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-Request-Id']
 }));
 
 // Body parser middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
 
 // Health check route
 app.get('/', (req, res) => {
@@ -104,10 +128,27 @@ app.all('*', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
+// Get port from environment or use default
 const PORT = process.env.PORT || 3002;
+const HOST = '0.0.0.0'; // CRITICAL: Bind to all network interfaces for Render
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Start server with proper host binding
+app.listen(PORT, HOST, () => {
+  console.log(`✅ Server running on ${HOST}:${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Health check: http://${HOST}:${PORT}/health`);
+  console.log(`🌐 Allowed origins: ${allowedOrigins.join(', ')}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
+  process.exit(0);
 });
 
 export default app;
