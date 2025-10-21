@@ -3,13 +3,15 @@
  * 
  * Shows a dropdown of Xero customers/suppliers when Xero is selected as data source
  * Includes a "Load Data" button to fetch invoices
+ * 
+ * FIX: Now supports both AR (customers) and AP (suppliers) matching
  */
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../ui/Button';
 import { apiClient } from '../../../services/api';
 
-interface Customer {
+interface Contact {
   ContactID: string;
   Name: string;
   EmailAddress?: string;
@@ -41,6 +43,7 @@ interface XeroInvoice {
 }
 
 interface CustomerSelectorDropdownProps {
+  ledgerType: 'AR' | 'AP' | null;  // NEW: Now knows which type to fetch
   onLoadData: (data: { 
     invoices: any[];
     customerName: string;
@@ -51,80 +54,103 @@ interface CustomerSelectorDropdownProps {
 }
 
 export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> = ({
+  ledgerType,
   onLoadData,
   onError,
   disabled = false,
 }) => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
 
+  // Determine labels based on ledger type
+  const isAR = ledgerType === 'AR';
+  const contactLabel = isAR ? 'Customer' : 'Supplier';
+  const contactsLabel = isAR ? 'Customers' : 'Suppliers';
+  const invoiceLabel = isAR ? 'invoices' : 'bills';
+
   useEffect(() => {
-    const fetchCustomers = async () => {
+    const fetchContacts = async () => {
+      // Don't fetch if ledger type is not set
+      if (!ledgerType) {
+        console.log('⏸️ Ledger type not set, skipping contact fetch');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
-        console.log('📞 Fetching customers from Xero...');
+        console.log(`📞 Fetching ${contactsLabel.toLowerCase()} from Xero for ${ledgerType}...`);
         
-        // Use the same endpoint as XeroDataSelector
-        const response = await apiClient.get('xero/customers');
+        // FIX: Use different endpoints based on ledger type
+        const endpoint = isAR ? 'xero/customers' : 'xero/suppliers';
+        const responseKey = isAR ? 'customers' : 'suppliers';
+        
+        console.log(`   Using endpoint: ${endpoint}`);
+        const response = await apiClient.get(endpoint);
         console.log('📦 Response received:', response.status, response.data);
         
         // Safely access response data
         const data = response?.data || {};
         const success = data.success !== false;
-        const customersList = data.customers || [];
+        const contactsList = data[responseKey] || [];
         
         console.log('   Success:', success);
-        console.log('   Customers count:', customersList.length);
+        console.log(`   ${contactsLabel} count:`, contactsList.length);
         
-        if (success && Array.isArray(customersList)) {
-          setCustomers(customersList);
+        if (success && Array.isArray(contactsList)) {
+          setContacts(contactsList);
           
-          if (customersList.length === 0) {
-            console.log('⚠️ No customers found in Xero account');
+          if (contactsList.length === 0) {
+            console.log(`⚠️ No ${contactsLabel.toLowerCase()} found in Xero account`);
           }
         } else {
-          throw new Error(data.error || data.message || 'Failed to fetch customers');
+          throw new Error(data.error || data.message || `Failed to fetch ${contactsLabel.toLowerCase()}`);
         }
       } catch (error: any) {
-        console.error('❌ Error fetching customers:', error);
+        console.error(`❌ Error fetching ${contactsLabel.toLowerCase()}:`, error);
         const errorMessage = error.response?.data?.error 
           || error.response?.data?.message 
           || error.response?.data?.details
           || error.message 
-          || 'Failed to load customers from Xero. Please try again.';
+          || `Failed to load ${contactsLabel.toLowerCase()} from Xero. Please try again.`;
         console.error('   Error message:', errorMessage);
         onError(errorMessage);
-        setCustomers([]);
+        setContacts([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCustomers();
-  }, [onError]);
+    fetchContacts();
+  }, [ledgerType, onError, isAR, contactsLabel]);
 
   const handleLoadData = async () => {
-    if (!selectedCustomer) return;
+    if (!selectedContact || !ledgerType) return;
 
     try {
-      console.log('📞 Fetching invoices for customer:', selectedCustomer.Name);
+      console.log(`📞 Fetching ${invoiceLabel} for ${contactLabel.toLowerCase()}:`, selectedContact.Name);
       setLoadingData(true);
       
-      // Fetch invoices for the selected customer - same endpoint as XeroDataSelector
-      const response = await apiClient.get(`xero/customers/${selectedCustomer.ContactID}/invoices`, {
+      // FIX: Use different endpoints based on ledger type
+      const endpoint = isAR 
+        ? `xero/customers/${selectedContact.ContactID}/invoices`
+        : `xero/suppliers/${selectedContact.ContactID}/invoices`;
+      
+      console.log(`   Using endpoint: ${endpoint}`);
+      const response = await apiClient.get(endpoint, {
         params: { includeHistory: 'false' }
       });
       
-      console.log('📦 Invoices response:', response.status, response.data);
+      console.log(`📦 ${invoiceLabel} response:`, response.status, response.data);
       
       const data = response?.data || {};
       const success = data.success !== false;
       const invoicesList = data.invoices || [];
       
       if (success && Array.isArray(invoicesList)) {
-        console.log('   Raw invoices found:', invoicesList.length);
+        console.log(`   Raw ${invoiceLabel} found:`, invoicesList.length);
         
         // CRITICAL FIX #1: Filter out null/undefined/invalid invoices BEFORE transformation
         const validRawInvoices = invoicesList.filter((invoice, index) => {
@@ -146,10 +172,10 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           return true;
         });
 
-        console.log('   Valid raw invoices after null filtering:', validRawInvoices.length);
+        console.log(`   Valid raw ${invoiceLabel} after null filtering:`, validRawInvoices.length);
         
         if (validRawInvoices.length === 0) {
-          throw new Error('No valid invoices found in response. Please check your Xero data.');
+          throw new Error(`No valid ${invoiceLabel} found in response. Please check your Xero data.`);
         }
         
         // CRITICAL FIX #2: Transform with explicit null checks and error handling
@@ -174,13 +200,13 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
               const transformed = {
                 id: uniqueId,                                            // ← MUST exist
                 transactionNumber: invoice.InvoiceNumber || '',         // ← camelCase
-                type: invoice.Type === 'ACCREC' ? 'Invoice' : 'Credit Note',
+                type: invoice.Type === 'ACCREC' ? 'Invoice' : invoice.Type === 'ACCPAY' ? 'Bill' : 'Credit Note',
                 amount: invoice.Total || 0,
                 date: invoice.Date || '',                               // ← camelCase
                 dueDate: invoice.DueDate || '',                         // ← camelCase
                 status: invoice.Status || '',
                 reference: invoice.Reference || '',
-                vendor: invoice.Contact?.Name || selectedCustomer.Name, // ← camelCase
+                vendor: invoice.Contact?.Name || selectedContact.Name, // ← camelCase
                 xeroId: invoice.InvoiceID || '',                        // ← camelCase
                 source: 'xero' as const
               };
@@ -191,7 +217,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
                 return null;
               }
               
-              console.log(`   ✅ Transformed invoice ${index + 1}:`, {
+              console.log(`   ✅ Transformed ${invoiceLabel.slice(0, -1)} ${index + 1}:`, {
                 id: transformed.id,
                 transactionNumber: transformed.transactionNumber,
                 amount: transformed.amount,
@@ -218,7 +244,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
             return true;
           });
         
-        console.log('   Transformed invoices count:', transformedInvoices.length);
+        console.log(`   Transformed ${invoiceLabel} count:`, transformedInvoices.length);
         
         // CRITICAL FIX #5: Final validation with explicit checks
         const validInvoices = transformedInvoices.filter((invoice, index) => {
@@ -254,14 +280,14 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         });
 
         if (validInvoices.length !== transformedInvoices.length) {
-          console.warn(`⚠️ Filtered ${transformedInvoices.length - validInvoices.length} invalid invoices in final validation`);
+          console.warn(`⚠️ Filtered ${transformedInvoices.length - validInvoices.length} invalid ${invoiceLabel} in final validation`);
         }
         
-        console.log('   ✅ Final valid invoices count:', validInvoices.length);
+        console.log(`   ✅ Final valid ${invoiceLabel} count:`, validInvoices.length);
         
         // CRITICAL FIX #6: Ensure we have at least one valid invoice
         if (validInvoices.length === 0) {
-          throw new Error('No valid invoices remained after filtering. The data format may be incompatible.');
+          throw new Error(`No valid ${invoiceLabel} remained after filtering. The data format may be incompatible.`);
         }
         
         // CRITICAL FIX #7: Verify structure of first invoice before sending
@@ -273,7 +299,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         
         const dataToPass = {
           invoices: validInvoices,
-          customerName: selectedCustomer.Name,
+          customerName: selectedContact.Name,
           invoiceCount: validInvoices.length
         };
         
@@ -297,13 +323,13 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           throw new Error('Failed to process loaded data. Please try again.');
         }
       } else {
-        throw new Error(data.error || data.message || 'Failed to fetch invoices');
+        throw new Error(data.error || data.message || `Failed to fetch ${invoiceLabel}`);
       }
     } catch (error: any) {
-      console.error('❌ Error loading customer data:', error);
+      console.error(`❌ Error loading ${contactLabel.toLowerCase()} data:`, error);
       
       // Provide more helpful error messages
-      let errorMessage = 'Failed to load customer invoices. ';
+      let errorMessage = `Failed to load ${contactLabel.toLowerCase()} ${invoiceLabel}. `;
       
       if (error.response?.status === 500) {
         errorMessage += 'The server encountered an error. This might be because: ' +
@@ -332,17 +358,17 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     return (
       <div className="flex flex-col items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-        <span className="ml-3 text-body text-neutral-600 mt-3">Loading customers...</span>
+        <span className="ml-3 text-body text-neutral-600 mt-3">Loading {contactsLabel.toLowerCase()}...</span>
         <p className="text-xs text-neutral-500 mt-2">If this is your first request, the server may need 30-60 seconds to wake up...</p>
       </div>
     );
   }
 
-  if (customers.length === 0) {
+  if (contacts.length === 0) {
     return (
       <div className="p-4 bg-warning-50 border border-warning-200 rounded-md">
         <p className="text-small text-warning-900">
-          No customers found in your Xero account. Please add customers in Xero first.
+          No {contactsLabel.toLowerCase()} found in your Xero account. Please add {contactsLabel.toLowerCase()} in Xero first.
         </p>
       </div>
     );
@@ -352,18 +378,18 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     <div className="space-y-4">
       <div>
         <label className="text-body font-medium text-neutral-900 mb-1 block">
-          Select Customer/Supplier
+          Select {contactLabel}
         </label>
         <p className="text-small text-neutral-600 mb-3">
-          Choose which customer's invoices you want to load
+          Choose which {contactLabel.toLowerCase()}'s {invoiceLabel} you want to load
         </p>
       </div>
 
       <select
-        value={selectedCustomer?.ContactID || ''}
+        value={selectedContact?.ContactID || ''}
         onChange={(e) => {
-          const customer = customers.find(c => c.ContactID === e.target.value);
-          setSelectedCustomer(customer || null);
+          const contact = contacts.find(c => c.ContactID === e.target.value);
+          setSelectedContact(contact || null);
         }}
         disabled={disabled || loading}
         className={`
@@ -372,14 +398,14 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500
           disabled:opacity-50 disabled:cursor-not-allowed
           transition-all duration-short
-          ${!selectedCustomer ? 'text-neutral-400' : ''}
+          ${!selectedContact ? 'text-neutral-400' : ''}
         `}
       >
-        <option value="">Choose a customer...</option>
-        {customers.map((customer) => (
-          <option key={customer.ContactID} value={customer.ContactID}>
-            {customer.Name}
-            {customer.EmailAddress ? ` (${customer.EmailAddress})` : ''}
+        <option value="">Choose a {contactLabel.toLowerCase()}...</option>
+        {contacts.map((contact) => (
+          <option key={contact.ContactID} value={contact.ContactID}>
+            {contact.Name}
+            {contact.EmailAddress ? ` (${contact.EmailAddress})` : ''}
           </option>
         ))}
       </select>
@@ -387,7 +413,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       <Button
         variant="primary"
         onClick={handleLoadData}
-        disabled={!selectedCustomer || disabled || loadingData}
+        disabled={!selectedContact || disabled || loadingData}
         className="w-full md:w-auto"
       >
         {loadingData ? (
@@ -406,7 +432,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       </Button>
       
       {/* Help text for first-time users */}
-      {selectedCustomer && !loadingData && (
+      {selectedContact && !loadingData && (
         <div className="text-xs text-neutral-500 mt-2">
           💡 Tip: If the first request fails, wait 30-60 seconds for the backend to wake up, then try again.
         </div>
