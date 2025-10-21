@@ -8,8 +8,8 @@ const CompanySchema = new mongoose.Schema({
   },
   taxId: {
     type: String,
-    required: [true, 'Please add a tax ID'],
     unique: true,
+    sparse: true, // Allows multiple null values, making it optional but unique when provided
     trim: true,
   },
   address: {
@@ -42,6 +42,9 @@ CompanySchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });
+
+// Index on name for faster lookups during registration
+CompanySchema.index({ name: 1 });
 
 const Company = mongoose.model('Company', CompanySchema);
 
