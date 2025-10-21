@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Company from '../models/Company.js';
 import crypto from 'crypto';
 
 // Generate JWT token
@@ -16,6 +17,15 @@ export const registerUser = async (req, res) => {
   try {
     const { email, password, companyName, name } = req.body;
 
+    console.log('Registration attempt:', { email, companyName, name });
+
+    // Validate required fields
+    if (!email || !password || !companyName) {
+      return res.status(400).json({
+        error: 'Please provide email, password, and company name'
+      });
+    }
+
     // Check if user exists
     const userExists = await User.findOne({ email });
 
@@ -25,23 +35,41 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // Create user
+    // Find or create company
+    let company = await Company.findOne({ name: companyName });
+    
+    if (!company) {
+      console.log('Creating new company:', companyName);
+      company = await Company.create({
+        name: companyName
+      });
+      console.log('Company created with ID:', company._id);
+    } else {
+      console.log('Found existing company:', company._id);
+    }
+
+    // Create user with company reference
     const user = await User.create({
       name: name || companyName, // Use companyName as fallback for name
       email,
       password,
-      company: companyName
+      company: company._id // Use the ObjectId, not the name
     });
 
+    console.log('User created successfully:', user._id);
+
     if (user) {
+      // Populate company data for response
+      await user.populate('company');
+      
       res.status(201).json({
         token: generateToken(user._id),
         user: {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
-          companyName: user.company,
-          companyId: user._id.toString(),
+          companyName: user.company.name,
+          companyId: user.company._id.toString(),
           role: user.role
         }
       });
@@ -53,7 +81,7 @@ export const registerUser = async (req, res) => {
   } catch (error) {
     console.error('Error in register:', error);
     res.status(500).json({
-      error: error.message
+      error: error.message || 'Registration failed'
     });
   }
 };
@@ -66,7 +94,7 @@ export const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select('+password').populate('company');
 
     if (!user) {
       return res.status(401).json({
@@ -89,8 +117,8 @@ export const loginUser = async (req, res) => {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
-        companyName: user.company,
-        companyId: user._id.toString(),
+        companyName: user.company?.name || 'Unknown',
+        companyId: user.company?._id?.toString() || user._id.toString(),
         role: user.role
       }
     });
@@ -108,7 +136,7 @@ export const loginUser = async (req, res) => {
 export const getUserProfile = async (req, res) => {
   try {
     // User is already available in req.user from the auth middleware
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).populate('company');
     
     if (user) {
       res.json({
@@ -116,8 +144,8 @@ export const getUserProfile = async (req, res) => {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
-          companyName: user.company,
-          companyId: user._id.toString(),
+          companyName: user.company?.name || 'Unknown',
+          companyId: user.company?._id?.toString() || user._id.toString(),
           role: user.role
         }
       });
@@ -139,26 +167,39 @@ export const getUserProfile = async (req, res) => {
 // @access  Private
 export const updateUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).populate('company');
 
     if (user) {
       user.name = req.body.name || user.name;
       user.email = req.body.email || user.email;
-      user.company = req.body.companyName || user.company;
+      
+      // If updating company name, find or create the new company
+      if (req.body.companyName && req.body.companyName !== user.company?.name) {
+        let company = await Company.findOne({ name: req.body.companyName });
+        
+        if (!company) {
+          company = await Company.create({
+            name: req.body.companyName
+          });
+        }
+        
+        user.company = company._id;
+      }
       
       if (req.body.password) {
         user.password = req.body.password;
       }
 
       const updatedUser = await user.save();
+      await updatedUser.populate('company');
 
       res.json({
         user: {
           id: updatedUser._id.toString(),
           name: updatedUser.name,
           email: updatedUser.email,
-          companyName: updatedUser.company,
-          companyId: updatedUser._id.toString(),
+          companyName: updatedUser.company?.name || 'Unknown',
+          companyId: updatedUser.company?._id?.toString() || updatedUser._id.toString(),
           role: updatedUser.role
         }
       });
@@ -252,7 +293,7 @@ export const resetPassword = async (req, res) => {
     const user = await User.findOne({
       resetPasswordToken,
       resetPasswordExpire: { $gt: Date.now() }
-    });
+    }).populate('company');
 
     if (!user) {
       return res.status(400).json({
@@ -273,8 +314,8 @@ export const resetPassword = async (req, res) => {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
-        companyName: user.company,
-        companyId: user._id.toString(),
+        companyName: user.company?.name || 'Unknown',
+        companyId: user.company?._id?.toString() || user._id.toString(),
         role: user.role
       }
     });
