@@ -6,6 +6,7 @@
  * and performing matches.
  * 
  * FIX: Added 'id' property to toast state to prevent crash in Toast component
+ * FIX: Now passes ledgerType to CustomerSelectorDropdown for AR/AP matching
  */
 
 import React, { useState, useEffect } from 'react';
@@ -578,10 +579,12 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                           description="Select where you want to load your invoice data from"
                         />
 
-                        {/* Show Xero customer selector if Xero is selected */}
+                        {/* Show Xero customer/supplier selector if Xero is selected */}
                         {dataSource1Type === 'xero' && isXeroConnected && (
                           <div className="mt-4 p-4 bg-neutral-50 rounded-lg">
+                            {/* FIX: Pass ledgerType to CustomerSelectorDropdown */}
                             <CustomerSelectorDropdown
+                              ledgerType={ledgerType}
                               onLoadData={handleXeroDataLoad}
                               onError={(error) => showToast(error, 'error')}
                             />
@@ -632,10 +635,12 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                           label="Choose counterparty data source"
                         />
 
-                        {/* Show Xero customer selector if Xero is selected */}
+                        {/* Show Xero customer/supplier selector if Xero is selected */}
                         {dataSource2Type === 'xero' && isXeroConnected && (
                           <div className="mt-4 p-4 bg-neutral-50 rounded-lg">
+                            {/* FIX: Pass ledgerType to CustomerSelectorDropdown */}
                             <CustomerSelectorDropdown
+                              ledgerType={ledgerType}
                               onLoadData={handleXeroDataLoad}
                               onError={(error) => showToast(error, 'error')}
                             />
