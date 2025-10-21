@@ -584,6 +584,88 @@ router.get('/customers', async (req, res) => {
   }
 });
 
+// NEW: Get Xero suppliers (vendors) - FOR AP MATCHING
+router.get('/suppliers', async (req, res) => {
+  try {
+    console.log('GET /api/xero/suppliers - Fetching suppliers from Xero...');
+    
+    // Get valid tokens
+    const tokens = await tokenStore.getValidTokens();
+    console.log('   Tokens retrieved:', !!tokens);
+    
+    if (!tokens) {
+      console.log('   ❌ No valid tokens found');
+      return res.status(401).json({
+        success: false,
+        error: 'Not authenticated with Xero',
+        suppliers: []
+      });
+    }
+    
+    // Create Xero client to get tenants
+    const xero = getXeroClient();
+    xero.setTokenSet(tokens);
+    console.log('   Xero client created and tokens set');
+    
+    // Get available tenant connections
+    const tenants = await xero.updateTenants();
+    console.log('   Tenants found:', tenants ? tenants.length : 0);
+    
+    if (!tenants || tenants.length === 0) {
+      console.log('   ❌ No Xero organizations found');
+      return res.json({
+        success: false,
+        error: 'No Xero organizations found for this connection',
+        suppliers: []
+      });
+    }
+    
+    // Use the first tenant ID (most common scenario)
+    const firstTenant = tenants[0];
+    console.log('   Using tenant:', firstTenant.tenantName, firstTenant.tenantId);
+    
+    // Use direct API call with IsSupplier filter - same approach as customers
+    console.log('   Calling Xero API directly with IsSupplier filter...');
+    const suppliersData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Contacts?where=IsSupplier==true',
+      tokens.access_token,
+      firstTenant.tenantId
+    );
+    
+    console.log('   Response received');
+    const suppliers = suppliersData.Contacts || [];
+    console.log('   ✅ Total suppliers found:', suppliers.length);
+    
+    // Log first supplier for debugging
+    if (suppliers.length > 0) {
+      console.log('   First supplier sample:', JSON.stringify({
+        ContactID: suppliers[0].ContactID,
+        Name: suppliers[0].Name,
+        ContactStatus: suppliers[0].ContactStatus
+      }, null, 2));
+    }
+    
+    res.json({
+      success: true,
+      suppliers: suppliers
+    });
+  } catch (error) {
+    console.error('❌ Error fetching Xero suppliers:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Return a friendly error instead of crashing
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch Xero suppliers',
+      details: error.message,
+      suppliers: []
+    });
+  }
+});
+
 // Get invoices for a customer - NOW USING DIRECT API CALL
 router.get('/customers/:contactId/invoices', async (req, res) => {
   try {
@@ -683,6 +765,90 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
   }
 });
 
+// NEW: Get bills (invoices) for a supplier - FOR AP MATCHING
+router.get('/suppliers/:contactId/invoices', async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    const { includeHistory } = req.query;
+    console.log(`GET /api/xero/suppliers/${contactId}/invoices - includeHistory:`, includeHistory);
+    
+    // Get valid tokens
+    const tokens = await tokenStore.getValidTokens();
+    
+    if (!tokens) {
+      return res.status(401).json({
+        success: false,
+        error: 'Not authenticated with Xero'
+      });
+    }
+    
+    // Create Xero client to get tenants
+    const xero = getXeroClient();
+    xero.setTokenSet(tokens);
+    
+    // Get available tenant connections
+    const tenants = await xero.updateTenants();
+    
+    if (!tenants || tenants.length === 0) {
+      return res.json({
+        success: false,
+        error: 'No Xero organizations found for this connection',
+        invoices: []
+      });
+    }
+    
+    // Use the first tenant ID
+    const firstTenant = tenants[0];
+    console.log('   Using tenant:', firstTenant.tenantName);
+    
+    // Fetch bills (ACCPAY invoices) for this supplier
+    const whereClause = `Contact.ContactID==Guid("${contactId}")`;
+    console.log('   🔍 Fetching bills with where clause:', whereClause);
+    
+    const filteredInvoicesData = await callXeroApi(
+      `https://api.xero.com/api.xro/2.0/Invoices?where=${encodeURIComponent(whereClause)}`,
+      tokens.access_token,
+      firstTenant.tenantId
+    );
+    
+    let invoices = filteredInvoicesData.Invoices || [];
+    console.log('   📊 Total invoices/bills for supplier:', invoices.length);
+    
+    // Filter for ACCPAY (bills) only
+    invoices = invoices.filter(inv => inv.Type === 'ACCPAY');
+    console.log('   📊 Bills (ACCPAY) for supplier:', invoices.length);
+    
+    if (invoices.length > 0) {
+      console.log('   ✅ Found bills:');
+      invoices.forEach((inv, index) => {
+        console.log(`      ${index + 1}. Bill: ${inv.InvoiceNumber}, Status: ${inv.Status}, Amount: ${inv.Total}`);
+      });
+    }
+    
+    if (includeHistory !== 'true') {
+      // Only include outstanding bills
+      const originalCount = invoices.length;
+      invoices = invoices.filter(invoice => 
+        invoice.Status !== 'PAID' && invoice.Status !== 'VOIDED'
+      );
+      console.log('   📊 Outstanding bills (not PAID/VOIDED):', invoices.length, 'of', originalCount);
+    }
+    
+    res.json({
+      success: true,
+      invoices: invoices
+    });
+  } catch (error) {
+    console.error('❌ Error fetching supplier bills:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch supplier bills',
+      details: error.message,
+      invoices: []
+    });
+  }
+});
+
 // Health endpoint for testing
 router.get('/health', (req, res) => {
   res.json({
@@ -708,6 +874,7 @@ router.get('/test', (req, res) => {
       'disconnect': '/api/xero/disconnect',
       'contacts': '/api/xero/contacts',
       'customers': '/api/xero/customers',
+      'suppliers': '/api/xero/suppliers',
       'test': '/api/xero/test'
     }
   });
