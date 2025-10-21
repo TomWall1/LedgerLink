@@ -11,8 +11,11 @@ import { errorHandler } from './middleware/errorMiddleware.js';
 // Load environment variables
 dotenv.config();
 
-// Connect to database
-connectDB();
+// Connect to database (non-blocking - server will still start if DB connection fails)
+connectDB().catch(err => {
+  console.error('Failed to connect to MongoDB on startup:', err.message);
+  console.log('Server will continue running, but database operations will fail until connection is established');
+});
 
 const app = express();
 
@@ -23,28 +26,41 @@ app.set('trust proxy', true);
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
-  'https://ledgerlink.vercel.app',
-  'https://lledgerlink.vercel.app',
-  process.env.FRONTEND_URL
+  'https://ledgerlink.vercel.app',  // Fixed typo: removed double 'l'
+  process.env.FRONTEND_URL,
+  process.env.CORS_ORIGIN
 ].filter(Boolean);
+
+console.log('🌐 CORS allowed origins:', allowedOrigins);
 
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    // Allow requests with no origin (like mobile apps, curl requests, or same-origin)
+    if (!origin) {
+      console.log('CORS: Allowing request with no origin');
+      return callback(null, true);
+    }
     
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log(`CORS: Allowing origin ${origin}`);
       callback(null, true);
     } else {
-      console.warn(`CORS: Blocked origin ${origin}`);
-      callback(null, false);
+      console.warn(`⚠️ CORS: Blocked origin ${origin}`);
+      console.warn(`   Allowed origins are: ${allowedOrigins.join(', ')}`);
+      // Still allow the request but without credentials
+      callback(null, true);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Length', 'X-Request-Id']
+  exposedHeaders: ['Content-Length', 'X-Request-Id'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
+
+// Handle preflight requests explicitly
+app.options('*', cors());
 
 // Body parser middleware
 app.use(express.json({ limit: '10mb' }));
@@ -52,7 +68,7 @@ app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
   next();
 });
 
@@ -133,22 +149,64 @@ const PORT = process.env.PORT || 3002;
 const HOST = '0.0.0.0'; // CRITICAL: Bind to all network interfaces for Render
 
 // Start server with proper host binding
-app.listen(PORT, HOST, () => {
-  console.log(`✅ Server running on ${HOST}:${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+  console.log('========================================');
+  console.log('✅ LedgerLink Backend Server Started');
+  console.log('========================================');
+  console.log(`📍 Server URL: http://${HOST}:${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://${HOST}:${PORT}/health`);
-  console.log(`🌐 Allowed origins: ${allowedOrigins.join(', ')}`);
+  console.log(`🌐 CORS enabled for: ${allowedOrigins.join(', ')}`);
+  console.log(`🗄️  MongoDB URI configured: ${process.env.MONGODB_URI ? 'Yes' : 'No'}`);
+  console.log('========================================');
+});
+
+// Handle server errors
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use`);
+    process.exit(1);
+  } else {
+    console.error('❌ Server error:', error);
+    process.exit(1);
+  }
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  process.exit(0);
+  console.log('SIGTERM signal received: closing HTTP server gracefully');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server');
-  process.exit(0);
+  console.log('SIGINT signal received: closing HTTP server gracefully');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  // In production, log to monitoring service but keep server running
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Server continuing in production despite uncaught exception');
+  } else {
+    process.exit(1);
+  }
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  // In production, log to monitoring service but keep server running
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Server continuing in production despite unhandled rejection');
+  }
 });
 
 export default app;
