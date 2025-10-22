@@ -7,6 +7,8 @@
  * 
  * FIX: Added 'id' property to toast state to prevent crash in Toast component
  * FIX: Now passes ledgerType to CustomerSelectorDropdown for AR/AP matching
+ * PHASE 1 FIX: Added isCounterpartySelection prop to prevent showing YOUR Xero
+ * connection when selecting counterparty data source in Step 3
  */
 
 import React, { useState, useEffect } from 'react';
@@ -633,6 +635,8 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                           onChange={setDataSource2Type}
                           isXeroConnected={isXeroConnected}
                           label="Choose counterparty data source"
+                          isCounterpartySelection={true}  
+                          linkedCounterpartyErp={null}    
                         />
 
                         {/* Show Xero customer/supplier selector if Xero is selected */}
