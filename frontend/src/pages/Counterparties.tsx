@@ -5,6 +5,7 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
+import apiClient from '../services/api';
 
 interface ERPContact {
   erpConnectionId: string;
@@ -53,23 +54,10 @@ export const Counterparties: React.FC = () => {
   const fetchERPContacts = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/counterparty/erp-contacts`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch ERP contacts');
-      }
-
-      const data = await response.json();
-      setErpContacts(data.contacts || []);
-      setErpConnections(data.erpConnections || []);
+      const response = await apiClient.get('/counterparty/erp-contacts');
+      
+      setErpContacts(response.data.contacts || []);
+      setErpConnections(response.data.erpConnections || []);
     } catch (error) {
       console.error('Error fetching ERP contacts:', error);
     } finally {
@@ -90,34 +78,18 @@ export const Counterparties: React.FC = () => {
 
     setSending(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/counterparty/invite`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            erpConnectionId: inviteForm.contact.erpConnectionId,
-            erpContactId: inviteForm.contact.erpContactId,
-            recipientEmail: inviteForm.contact.email,
-            relationshipType: inviteForm.contact.type,
-            message: inviteForm.message,
-            contactDetails: {
-              name: inviteForm.contact.name,
-              email: inviteForm.contact.email,
-              type: inviteForm.contact.type
-            }
-          })
+      await apiClient.post('/counterparty/invite', {
+        erpConnectionId: inviteForm.contact.erpConnectionId,
+        erpContactId: inviteForm.contact.erpContactId,
+        recipientEmail: inviteForm.contact.email,
+        relationshipType: inviteForm.contact.type,
+        message: inviteForm.message,
+        contactDetails: {
+          name: inviteForm.contact.name,
+          email: inviteForm.contact.email,
+          type: inviteForm.contact.type
         }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to send invitation');
-      }
+      });
 
       // Refresh the contacts list
       await fetchERPContacts();
@@ -128,7 +100,7 @@ export const Counterparties: React.FC = () => {
       alert('Invitation sent successfully!');
     } catch (error: any) {
       console.error('Error sending invitation:', error);
-      alert(error.message || 'Failed to send invitation');
+      alert(error.response?.data?.error || error.message || 'Failed to send invitation');
     } finally {
       setSending(false);
     }
@@ -138,24 +110,9 @@ export const Counterparties: React.FC = () => {
     if (!contact.inviteId) return;
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/counterparty/invite/resend`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            inviteId: contact.inviteId
-          })
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to resend invitation');
-      }
+      await apiClient.post('/counterparty/invite/resend', {
+        inviteId: contact.inviteId
+      });
 
       alert('Invitation reminder sent!');
     } catch (error) {
