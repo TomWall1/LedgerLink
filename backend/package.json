@@ -41,7 +41,8 @@
     "dayjs": "^1.11.10",
     "node-fetch": "^3.3.2",
     "papaparse": "^5.4.1",
-    "xero-node": "^4.34.0"
+    "xero-node": "^4.34.0",
+    "@sendgrid/mail": "^8.1.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
