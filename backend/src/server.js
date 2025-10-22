@@ -36,20 +36,22 @@ const uniqueOrigins = [...new Set(allowedOrigins)];
 
 console.log('🌐 CORS allowed origins:', uniqueOrigins);
 
-// Simple CORS configuration - allow all origins that match
+// Enhanced CORS configuration with explicit header handling
 const corsOptions = {
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps, curl, or same-origin requests)
     if (!origin) {
+      console.log('✅ CORS: Allowing request with no origin');
       return callback(null, true);
     }
     
     // Check if origin is in allowed list
     if (uniqueOrigins.includes(origin)) {
+      console.log(`✅ CORS: Allowing whitelisted origin: ${origin}`);
       return callback(null, true);
     }
     
-    // For debugging - log rejected origins but still allow them in production
+    // Log and allow in production mode for flexibility
     console.warn(`⚠️ CORS: Origin ${origin} not in whitelist, but allowing in production mode`);
     return callback(null, true);
   },
@@ -62,7 +64,8 @@ const corsOptions = {
     'Accept',
     'Origin',
     'Access-Control-Request-Method',
-    'Access-Control-Request-Headers'
+    'Access-Control-Request-Headers',
+    'X-ERP-Connection-ID'
   ],
   exposedHeaders: ['Content-Length', 'X-Request-Id'],
   preflightContinue: false,
@@ -70,11 +73,36 @@ const corsOptions = {
   maxAge: 86400 // Cache preflight for 24 hours
 };
 
-// Apply CORS middleware
+// Apply CORS middleware FIRST - before any other middleware
 app.use(cors(corsOptions));
 
-// Explicit handling for all OPTIONS requests (preflight)
+// Explicit handling for all OPTIONS requests (preflight) - CRITICAL for CORS
 app.options('*', cors(corsOptions));
+
+// Additional manual CORS headers middleware as backup
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Set CORS headers manually as backup
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, X-ERP-Connection-ID');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log(`✅ CORS: Handling preflight request for ${req.path}`);
+    return res.status(204).end();
+  }
+  
+  next();
+});
 
 // Body parser middleware - MUST come after CORS
 app.use(express.json({ limit: '10mb' }));
