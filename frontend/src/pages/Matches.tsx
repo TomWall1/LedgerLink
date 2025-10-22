@@ -9,6 +9,7 @@
  * FIX: Now passes ledgerType to CustomerSelectorDropdown for AR/AP matching
  * PHASE 1 FIX: Added isCounterpartySelection prop to prevent showing YOUR Xero
  * connection when selecting counterparty data source in Step 3
+ * PHASE 2: Added automatic counterparty link checking when Data Source 1 is loaded
  */
 
 import React, { useState, useEffect } from 'react';
@@ -26,6 +27,7 @@ import MatchReadyCard from '../components/matching/workflow/MatchReadyCard';
 import { MatchingResults, TransactionRecord } from '../types/matching';
 import matchingService from '../services/matchingService';
 import { xeroService } from '../services/xeroService';
+import counterpartyService from '../services/counterpartyService';
 import { downloadCSVTemplate, getTemplateInfo } from '../utils/csvTemplate';
 
 interface MatchesProps {
@@ -69,6 +71,14 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   const [dataSource2Type, setDataSource2Type] = useState<DataSourceType>(null);
   const [dataSource2, setDataSource2] = useState<LoadedDataSource | null>(null);
 
+  // PHASE 2: State for linked counterparty checking
+  const [linkedCounterparty, setLinkedCounterparty] = useState<{
+    id: string;
+    companyName: string;
+    erpType: string;
+  } | null>(null);
+  const [checkingCounterparty, setCheckingCounterparty] = useState(false);
+
   /**
    * Check if Xero is connected
    */
@@ -95,6 +105,56 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
     checkXeroConnection();
   }, [isLoggedIn]);
+
+  /**
+   * PHASE 2: Check if selected customer/vendor has a linked counterparty account
+   * This runs whenever Data Source 1 is loaded from Xero
+   */
+  useEffect(() => {
+    const checkCounterpartyLink = async () => {
+      // Only check if we have Data Source 1 loaded from Xero
+      if (!dataSource1 || dataSource1.type !== 'xero' || !dataSource1.customerName || !ledgerType) {
+        setLinkedCounterparty(null);
+        return;
+      }
+
+      setCheckingCounterparty(true);
+      console.log(`🔍 Checking if ${dataSource1.customerName} has linked account...`);
+
+      try {
+        const result = await counterpartyService.checkLink(
+          dataSource1.customerName,
+          ledgerType
+        );
+
+        if (result.success && result.linked && result.counterparty) {
+          console.log('✅ Found linked counterparty:', result.counterparty.companyName);
+          
+          setLinkedCounterparty({
+            id: result.counterparty.id,
+            companyName: result.counterparty.companyName,
+            erpType: result.counterparty.erpType
+          });
+
+          // Show success toast
+          showToast(
+            `${result.counterparty.companyName} has a linked account! You can access their data automatically.`,
+            'success'
+          );
+        } else {
+          console.log('ℹ️ No linked counterparty found');
+          setLinkedCounterparty(null);
+        }
+      } catch (error) {
+        console.error('❌ Error checking counterparty link:', error);
+        setLinkedCounterparty(null);
+      } finally {
+        setCheckingCounterparty(false);
+      }
+    };
+
+    checkCounterpartyLink();
+  }, [dataSource1, ledgerType]);
 
   /**
    * Show toast notification
@@ -136,6 +196,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
     setDataSource1(null);
     setDataSource2Type(null);
     setDataSource2(null);
+    setLinkedCounterparty(null);
     setViewMode('upload');
   };
 
@@ -315,6 +376,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
     if (sourceNumber === 1) {
       setDataSource1(null);
       setDataSource1Type(null);
+      setLinkedCounterparty(null);
       // Also clear source 2 since workflow requires source 1 first
       setDataSource2(null);
       setDataSource2Type(null);
@@ -335,12 +397,14 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
       setDataSource1(null);
       setDataSource2Type(null);
       setDataSource2(null);
+      setLinkedCounterparty(null);
     } else if (step === 2) {
       // Back to data source 1 selection
       setDataSource1Type(null);
       setDataSource1(null);
       setDataSource2Type(null);
       setDataSource2(null);
+      setLinkedCounterparty(null);
     }
   };
 
@@ -628,15 +692,24 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                       Choose where to load the counterparty's data from
                     </p>
 
+                    {/* PHASE 2: Show checking status */}
+                    {checkingCounterparty && (
+                      <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        <span className="text-small text-blue-900">Checking for linked counterparty...</span>
+                      </div>
+                    )}
+
                     {!dataSource2 ? (
                       <>
+                        {/* PHASE 2: Pass linkedCounterpartyErp prop */}
                         <DataSourceDropdown
                           value={dataSource2Type}
                           onChange={setDataSource2Type}
                           isXeroConnected={isXeroConnected}
                           label="Choose counterparty data source"
                           isCounterpartySelection={true}  
-                          linkedCounterpartyErp={null}    
+                          linkedCounterpartyErp={linkedCounterparty}
                         />
 
                         {/* Show Xero customer/supplier selector if Xero is selected */}
