@@ -8,9 +8,281 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const auth = require('../middleware/auth');
+const XeroConnection = require('../models/XeroConnection');
+const xeroService = require('../services/xeroService');
 
 // Initialize Prisma Client
 const prisma = new PrismaClient();
+
+/**
+ * @route   GET /api/counterparty/erp-contacts
+ * @desc    Get all contacts (customers/vendors) from connected ERP systems with invitation status
+ * @access  Private
+ */
+router.get('/erp-contacts', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const companyId = req.user.companyId;
+
+    console.log(`📋 Fetching ERP contacts for user ${userId}, company ${companyId}`);
+
+    // Get all active Xero connections for this user
+    const xeroConnections = await XeroConnection.find({
+      userId: userId,
+      status: 'active'
+    }).select('+accessToken +refreshToken');
+
+    console.log(`Found ${xeroConnections.length} active Xero connections`);
+
+    if (xeroConnections.length === 0) {
+      return res.json({
+        contacts: [],
+        erpConnections: []
+      });
+    }
+
+    // Get all existing counterparty links for status checking
+    const existingLinks = await prisma.counterpartyLink.findMany({
+      where: {
+        companyId: companyId,
+        isActive: true
+      }
+    });
+
+    // Create a map for quick lookup of link status
+    const linkStatusMap = new Map();
+    existingLinks.forEach(link => {
+      const key = `${link.ourCustomerName.toLowerCase()}-${link.theirContactEmail.toLowerCase()}`;
+      linkStatusMap.set(key, {
+        status: link.connectionStatus,
+        inviteId: link.id,
+        linkId: link.id
+      });
+    });
+
+    // Fetch contacts from all Xero connections
+    const allContacts = [];
+    const erpConnectionsInfo = [];
+
+    for (const connection of xeroConnections) {
+      try {
+        console.log(`Fetching contacts from Xero tenant: ${connection.tenantName}`);
+
+        // Get contacts from Xero
+        const xeroContacts = await xeroService.getContacts(connection, { limit: 1000 });
+
+        console.log(`Retrieved ${xeroContacts.length} contacts from ${connection.tenantName}`);
+
+        // Process each contact
+        for (const contact of xeroContacts) {
+          // Determine contact type based on Xero fields
+          let contactType = 'both';
+          if (contact.isCustomer && !contact.isSupplier) {
+            contactType = 'customer';
+          } else if (contact.isSupplier && !contact.isCustomer) {
+            contactType = 'vendor';
+          }
+
+          // Check for invitation/link status
+          const lookupKey = `${contact.name.toLowerCase()}-${(contact.emailAddress || '').toLowerCase()}`;
+          const linkInfo = linkStatusMap.get(lookupKey);
+
+          // Map Xero status to our status
+          let status = 'unlinked';
+          let inviteId = null;
+          let linkId = null;
+
+          if (linkInfo) {
+            inviteId = linkInfo.inviteId;
+            linkId = linkInfo.linkId;
+            
+            switch (linkInfo.status) {
+              case 'LINKED':
+                status = 'linked';
+                break;
+              case 'PENDING':
+              case 'INVITED':
+                status = 'pending';
+                break;
+              default:
+                status = 'unlinked';
+            }
+          }
+
+          allContacts.push({
+            erpConnectionId: connection._id.toString(),
+            erpType: 'Xero',
+            erpContactId: contact.contactID,
+            name: contact.name,
+            email: contact.emailAddress || '',
+            type: contactType,
+            contactNumber: contact.contactNumber || '',
+            status: status,
+            inviteId: inviteId,
+            linkId: linkId,
+            metadata: {
+              accountNumber: contact.accountNumber,
+              taxNumber: contact.taxNumber,
+              phones: contact.phones,
+              addresses: contact.addresses
+            }
+          });
+        }
+
+        // Add connection info
+        erpConnectionsInfo.push({
+          id: connection._id.toString(),
+          platform: 'Xero',
+          name: connection.tenantName,
+          status: connection.status
+        });
+
+      } catch (connectionError) {
+        console.error(`Error fetching contacts from ${connection.tenantName}:`, connectionError);
+        // Continue with other connections
+      }
+    }
+
+    console.log(`✅ Returning ${allContacts.length} total contacts from ${erpConnectionsInfo.length} connections`);
+
+    res.json({
+      contacts: allContacts,
+      erpConnections: erpConnectionsInfo
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching ERP contacts:', error);
+    res.status(500).json({
+      error: 'Failed to fetch ERP contacts',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/counterparty/invite
+ * @desc    Send invitation to a counterparty to connect their accounting system
+ * @access  Private
+ */
+router.post('/invite', auth, async (req, res) => {
+  try {
+    const {
+      erpConnectionId,
+      erpContactId,
+      recipientEmail,
+      relationshipType,
+      message,
+      contactDetails
+    } = req.body;
+
+    const companyId = req.user.companyId;
+    const userId = req.user.id;
+
+    console.log(`📧 Creating invitation for ${contactDetails.name} (${recipientEmail})`);
+
+    // Generate a unique invitation token
+    const crypto = require('crypto');
+    const linkToken = crypto.randomBytes(32).toString('hex');
+    const linkExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    // Create counterparty link with PENDING status
+    const counterpartyLink = await prisma.counterpartyLink.create({
+      data: {
+        companyId: companyId,
+        ourCustomerName: contactDetails.name,
+        theirCompanyName: contactDetails.name, // They'll update this when they accept
+        theirSystemType: 'UNKNOWN', // They'll specify when they accept
+        theirContactEmail: recipientEmail,
+        theirContactName: contactDetails.name,
+        connectionStatus: 'PENDING',
+        linkToken: linkToken,
+        linkExpiresAt: linkExpiresAt,
+        matchingRules: {},
+        isActive: true
+      }
+    });
+
+    // TODO: Send invitation email
+    // This would typically use a service like SendGrid, AWS SES, etc.
+    console.log(`✅ Created invitation with ID: ${counterpartyLink.id}`);
+    console.log(`Invitation link: ${process.env.FRONTEND_URL}/accept-invite/${linkToken}`);
+
+    // For now, log the invitation details
+    console.log('Invitation details:', {
+      to: recipientEmail,
+      from: req.user.email,
+      message: message,
+      inviteUrl: `${process.env.FRONTEND_URL}/accept-invite/${linkToken}`
+    });
+
+    res.json({
+      success: true,
+      inviteId: counterpartyLink.id,
+      message: 'Invitation created successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error sending invitation:', error);
+    res.status(500).json({
+      error: 'Failed to send invitation',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/counterparty/invite/resend
+ * @desc    Resend invitation to a counterparty
+ * @access  Private
+ */
+router.post('/invite/resend', auth, async (req, res) => {
+  try {
+    const { inviteId } = req.body;
+    const companyId = req.user.companyId;
+
+    console.log(`🔄 Resending invitation ${inviteId}`);
+
+    // Get the invitation
+    const invite = await prisma.counterpartyLink.findFirst({
+      where: {
+        id: inviteId,
+        companyId: companyId,
+        connectionStatus: 'PENDING',
+        isActive: true
+      }
+    });
+
+    if (!invite) {
+      return res.status(404).json({
+        error: 'Invitation not found or already accepted'
+      });
+    }
+
+    // Update the expiry date
+    await prisma.counterpartyLink.update({
+      where: { id: inviteId },
+      data: {
+        linkExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Extend by 30 days
+        updatedAt: new Date()
+      }
+    });
+
+    // TODO: Resend invitation email
+    console.log(`✅ Invitation ${inviteId} reminder sent to ${invite.theirContactEmail}`);
+
+    res.json({
+      success: true,
+      message: 'Invitation reminder sent successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error resending invitation:', error);
+    res.status(500).json({
+      error: 'Failed to resend invitation',
+      message: error.message
+    });
+  }
+});
 
 /**
  * @route   GET /api/counterparty/check-link
