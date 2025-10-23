@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import apiClient from '../services/api';
+import { xeroService } from '../services/xeroService';
 
 interface ERPContact {
   erpConnectionId: string;
@@ -46,23 +47,83 @@ export const Counterparties: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'customer' | 'vendor'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'unlinked' | 'pending' | 'linked'>('all');
   const [sending, setSending] = useState(false);
+  
+  // New states for connection checking
+  const [isXeroConnected, setIsXeroConnected] = useState(false);
+  const [checkingConnection, setCheckingConnection] = useState(true);
+  const [xeroConnections, setXeroConnections] = useState<any[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [fetchingContacts, setFetchingContacts] = useState(false);
 
+  // First check Xero connection status
   useEffect(() => {
-    fetchERPContacts();
+    checkXeroConnection();
   }, []);
 
+  // Then fetch contacts when connection is confirmed
+  useEffect(() => {
+    if (isXeroConnected && !checkingConnection) {
+      fetchERPContacts();
+    }
+  }, [isXeroConnected, checkingConnection]);
+
+  const checkXeroConnection = async () => {
+    console.log('🔍 Checking Xero connection status...');
+    setCheckingConnection(true);
+    setErrorMessage('');
+    
+    try {
+      const connections = await xeroService.getConnections();
+      
+      console.log('✅ Xero connections found:', connections.length);
+      console.log('Connection details:', connections);
+      
+      setXeroConnections(connections);
+      setIsXeroConnected(connections.length > 0);
+      
+      if (connections.length === 0) {
+        console.log('ℹ️ No active Xero connections found');
+      }
+    } catch (error: any) {
+      console.error('❌ Error checking Xero connection:', error);
+      setIsXeroConnected(false);
+      setErrorMessage(error.message || 'Failed to check Xero connection');
+    } finally {
+      setCheckingConnection(false);
+      setLoading(false);
+    }
+  };
+
   const fetchERPContacts = async () => {
-    setLoading(true);
+    console.log('📋 Fetching ERP contacts...');
+    setFetchingContacts(true);
+    setErrorMessage('');
+    
     try {
       const response = await apiClient.get('/counterparty/erp-contacts');
       
+      console.log('✅ ERP contacts response:', {
+        contactsCount: response.data.contacts?.length || 0,
+        connectionsCount: response.data.erpConnections?.length || 0
+      });
+      
       setErpContacts(response.data.contacts || []);
       setErpConnections(response.data.erpConnections || []);
-    } catch (error) {
-      console.error('Error fetching ERP contacts:', error);
+      
+      if (response.data.contacts?.length === 0) {
+        console.log('ℹ️ No contacts found in connected ERP systems');
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching ERP contacts:', error);
+      setErrorMessage(error.response?.data?.message || error.message || 'Failed to fetch ERP contacts');
     } finally {
-      setLoading(false);
+      setFetchingContacts(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    await checkXeroConnection();
   };
 
   const handleInviteClick = (contact: ERPContact) => {
@@ -186,60 +247,156 @@ export const Counterparties: React.FC = () => {
               Invite customers and vendors from your accounting system to automate reconciliation.
             </p>
           </div>
-          {erpConnections.length === 0 && (
-            <Button 
-              variant="primary"
-              onClick={() => window.location.href = '/connections'}
-              leftIcon={
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              }
-            >
-              Connect Accounting System
-            </Button>
-          )}
         </div>
       </div>
 
+      {/* Connection Status Banner */}
+      {!checkingConnection && (
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                {isXeroConnected ? (
+                  <>
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-success-100">
+                      <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium text-neutral-900">Xero Connected</p>
+                      <p className="text-small text-neutral-600">
+                        {xeroConnections.map(conn => conn.tenantName).join(', ')}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-warning-100">
+                      <svg className="w-5 h-5 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium text-neutral-900">No Accounting System Connected</p>
+                      <p className="text-small text-neutral-600">Connect Xero to import your customers and vendors</p>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRefresh}
+                  disabled={loading || fetchingContacts}
+                  leftIcon={
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  }
+                >
+                  Refresh
+                </Button>
+                {!isXeroConnected && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => window.location.href = '/connections'}
+                    leftIcon={
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    }
+                  >
+                    Connect Accounting System
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-error-100 flex-shrink-0">
+                <svg className="w-5 h-5 text-error-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-error-900">Error Loading Data</p>
+                <p className="text-small text-error-700 mt-1">{errorMessage}</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={handleRefresh}
+                >
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loading State */}
+      {(checkingConnection || loading) && (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <p className="text-neutral-600">
+              {checkingConnection ? 'Checking Xero connection...' : 'Loading...'}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <div className="text-h1 font-bold text-primary-600">{totalContacts}</div>
-              <div className="text-small text-neutral-600">Total Contacts</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <div className="text-h1 font-bold text-success">{linkedCount}</div>
-              <div className="text-small text-neutral-600">Linked</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <div className="text-h1 font-bold text-warning">{invitedCount}</div>
-              <div className="text-small text-neutral-600">Invited</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">
-              <div className="text-h1 font-bold text-neutral-600">{uninvitedCount}</div>
-              <div className="text-small text-neutral-600">Not Invited</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {!checkingConnection && !loading && isXeroConnected && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center">
+                <div className="text-h1 font-bold text-primary-600">{totalContacts}</div>
+                <div className="text-small text-neutral-600">Total Contacts</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center">
+                <div className="text-h1 font-bold text-success">{linkedCount}</div>
+                <div className="text-small text-neutral-600">Linked</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center">
+                <div className="text-h1 font-bold text-warning">{invitedCount}</div>
+                <div className="text-small text-neutral-600">Invited</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center">
+                <div className="text-h1 font-bold text-neutral-600">{uninvitedCount}</div>
+                <div className="text-small text-neutral-600">Not Invited</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* No ERP Connections State */}
-      {!loading && erpConnections.length === 0 && (
+      {!loading && !checkingConnection && !isXeroConnected && (
         <Card>
           <CardContent className="p-12 text-center">
             <svg className="w-16 h-16 mx-auto mb-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -266,7 +423,7 @@ export const Counterparties: React.FC = () => {
       )}
 
       {/* ERP Contacts Table */}
-      {erpConnections.length > 0 && (
+      {!loading && !checkingConnection && isXeroConnected && (
         <Card>
           <CardHeader>
             <div className="space-y-4">
@@ -274,7 +431,7 @@ export const Counterparties: React.FC = () => {
                 <div>
                   <h2 className="text-h3 text-neutral-900">Customers & Vendors</h2>
                   <p className="text-body text-neutral-600 mt-1">
-                    From your connected accounting systems
+                    {fetchingContacts ? 'Loading contacts from Xero...' : 'From your connected accounting systems'}
                   </p>
                 </div>
               </div>
@@ -317,7 +474,8 @@ export const Counterparties: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={fetchERPContacts}
+                  onClick={handleRefresh}
+                  disabled={fetchingContacts}
                   leftIcon={
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -330,7 +488,7 @@ export const Counterparties: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {loading ? (
+            {fetchingContacts ? (
               <div className="p-8 text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
                 <p className="text-neutral-600">Loading contacts from your accounting system...</p>
