@@ -59,58 +59,99 @@ function getXeroClient() {
  * @access  Private
  */
 router.get('/erp-contacts', auth, async (req, res) => {
+  console.log('\n========== ERP CONTACTS FETCH REQUEST ==========');
+  
   try {
     const userId = req.user.id;
     const companyId = req.user.companyId;
 
-    console.log(`📋 Fetching ERP contacts for user ${userId}, company ${companyId}`);
+    console.log(`📋 STEP 1: Request initiated`);
+    console.log(`   - User ID: ${userId}`);
+    console.log(`   - Company ID: ${companyId}`);
 
     // Check if modules are loaded
     if (!tokenStore) {
-      console.error('❌ TokenStore not initialized');
+      console.error('❌ STEP 2: TokenStore not initialized');
       return res.status(500).json({
         error: 'Token store not initialized',
         message: 'Server is still starting up, please try again in a moment'
       });
     }
+    console.log('✅ STEP 2: TokenStore is initialized');
 
     // Get valid tokens from file-based token store
+    console.log('🔑 STEP 3: Attempting to get valid tokens...');
     const tokens = await tokenStore.getValidTokens();
 
     if (!tokens) {
-      console.log('ℹ️ No valid Xero tokens found in token store');
+      console.log('❌ STEP 3: No valid Xero tokens found in token store');
+      console.log('   - Reason: User needs to connect Xero first');
       return res.json({
         contacts: [],
         erpConnections: []
       });
     }
 
-    console.log('✅ Found valid Xero tokens');
+    console.log('✅ STEP 3: Valid Xero tokens retrieved');
+    console.log(`   - Has access token: ${!!tokens.access_token}`);
+    console.log(`   - Has refresh token: ${!!tokens.refresh_token}`);
 
     // Create Xero client and set tokens
-    const xero = getXeroClient();
-    await xero.setTokenSet(tokens);
+    console.log('🔧 STEP 4: Creating Xero client...');
+    let xero;
+    try {
+      xero = getXeroClient();
+      await xero.setTokenSet(tokens);
+      console.log('✅ STEP 4: Xero client created and tokens set');
+    } catch (error) {
+      console.error('❌ STEP 4: Failed to create Xero client');
+      console.error('   - Error:', error.message);
+      throw error;
+    }
 
     // Get available tenant connections
-    const tenants = await xero.updateTenants();
+    console.log('🏢 STEP 5: Fetching Xero tenant connections...');
+    let tenants;
+    try {
+      tenants = await xero.updateTenants();
+      console.log('✅ STEP 5: Retrieved tenant connections');
+      console.log(`   - Number of tenants: ${tenants ? tenants.length : 0}`);
+      if (tenants && tenants.length > 0) {
+        tenants.forEach((tenant, index) => {
+          console.log(`   - Tenant ${index + 1}: ${tenant.tenantName} (ID: ${tenant.tenantId})`);
+        });
+      }
+    } catch (error) {
+      console.error('❌ STEP 5: Failed to retrieve tenants');
+      console.error('   - Error:', error.message);
+      throw error;
+    }
 
     if (!tenants || tenants.length === 0) {
-      console.log('ℹ️ No Xero tenants found');
+      console.log('⚠️ STEP 5: No Xero tenants found (user may need to reconnect)');
       return res.json({
         contacts: [],
         erpConnections: []
       });
     }
 
-    console.log(`Found ${tenants.length} Xero tenant(s)`);
-
     // Get all existing counterparty links for status checking
-    const existingLinks = await prisma.counterpartyLink.findMany({
-      where: {
-        companyId: companyId,
-        isActive: true
-      }
-    });
+    console.log('🔗 STEP 6: Fetching existing counterparty links...');
+    let existingLinks;
+    try {
+      existingLinks = await prisma.counterpartyLink.findMany({
+        where: {
+          companyId: companyId,
+          isActive: true
+        }
+      });
+      console.log(`✅ STEP 6: Found ${existingLinks.length} existing counterparty links`);
+    } catch (error) {
+      console.error('❌ STEP 6: Failed to fetch counterparty links');
+      console.error('   - Error:', error.message);
+      // Continue without links - this is not critical
+      existingLinks = [];
+    }
 
     // Create a map for quick lookup of link status
     const linkStatusMap = new Map();
@@ -127,74 +168,107 @@ router.get('/erp-contacts', auth, async (req, res) => {
     const allContacts = [];
     const erpConnectionsInfo = [];
 
+    console.log('\n👥 STEP 7: Fetching contacts from Xero tenants...');
     for (const tenant of tenants) {
       try {
-        console.log(`Fetching contacts from Xero tenant: ${tenant.tenantName}`);
+        console.log(`\n   📍 Processing tenant: ${tenant.tenantName}`);
+        console.log(`      Tenant ID: ${tenant.tenantId}`);
 
         // Get contacts from Xero API
+        console.log('      🔄 Calling Xero API getContacts()...');
         const contactsResponse = await xero.accountingApi.getContacts(tenant.tenantId);
+        
+        console.log('      ✅ Xero API response received');
+        console.log(`      Response status: ${contactsResponse.response?.statusCode || 'unknown'}`);
+        console.log(`      Has body: ${!!contactsResponse.body}`);
+        console.log(`      Has Contacts array: ${!!contactsResponse.body?.Contacts}`);
         
         // CRITICAL: Xero API returns properties in PascalCase in the body.Contacts array
         const xeroContacts = contactsResponse.body.Contacts || [];
-
-        console.log(`Retrieved ${xeroContacts.length} contacts from ${tenant.tenantName}`);
+        
+        console.log(`      📊 Retrieved ${xeroContacts.length} contacts from ${tenant.tenantName}`);
+        
+        if (xeroContacts.length === 0) {
+          console.log('      ⚠️ No contacts found in this Xero organization');
+          console.log('      💡 Tip: Add some contacts in Xero first, then try again');
+        } else {
+          console.log('      📋 Sample contact data (first contact):');
+          if (xeroContacts[0]) {
+            console.log(`         Name: ${xeroContacts[0].Name || 'N/A'}`);
+            console.log(`         ContactID: ${xeroContacts[0].ContactID || 'N/A'}`);
+            console.log(`         EmailAddress: ${xeroContacts[0].EmailAddress || 'N/A'}`);
+            console.log(`         IsCustomer: ${xeroContacts[0].IsCustomer}`);
+            console.log(`         IsSupplier: ${xeroContacts[0].IsSupplier}`);
+          }
+        }
 
         // Process each contact
+        let processedCount = 0;
         for (const contact of xeroContacts) {
-          // IMPORTANT: Use PascalCase property names as returned by Xero API
-          // Determine contact type based on Xero fields
-          let contactType = 'both';
-          if (contact.IsCustomer && !contact.IsSupplier) {
-            contactType = 'customer';
-          } else if (contact.IsSupplier && !contact.IsCustomer) {
-            contactType = 'vendor';
-          }
+          try {
+            // IMPORTANT: Use PascalCase property names as returned by Xero API
+            // Determine contact type based on Xero fields
+            let contactType = 'both';
+            if (contact.IsCustomer && !contact.IsSupplier) {
+              contactType = 'customer';
+            } else if (contact.IsSupplier && !contact.IsCustomer) {
+              contactType = 'vendor';
+            }
 
-          // Check for invitation/link status
-          const lookupKey = `${contact.Name.toLowerCase()}-${(contact.EmailAddress || '').toLowerCase()}`;
-          const linkInfo = linkStatusMap.get(lookupKey);
+            // Check for invitation/link status
+            const lookupKey = `${contact.Name.toLowerCase()}-${(contact.EmailAddress || '').toLowerCase()}`;
+            const linkInfo = linkStatusMap.get(lookupKey);
 
-          // Map status to our system
-          let status = 'unlinked';
-          let inviteId = null;
-          let linkId = null;
+            // Map status to our system
+            let status = 'unlinked';
+            let inviteId = null;
+            let linkId = null;
 
-          if (linkInfo) {
-            inviteId = linkInfo.inviteId;
-            linkId = linkInfo.linkId;
+            if (linkInfo) {
+              inviteId = linkInfo.inviteId;
+              linkId = linkInfo.linkId;
+              
+              switch (linkInfo.status) {
+                case 'LINKED':
+                  status = 'linked';
+                  break;
+                case 'PENDING':
+                case 'INVITED':
+                  status = 'pending';
+                  break;
+                default:
+                  status = 'unlinked';
+              }
+            }
+
+            allContacts.push({
+              erpConnectionId: tenant.tenantId,
+              erpType: 'Xero',
+              erpContactId: contact.ContactID,
+              name: contact.Name,
+              email: contact.EmailAddress || '',
+              type: contactType,
+              contactNumber: contact.ContactNumber || '',
+              status: status,
+              inviteId: inviteId,
+              linkId: linkId,
+              metadata: {
+                accountNumber: contact.AccountNumber,
+                taxNumber: contact.TaxNumber,
+                phones: contact.Phones,
+                addresses: contact.Addresses
+              }
+            });
             
-            switch (linkInfo.status) {
-              case 'LINKED':
-                status = 'linked';
-                break;
-              case 'PENDING':
-              case 'INVITED':
-                status = 'pending';
-                break;
-              default:
-                status = 'unlinked';
-            }
+            processedCount++;
+          } catch (contactError) {
+            console.error(`      ❌ Error processing contact: ${contact.Name || 'Unknown'}`);
+            console.error(`         Error: ${contactError.message}`);
+            // Continue with next contact
           }
-
-          allContacts.push({
-            erpConnectionId: tenant.tenantId,
-            erpType: 'Xero',
-            erpContactId: contact.ContactID,
-            name: contact.Name,
-            email: contact.EmailAddress || '',
-            type: contactType,
-            contactNumber: contact.ContactNumber || '',
-            status: status,
-            inviteId: inviteId,
-            linkId: linkId,
-            metadata: {
-              accountNumber: contact.AccountNumber,
-              taxNumber: contact.TaxNumber,
-              phones: contact.Phones,
-              addresses: contact.Addresses
-            }
-          });
         }
+        
+        console.log(`      ✅ Successfully processed ${processedCount} contacts`);
 
         // Add connection info
         erpConnectionsInfo.push({
@@ -205,12 +279,33 @@ router.get('/erp-contacts', auth, async (req, res) => {
         });
 
       } catch (tenantError) {
-        console.error(`Error fetching contacts from ${tenant.tenantName}:`, tenantError);
+        console.error(`\n   ❌ Error fetching contacts from ${tenant.tenantName}:`);
+        console.error(`      Error type: ${tenantError.constructor.name}`);
+        console.error(`      Error message: ${tenantError.message}`);
+        if (tenantError.response) {
+          console.error(`      HTTP Status: ${tenantError.response.statusCode}`);
+          console.error(`      Response body:`, tenantError.response.body);
+        }
+        console.error(`      Stack trace:`, tenantError.stack);
         // Continue with other tenants
       }
     }
 
-    console.log(`✅ Returning ${allContacts.length} total contacts from ${erpConnectionsInfo.length} connections`);
+    console.log('\n📦 STEP 8: Preparing response...');
+    console.log(`   - Total contacts: ${allContacts.length}`);
+    console.log(`   - Total connections: ${erpConnectionsInfo.length}`);
+
+    if (allContacts.length === 0) {
+      console.log('\n⚠️ WARNING: No contacts found!');
+      console.log('   Possible reasons:');
+      console.log('   1. Your Xero organization has no contacts yet');
+      console.log('   2. The Xero API permissions are insufficient');
+      console.log('   3. There was an error fetching contacts (check logs above)');
+      console.log('\n   💡 Solution: Add some customers or suppliers in your Xero account');
+    }
+
+    console.log('✅ STEP 8: Response prepared successfully');
+    console.log('========== ERP CONTACTS FETCH COMPLETE ==========\n');
 
     res.json({
       contacts: allContacts,
@@ -218,10 +313,16 @@ router.get('/erp-contacts', auth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error fetching ERP contacts:', error);
+    console.error('\n❌ ========== FATAL ERROR IN ERP CONTACTS FETCH ==========');
+    console.error('Error type:', error.constructor.name);
+    console.error('Error message:', error.message);
+    console.error('Stack trace:', error.stack);
+    console.error('========== END ERROR ==========\n');
+    
     res.status(500).json({
       error: 'Failed to fetch ERP contacts',
-      message: error.message
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
