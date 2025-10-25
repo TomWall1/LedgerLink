@@ -2,17 +2,56 @@
  * Counterparty API Routes
  * Handles counterparty linking and data access
  * Uses Prisma for database access (PostgreSQL)
+ * 
+ * UPDATED: Now uses file-based token store for Xero authentication
+ * instead of MongoDB to match the OAuth flow implementation
  */
 
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const auth = require('../middleware/auth');
-const XeroConnection = require('../models/XeroConnection');
-const xeroService = require('../services/xeroService');
+const path = require('path');
 
 // Initialize Prisma Client
 const prisma = new PrismaClient();
+
+// Dynamically import ES modules (tokenStore and XeroClient)
+let tokenStore;
+let XeroClient;
+
+// Load ES modules
+(async () => {
+  try {
+    // Import tokenStore from the file-based system
+    const tokenStoreModule = await import(path.join(__dirname, '../src/utils/tokenStore.js'));
+    tokenStore = tokenStoreModule.tokenStore;
+    
+    // Import XeroClient
+    const xeroNodeModule = await import('xero-node');
+    XeroClient = xeroNodeModule.XeroClient;
+    
+    console.log('✅ Successfully loaded tokenStore and XeroClient modules');
+  } catch (error) {
+    console.error('❌ Error loading ES modules:', error);
+  }
+})();
+
+/**
+ * Helper function to get Xero client instance
+ */
+function getXeroClient() {
+  if (!XeroClient) {
+    throw new Error('XeroClient not initialized');
+  }
+  
+  return new XeroClient({
+    clientId: process.env.XERO_CLIENT_ID,
+    clientSecret: process.env.XERO_CLIENT_SECRET,
+    redirectUris: [process.env.XERO_REDIRECT_URI || 'https://ledgerlink.onrender.com/auth/xero/callback'],
+    scopes: ['offline_access', 'accounting.transactions.read', 'accounting.contacts.read', 'accounting.settings.read']
+  });
+}
 
 /**
  * @route   GET /api/counterparty/erp-contacts
@@ -26,20 +65,44 @@ router.get('/erp-contacts', auth, async (req, res) => {
 
     console.log(`📋 Fetching ERP contacts for user ${userId}, company ${companyId}`);
 
-    // Get all active Xero connections for this user
-    const xeroConnections = await XeroConnection.find({
-      userId: userId,
-      status: 'active'
-    }).select('+accessToken +refreshToken');
+    // Check if modules are loaded
+    if (!tokenStore) {
+      console.error('❌ TokenStore not initialized');
+      return res.status(500).json({
+        error: 'Token store not initialized',
+        message: 'Server is still starting up, please try again in a moment'
+      });
+    }
 
-    console.log(`Found ${xeroConnections.length} active Xero connections`);
+    // Get valid tokens from file-based token store
+    const tokens = await tokenStore.getValidTokens();
 
-    if (xeroConnections.length === 0) {
+    if (!tokens) {
+      console.log('ℹ️ No valid Xero tokens found in token store');
       return res.json({
         contacts: [],
         erpConnections: []
       });
     }
+
+    console.log('✅ Found valid Xero tokens');
+
+    // Create Xero client and set tokens
+    const xero = getXeroClient();
+    await xero.setTokenSet(tokens);
+
+    // Get available tenant connections
+    const tenants = await xero.updateTenants();
+
+    if (!tenants || tenants.length === 0) {
+      console.log('ℹ️ No Xero tenants found');
+      return res.json({
+        contacts: [],
+        erpConnections: []
+      });
+    }
+
+    console.log(`Found ${tenants.length} Xero tenant(s)`);
 
     // Get all existing counterparty links for status checking
     const existingLinks = await prisma.counterpartyLink.findMany({
@@ -60,34 +123,35 @@ router.get('/erp-contacts', auth, async (req, res) => {
       });
     });
 
-    // Fetch contacts from all Xero connections
+    // Fetch contacts from all Xero tenants
     const allContacts = [];
     const erpConnectionsInfo = [];
 
-    for (const connection of xeroConnections) {
+    for (const tenant of tenants) {
       try {
-        console.log(`Fetching contacts from Xero tenant: ${connection.tenantName}`);
+        console.log(`Fetching contacts from Xero tenant: ${tenant.tenantName}`);
 
-        // Get contacts from Xero
-        const xeroContacts = await xeroService.getContacts(connection, { limit: 1000 });
+        // Get contacts from Xero API
+        const contactsResponse = await xero.accountingApi.getContacts(tenant.tenantId);
+        const xeroContacts = contactsResponse.body.contacts || [];
 
-        console.log(`Retrieved ${xeroContacts.length} contacts from ${connection.tenantName}`);
+        console.log(`Retrieved ${xeroContacts.length} contacts from ${tenant.tenantName}`);
 
         // Process each contact
         for (const contact of xeroContacts) {
-          // Determine contact type based on Xero fields (Xero API returns PascalCase properties)
+          // Determine contact type based on Xero fields
           let contactType = 'both';
-          if (contact.IsCustomer && !contact.IsSupplier) {
+          if (contact.isCustomer && !contact.isSupplier) {
             contactType = 'customer';
-          } else if (contact.IsSupplier && !contact.IsCustomer) {
+          } else if (contact.isSupplier && !contact.isCustomer) {
             contactType = 'vendor';
           }
 
           // Check for invitation/link status
-          const lookupKey = `${contact.Name.toLowerCase()}-${(contact.EmailAddress || '').toLowerCase()}`;
+          const lookupKey = `${contact.name.toLowerCase()}-${(contact.emailAddress || '').toLowerCase()}`;
           const linkInfo = linkStatusMap.get(lookupKey);
 
-          // Map Xero status to our status
+          // Map status to our system
           let status = 'unlinked';
           let inviteId = null;
           let linkId = null;
@@ -110,36 +174,36 @@ router.get('/erp-contacts', auth, async (req, res) => {
           }
 
           allContacts.push({
-            erpConnectionId: connection._id.toString(),
+            erpConnectionId: tenant.tenantId,
             erpType: 'Xero',
-            erpContactId: contact.ContactID,
-            name: contact.Name,
-            email: contact.EmailAddress || '',
+            erpContactId: contact.contactID,
+            name: contact.name,
+            email: contact.emailAddress || '',
             type: contactType,
-            contactNumber: contact.ContactNumber || '',
+            contactNumber: contact.contactNumber || '',
             status: status,
             inviteId: inviteId,
             linkId: linkId,
             metadata: {
-              accountNumber: contact.AccountNumber,
-              taxNumber: contact.TaxNumber,
-              phones: contact.Phones,
-              addresses: contact.Addresses
+              accountNumber: contact.accountNumber,
+              taxNumber: contact.taxNumber,
+              phones: contact.phones,
+              addresses: contact.addresses
             }
           });
         }
 
         // Add connection info
         erpConnectionsInfo.push({
-          id: connection._id.toString(),
+          id: tenant.tenantId,
           platform: 'Xero',
-          name: connection.tenantName,
-          status: connection.status
+          name: tenant.tenantName,
+          status: 'active'
         });
 
-      } catch (connectionError) {
-        console.error(`Error fetching contacts from ${connection.tenantName}:`, connectionError);
-        // Continue with other connections
+      } catch (tenantError) {
+        console.error(`Error fetching contacts from ${tenant.tenantName}:`, tenantError);
+        // Continue with other tenants
       }
     }
 
