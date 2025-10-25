@@ -19,23 +19,47 @@ const prisma = new PrismaClient();
 // Dynamically import ES modules (tokenStore and XeroClient)
 let tokenStore;
 let XeroClient;
+let modulesLoaded = false;
+let moduleLoadError = null;
 
-// Load ES modules
-(async () => {
+// Create a promise that resolves when modules are loaded
+const modulesLoadingPromise = (async () => {
   try {
+    console.log('🔄 Loading ES modules for counterparty routes...');
+    
     // Import tokenStore from the file-based system
     const tokenStoreModule = await import(path.join(__dirname, '../src/utils/tokenStore.js'));
     tokenStore = tokenStoreModule.tokenStore;
+    console.log('✅ TokenStore module loaded');
     
     // Import XeroClient
     const xeroNodeModule = await import('xero-node');
     XeroClient = xeroNodeModule.XeroClient;
+    console.log('✅ XeroClient module loaded');
     
-    console.log('✅ Successfully loaded tokenStore and XeroClient modules');
+    modulesLoaded = true;
+    console.log('✅ All counterparty route ES modules loaded successfully');
   } catch (error) {
-    console.error('❌ Error loading ES modules:', error);
+    moduleLoadError = error;
+    console.error('❌ Error loading ES modules for counterparty routes:', error);
+    console.error('   Error details:', error.message);
+    console.error('   Stack:', error.stack);
   }
 })();
+
+/**
+ * Helper function to ensure modules are loaded
+ */
+async function ensureModulesLoaded() {
+  if (!modulesLoaded) {
+    console.log('⏳ Waiting for modules to load...');
+    await modulesLoadingPromise;
+    
+    if (moduleLoadError) {
+      throw new Error(`Failed to load required modules: ${moduleLoadError.message}`);
+    }
+  }
+}
 
 /**
  * Helper function to get Xero client instance
@@ -69,15 +93,20 @@ router.get('/erp-contacts', auth, async (req, res) => {
     console.log(`   - User ID: ${userId}`);
     console.log(`   - Company ID: ${companyId}`);
 
-    // Check if modules are loaded
-    if (!tokenStore) {
-      console.error('❌ STEP 2: TokenStore not initialized');
+    // Ensure modules are loaded before proceeding
+    console.log('🔧 STEP 2: Ensuring modules are loaded...');
+    try {
+      await ensureModulesLoaded();
+      console.log('✅ STEP 2: All required modules are loaded');
+    } catch (error) {
+      console.error('❌ STEP 2: Failed to load required modules');
+      console.error('   Error:', error.message);
       return res.status(500).json({
-        error: 'Token store not initialized',
-        message: 'Server is still starting up, please try again in a moment'
+        error: 'Server initialization error',
+        message: 'Required modules failed to load. Please contact support.',
+        details: error.message
       });
     }
-    console.log('✅ STEP 2: TokenStore is initialized');
 
     // Get valid tokens from file-based token store
     console.log('🔑 STEP 3: Attempting to get valid tokens...');
