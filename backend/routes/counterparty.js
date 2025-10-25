@@ -133,22 +133,25 @@ router.get('/erp-contacts', auth, async (req, res) => {
 
         // Get contacts from Xero API
         const contactsResponse = await xero.accountingApi.getContacts(tenant.tenantId);
-        const xeroContacts = contactsResponse.body.contacts || [];
+        
+        // CRITICAL: Xero API returns properties in PascalCase in the body.Contacts array
+        const xeroContacts = contactsResponse.body.Contacts || [];
 
         console.log(`Retrieved ${xeroContacts.length} contacts from ${tenant.tenantName}`);
 
         // Process each contact
         for (const contact of xeroContacts) {
+          // IMPORTANT: Use PascalCase property names as returned by Xero API
           // Determine contact type based on Xero fields
           let contactType = 'both';
-          if (contact.isCustomer && !contact.isSupplier) {
+          if (contact.IsCustomer && !contact.IsSupplier) {
             contactType = 'customer';
-          } else if (contact.isSupplier && !contact.isCustomer) {
+          } else if (contact.IsSupplier && !contact.IsCustomer) {
             contactType = 'vendor';
           }
 
           // Check for invitation/link status
-          const lookupKey = `${contact.name.toLowerCase()}-${(contact.emailAddress || '').toLowerCase()}`;
+          const lookupKey = `${contact.Name.toLowerCase()}-${(contact.EmailAddress || '').toLowerCase()}`;
           const linkInfo = linkStatusMap.get(lookupKey);
 
           // Map status to our system
@@ -176,19 +179,19 @@ router.get('/erp-contacts', auth, async (req, res) => {
           allContacts.push({
             erpConnectionId: tenant.tenantId,
             erpType: 'Xero',
-            erpContactId: contact.contactID,
-            name: contact.name,
-            email: contact.emailAddress || '',
+            erpContactId: contact.ContactID,
+            name: contact.Name,
+            email: contact.EmailAddress || '',
             type: contactType,
-            contactNumber: contact.contactNumber || '',
+            contactNumber: contact.ContactNumber || '',
             status: status,
             inviteId: inviteId,
             linkId: linkId,
             metadata: {
-              accountNumber: contact.accountNumber,
-              taxNumber: contact.taxNumber,
-              phones: contact.phones,
-              addresses: contact.addresses
+              accountNumber: contact.AccountNumber,
+              taxNumber: contact.TaxNumber,
+              phones: contact.Phones,
+              addresses: contact.Addresses
             }
           });
         }
