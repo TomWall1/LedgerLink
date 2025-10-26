@@ -2,10 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
-import userRoutes from './routes/userRoutes.js';
-import xeroRoutes from './routes/xeroRoutes.js';
-import transactionRoutes from './routes/transactionRoutes.js';
-import counterpartyRoutes from './routes/counterpartyRoutes.js';
+// Import routes from the correct directory with working Xero integration
+import userRoutes from '../routes/users.js';
+import xeroRoutes from '../routes/xero.js';
+import transactionRoutes from '../routes/transactions.js';
+import counterpartyRoutes from '../routes/counterparty.js';
+import matchingRoutes from '../routes/matching.js';
 import { errorHandler } from './middleware/errorMiddleware.js';
 
 // Load environment variables
@@ -124,13 +126,14 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     database: 'connected',
-    sessionStore: 'MongoDB (MongoStore)',
+    sessionStore: 'File-based tokens',
     routes: {
       test: '/api/test',
       users: '/api/users',
       xero: '/api/xero',
       transactions: '/api/transactions',
-      counterparty: '/api/counterparty'
+      counterparty: '/api/counterparty',
+      matching: '/api/matching'
     }
   });
 });
@@ -141,7 +144,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     database: 'connected',
-    sessionStore: 'MongoDB',
+    sessionStore: 'File-based',
     memory: process.memoryUsage(),
     version: '1.0.0'
   });
@@ -156,16 +159,18 @@ app.get('/api/test', (req, res) => {
       users: '/api/users',
       xero: '/api/xero',
       transactions: '/api/transactions',
-      counterparty: '/api/counterparty'
+      counterparty: '/api/counterparty',
+      matching: '/api/matching'
     }
   });
 });
 
-// API Routes
+// API Routes - Using routes from backend/routes/ directory
 app.use('/api/users', userRoutes);
 app.use('/api/xero', xeroRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/counterparty', counterpartyRoutes);
+app.use('/api/matching', matchingRoutes);
 
 // 404 handler for unknown routes
 app.all('*', (req, res) => {
@@ -180,7 +185,8 @@ app.all('*', (req, res) => {
       users: '/api/users/*',
       xero: '/api/xero/*',
       transactions: '/api/transactions/*',
-      counterparty: '/api/counterparty/*'
+      counterparty: '/api/counterparty/*',
+      matching: '/api/matching/*'
     }
   });
 });
@@ -202,6 +208,7 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`🔗 Health check: http://${HOST}:${PORT}/health`);
   console.log(`🌐 CORS enabled for: ${uniqueOrigins.join(', ')}`);
   console.log(`🗄️  MongoDB URI configured: ${process.env.MONGODB_URI ? 'Yes' : 'No'}`);
+  console.log(`🔑 Using file-based Xero token storage`);
   console.log('========================================');
 });
 
