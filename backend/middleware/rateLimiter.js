@@ -3,7 +3,7 @@
  * Protects API endpoints from abuse and implements Xero-specific rate limiting
  */
 
-const rateLimit = require('express-rate-limit');
+import rateLimit from 'express-rate-limit';
 
 // Conditionally import Redis dependencies only if Redis is configured
 let RedisStore;
@@ -12,8 +12,12 @@ let redisClient;
 
 if (process.env.REDIS_URL) {
   try {
-    RedisStore = require('rate-limit-redis');
-    Redis = require('redis');
+    const redisImports = await Promise.all([
+      import('rate-limit-redis'),
+      import('redis')
+    ]);
+    RedisStore = redisImports[0].default;
+    Redis = redisImports[1];
     
     redisClient = Redis.createClient({
       url: process.env.REDIS_URL,
@@ -175,7 +179,7 @@ const createCustomLimiter = (options) => {
   });
 };
 
-module.exports = {
+export {
   generalLimiter,
   authLimiter,
   xeroLimiter,
