@@ -175,7 +175,7 @@ const rateLimitCoupa = (req, res, next) => {
   next();
 };
 
-module.exports = {
+export {
   authenticateCoupa,
   validateCoupaRequest,
   rateLimitCoupa
