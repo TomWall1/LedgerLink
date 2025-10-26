@@ -3,8 +3,8 @@
  * Handles Xero-specific authentication and connection validation
  */
 
-const XeroConnection = require('../models/XeroConnection');
-const xeroService = require('../services/xeroService');
+import XeroConnection from '../models/XeroConnection.js';
+import xeroService from '../services/xeroService.js';
 
 /**
  * Middleware to validate Xero connection ownership and status
@@ -251,7 +251,7 @@ const handleXeroErrors = (error, req, res, next) => {
   next(error);
 };
 
-module.exports = {
+export {
   validateXeroConnection,
   requireXeroConnection,
   xeroRateLimit,
