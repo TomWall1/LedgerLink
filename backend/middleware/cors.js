@@ -3,7 +3,7 @@
  * Handles Cross-Origin Resource Sharing for Xero integration
  */
 
-const cors = require('cors');
+import cors from 'cors';
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -59,4 +59,4 @@ if (process.env.NODE_ENV === 'development') {
   console.log('CORS: Development mode - allowing all origins');
 }
 
-module.exports = cors(corsOptions);
+export default cors(corsOptions);
