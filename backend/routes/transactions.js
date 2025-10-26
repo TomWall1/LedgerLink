@@ -1,9 +1,15 @@
-const express = require('express');
-const multer = require('multer');
-const csv = require('csv-parser');
-const fs = require('fs');
-const path = require('path');
-const moment = require('moment');
+import express from 'express';
+import multer from 'multer';
+import csv from 'csv-parser';
+import fs from 'fs';
+import path from 'path';
+import moment from 'moment';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const router = express.Router();
 
 // Configure multer for file uploads
@@ -317,4 +323,4 @@ router.post('/approve-customer-match', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
