@@ -1,12 +1,13 @@
-const express = require('express');
+import express from 'express';
+import multer from 'multer';
+import csv from 'csv-parse';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { matchRecords } from '../utils/matchingEngine.js';
+import MatchingResult from '../models/MatchingResult.js';
+import { requireAuth } from '../middleware/auth.js';
+
 const router = express.Router();
-const multer = require('multer');
-const csv = require('csv-parse');
-const fs = require('fs').promises;
-const path = require('path');
-const { matchRecords } = require('../utils/matchingEngine');
-const MatchingResult = require('../models/MatchingResult');
-const { requireAuth } = require('../middleware/auth');
 
 // Configure multer for CSV uploads
 const upload = multer({
@@ -426,4 +427,4 @@ router.post('/export/:matchId', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
