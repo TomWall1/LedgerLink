@@ -3,8 +3,8 @@
  * Stores Xero OAuth tokens and connection details for each user/company
  */
 
-const mongoose = require('mongoose');
-const crypto = require('crypto');
+import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const xeroConnectionSchema = new mongoose.Schema({
   // User/Company association
@@ -224,4 +224,4 @@ function decrypt(encryptedData) {
   return decrypted;
 }
 
-module.exports = mongoose.model('XeroConnection', xeroConnectionSchema);
+export default mongoose.model('XeroConnection', xeroConnectionSchema);
