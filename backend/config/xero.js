@@ -3,7 +3,7 @@
  * Handles Xero OAuth 2.0 settings and API endpoints
  */
 
-module.exports = {
+export default {
   // OAuth 2.0 Configuration
   oauth: {
     clientId: process.env.XERO_CLIENT_ID,
