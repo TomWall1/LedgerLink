@@ -78,6 +78,130 @@ function getXeroClient() {
 }
 
 /**
+ * @route   GET /api/counterparty/diagnostic
+ * @desc    Diagnostic endpoint to test Xero connection and see raw API response
+ * @access  Private
+ */
+router.get('/diagnostic', auth, async (req, res) => {
+  console.log('\n========== DIAGNOSTIC TEST REQUEST ==========');
+  
+  const diagnosticResults = {
+    timestamp: new Date().toISOString(),
+    steps: [],
+    success: false,
+    rawResponse: null,
+    error: null
+  };
+
+  try {
+    // Step 1: Check modules
+    diagnosticResults.steps.push({ step: 1, name: 'Module Loading', status: 'checking' });
+    await ensureModulesLoaded();
+    diagnosticResults.steps[0].status = 'success';
+    diagnosticResults.steps[0].message = 'All required modules loaded';
+
+    // Step 2: Check tokens
+    diagnosticResults.steps.push({ step: 2, name: 'Token Check', status: 'checking' });
+    const tokens = await tokenStore.getValidTokens();
+    
+    if (!tokens) {
+      diagnosticResults.steps[1].status = 'failed';
+      diagnosticResults.steps[1].message = 'No valid tokens found';
+      diagnosticResults.error = 'No valid Xero authentication tokens. Please reconnect Xero.';
+      return res.json(diagnosticResults);
+    }
+    
+    diagnosticResults.steps[1].status = 'success';
+    diagnosticResults.steps[1].message = 'Valid tokens found';
+    diagnosticResults.steps[1].details = {
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      tokenExpiry: tokens.expires_in || 'unknown'
+    };
+
+    // Step 3: Create Xero client
+    diagnosticResults.steps.push({ step: 3, name: 'Xero Client Creation', status: 'checking' });
+    const xero = getXeroClient();
+    await xero.setTokenSet(tokens);
+    diagnosticResults.steps[2].status = 'success';
+    diagnosticResults.steps[2].message = 'Xero client created successfully';
+
+    // Step 4: Get tenants
+    diagnosticResults.steps.push({ step: 4, name: 'Tenant Connection', status: 'checking' });
+    const tenants = await xero.updateTenants();
+    
+    if (!tenants || tenants.length === 0) {
+      diagnosticResults.steps[3].status = 'failed';
+      diagnosticResults.steps[3].message = 'No Xero tenants found';
+      diagnosticResults.error = 'No Xero organizations connected. Please reconnect Xero.';
+      return res.json(diagnosticResults);
+    }
+    
+    diagnosticResults.steps[3].status = 'success';
+    diagnosticResults.steps[3].message = `Found ${tenants.length} tenant(s)`;
+    diagnosticResults.steps[3].details = tenants.map(t => ({
+      id: t.tenantId,
+      name: t.tenantName,
+      type: t.tenantType
+    }));
+
+    // Step 5: Fetch contacts from first tenant
+    diagnosticResults.steps.push({ step: 5, name: 'Fetch Contacts', status: 'checking' });
+    const tenant = tenants[0];
+    
+    console.log(`🔍 Calling Xero API getContacts for tenant: ${tenant.tenantName} (${tenant.tenantId})`);
+    const contactsResponse = await xero.accountingApi.getContacts(tenant.tenantId);
+    
+    // Store raw response details
+    diagnosticResults.rawResponse = {
+      statusCode: contactsResponse.response?.statusCode,
+      statusMessage: contactsResponse.response?.statusMessage,
+      hasBody: !!contactsResponse.body,
+      hasContacts: !!contactsResponse.body?.Contacts,
+      contactsCount: contactsResponse.body?.Contacts?.length || 0,
+      // Include first 2 contacts as samples (no sensitive data)
+      sampleContacts: (contactsResponse.body?.Contacts || []).slice(0, 2).map(c => ({
+        name: c.Name,
+        hasEmail: !!c.EmailAddress,
+        isCustomer: c.IsCustomer,
+        isSupplier: c.IsSupplier,
+        contactStatus: c.ContactStatus
+      }))
+    };
+    
+    const contactCount = contactsResponse.body?.Contacts?.length || 0;
+    
+    diagnosticResults.steps[4].status = contactCount > 0 ? 'success' : 'warning';
+    diagnosticResults.steps[4].message = `Retrieved ${contactCount} contacts from Xero API`;
+    diagnosticResults.steps[4].details = {
+      tenant: tenant.tenantName,
+      contactCount: contactCount,
+      apiEndpoint: 'getContacts',
+      responseStatus: contactsResponse.response?.statusCode
+    };
+
+    diagnosticResults.success = true;
+    diagnosticResults.summary = contactCount > 0 
+      ? `Successfully connected to Xero and found ${contactCount} contacts`
+      : 'Connected to Xero but no contacts found in your organization';
+
+    console.log('✅ Diagnostic test completed successfully');
+    console.log('========== DIAGNOSTIC TEST COMPLETE ==========\n');
+    
+    res.json(diagnosticResults);
+
+  } catch (error) {
+    console.error('❌ Diagnostic test failed:', error);
+    diagnosticResults.success = false;
+    diagnosticResults.error = error.message;
+    diagnosticResults.errorType = error.constructor.name;
+    diagnosticResults.errorStack = process.env.NODE_ENV === 'development' ? error.stack : undefined;
+    
+    res.status(500).json(diagnosticResults);
+  }
+});
+
+/**
  * @route   GET /api/counterparty/erp-contacts
  * @desc    Get all contacts (customers/vendors) from connected ERP systems with invitation status
  * @access  Private
