@@ -7,11 +7,17 @@
  * instead of MongoDB to match the OAuth flow implementation
  */
 
-const express = require('express');
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+import auth from '../middleware/auth.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const auth = require('../middleware/auth');
-const path = require('path');
 
 // Initialize Prisma Client
 const prisma = new PrismaClient();
@@ -502,7 +508,7 @@ router.post('/invite', auth, async (req, res) => {
     console.log(`📧 Creating invitation for ${contactDetails.name} (${recipientEmail})`);
 
     // Generate a unique invitation token
-    const crypto = require('crypto');
+    const crypto = await import('crypto');
     const linkToken = crypto.randomBytes(32).toString('hex');
     const linkExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
@@ -784,4 +790,4 @@ process.on('SIGTERM', async () => {
   await prisma.$disconnect();
 });
 
-module.exports = router;
+export default router;
