@@ -3,11 +3,12 @@
  * Handles all Xero-related HTTP endpoints
  */
 
-const express = require('express');
+import express from 'express';
+import xeroService from '../services/xeroService.js';
+import auth from '../middleware/auth.js';
+import XeroConnection from '../models/XeroConnection.js';
+
 const router = express.Router();
-const xeroService = require('../services/xeroService');
-const auth = require('../middleware/auth'); // Assuming auth middleware exists
-const XeroConnection = require('../models/XeroConnection');
 
 /**
  * @route   GET /api/xero/auth
@@ -344,4 +345,4 @@ router.get('/health/:id', auth, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
