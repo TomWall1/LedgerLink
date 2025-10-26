@@ -3,11 +3,11 @@
  * Handles all Xero API interactions, OAuth flow, and data synchronization
  */
 
-const axios = require('axios');
-const crypto = require('crypto');
-const XeroConnection = require('../models/XeroConnection');
-const xeroConfig = require('../config/xero');
-const { v4: uuidv4 } = require('uuid');
+import axios from 'axios';
+import crypto from 'crypto';
+import XeroConnection from '../models/XeroConnection.js';
+import xeroConfig from '../config/xero.js';
+import { v4 as uuidv4 } from 'uuid';
 
 class XeroService {
   constructor() {
@@ -474,4 +474,4 @@ class XeroService {
   }
 }
 
-module.exports = new XeroService();
+export default new XeroService();
