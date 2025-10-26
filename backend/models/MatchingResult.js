@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const matchingResultSchema = new mongoose.Schema({
   companyId: {
@@ -220,4 +220,4 @@ matchingResultSchema.statics.getCompanyStatistics = function(companyId) {
 
 const MatchingResult = mongoose.model('MatchingResult', matchingResultSchema);
 
-module.exports = MatchingResult;
+export default MatchingResult;
