@@ -1,5 +1,5 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
 /**
  * Main authentication middleware
@@ -103,6 +103,5 @@ const optionalAuth = async (req, res, next) => {
   }
 };
 
-module.exports = auth;
-module.exports.requireAuth = requireAuth;
-module.exports.optionalAuth = optionalAuth;
+export default auth;
+export { requireAuth, optionalAuth };
