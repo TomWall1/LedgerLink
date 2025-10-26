@@ -7,7 +7,6 @@ import axios from 'axios';
 import crypto from 'crypto';
 import XeroConnection from '../models/XeroConnection.js';
 import xeroConfig from '../config/xero.js';
-import { v4 as uuidv4 } from 'uuid';
 
 class XeroService {
   constructor() {
