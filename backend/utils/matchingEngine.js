@@ -1,5 +1,5 @@
-const dayjs = require('dayjs');
-const customParseFormat = require('dayjs/plugin/customParseFormat');
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 
 dayjs.extend(customParseFormat);
 
@@ -539,7 +539,7 @@ const removeFromUnmatched = (unmatchedItems, item1, item2) => {
 };
 
 // Export the main function and helper functions for testing
-module.exports = {
+export {
   matchRecords,
   normalizeData,
   parseDate,
