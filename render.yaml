@@ -9,7 +9,7 @@ services:
     region: oregon
     plan: starter # Free tier
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm install && npx prisma generate
     startCommand: node src/server.js
     healthCheckPath: /health
     envVars:
