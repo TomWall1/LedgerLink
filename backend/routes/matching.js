@@ -401,7 +401,7 @@ router.post('/export/:matchId', requireAuth, async (req, res) => {
     
     // Add mismatches
     matchingResult.mismatches.forEach(match => {
-      csvContent += `Mismatch,"${match.company1Transaction?.transactionNumber || ''}","${match.company1Transaction?.amount || ''}","${match.company1Transaction?.date || ''}","${match.company2Transaction?.transactionNumber || ''}","${match.company2Transaction?.amount || '"}","${match.company2Transaction?.date || ''}",Mismatched\n`;
+      csvContent += `Mismatch,"${match.company1Transaction?.transactionNumber || ''}","${match.company1Transaction?.amount || ''}","${match.company1Transaction?.date || ''}","${match.company2Transaction?.transactionNumber || ''}","${match.company2Transaction?.amount || ''}","${match.company2Transaction?.date || ''}",Mismatched\n`;
     });
     
     // Add unmatched items
