@@ -7,7 +7,7 @@ import userRoutes from '../routes/users.js';
 import xeroRoutes from '../routes/xero.js';
 import transactionRoutes from '../routes/transactions.js';
 import counterpartyRoutes from '../routes/counterparty.js';
-import matchingRoutes from '../routes/matching.js';
+import { matchingRoutes } from './routes/matchingRoutes.js';
 import { errorHandler } from './middleware/errorMiddleware.js';
 
 // Load environment variables
