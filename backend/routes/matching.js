@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import csv from 'csv-parse';
+import { parse } from 'csv-parse';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { matchRecords } from '../utils/matchingEngine.js';
@@ -35,7 +35,7 @@ const parseCSV = async (filePath) => {
     const fileContent = await fs.readFile(filePath, 'utf-8');
     
     return new Promise((resolve, reject) => {
-      csv.parse(fileContent, {
+      parse(fileContent, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -400,7 +400,7 @@ router.post('/export/:matchId', requireAuth, async (req, res) => {
     
     // Add mismatches
     matchingResult.mismatches.forEach(match => {
-      csvContent += `Mismatch,"${match.company1Transaction?.transactionNumber || ''}","${match.company1Transaction?.amount || ''}","${match.company1Transaction?.date || ''}","${match.company2Transaction?.transactionNumber || ''}","${match.company2Transaction?.amount || ''}","${match.company2Transaction?.date || ''}",Mismatched\n`;
+      csvContent += `Mismatch,"${match.company1Transaction?.transactionNumber || ''}","${match.company1Transaction?.amount || ''}","${match.company1Transaction?.date || ''}","${match.company2Transaction?.transactionNumber || ''}","${match.company2Transaction?.amount || '"}","${match.company2Transaction?.date || ''}",Mismatched\n`;
     });
     
     // Add unmatched items
