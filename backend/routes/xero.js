@@ -236,6 +236,63 @@ router.get('/contacts', auth, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/xero/customers
+ * @desc    Get customers from Xero (alias for contacts endpoint)
+ * @access  Private
+ */
+router.get('/customers', auth, async (req, res) => {
+  try {
+    const { connectionId, page = 1, limit = 100 } = req.query;
+    const userId = req.user.id;
+    
+    if (!connectionId) {
+      return res.status(400).json({ message: 'Connection ID is required' });
+    }
+    
+    // Get connection and verify ownership
+    const connection = await XeroConnection.findOne({
+      _id: connectionId,
+      userId
+    }).select('+accessToken +refreshToken');
+    
+    if (!connection) {
+      return res.status(404).json({ message: 'Xero connection not found' });
+    }
+    
+    if (connection.status !== 'active') {
+      return res.status(400).json({ message: 'Xero connection is not active' });
+    }
+    
+    const filters = {
+      page: parseInt(page),
+      limit: parseInt(limit)
+    };
+    
+    // Use the same getContacts method since Xero calls them "Contacts"
+    const contacts = await xeroService.getContacts(connection, filters);
+    
+    // Return as "customers" for frontend compatibility
+    res.json({
+      success: true,
+      data: {
+        customers: contacts,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: contacts.length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get customers error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch customers from Xero'
+    });
+  }
+});
+
+/**
  * @route   POST /api/xero/sync
  * @desc    Trigger manual sync with Xero
  * @access  Private
