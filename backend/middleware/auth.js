@@ -38,9 +38,13 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ error: 'Access denied. User not found or inactive.' });
     }
     
-    // Add user info to request
+    // Add user info to request - CRITICAL: Add both _id and id for compatibility
     req.userId = user._id;
-    req.user = user;
+    req.user = {
+      ...user.toObject(),
+      id: user._id.toString(), // Add id property that matches _id
+      _id: user._id
+    };
     
     next();
   } catch (error) {
@@ -92,7 +96,11 @@ const optionalAuth = async (req, res, next) => {
     
     if (user && user.isActive) {
       req.userId = user._id;
-      req.user = user;
+      req.user = {
+        ...user.toObject(),
+        id: user._id.toString(), // Add id property that matches _id
+        _id: user._id
+      };
     }
     
     next();
