@@ -133,9 +133,28 @@ xeroConnectionSchema.index({ tenantId: 1 }, { unique: true });
 xeroConnectionSchema.index({ expiresAt: 1 });
 xeroConnectionSchema.index({ status: 1 });
 
-// Encryption key from environment
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32);
+// Encryption setup
 const ALGORITHM = 'aes-256-cbc';
+
+// Ensure encryption key is properly formatted (32 bytes for aes-256)
+function getEncryptionKey() {
+  const envKey = process.env.ENCRYPTION_KEY;
+  
+  if (!envKey) {
+    console.warn('WARNING: No ENCRYPTION_KEY set in environment variables. Using temporary key.');
+    return crypto.randomBytes(32);
+  }
+  
+  // If the key is a hex string, convert it to buffer
+  if (envKey.length === 64) {
+    return Buffer.from(envKey, 'hex');
+  }
+  
+  // Otherwise, hash the key to get consistent 32 bytes
+  return crypto.createHash('sha256').update(envKey).digest();
+}
+
+const ENCRYPTION_KEY = getEncryptionKey();
 
 // Encrypt sensitive data before saving
 xeroConnectionSchema.pre('save', function(next) {
@@ -205,22 +224,43 @@ xeroConnectionSchema.statics.findByUser = function(userId, companyId = null) {
   return this.find(query);
 };
 
-// Utility functions for encryption/decryption
+// Utility functions for encryption/decryption using modern crypto methods
 function encrypt(text) {
   if (!text) return text;
+  
+  // Generate a random initialization vector
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipher(ALGORITHM, ENCRYPTION_KEY);
+  
+  // Create cipher using the modern method
+  const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+  
+  // Encrypt the text
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
+  
+  // Return IV and encrypted data together (IV:encrypted)
   return iv.toString('hex') + ':' + encrypted;
 }
 
 function decrypt(encryptedData) {
   if (!encryptedData) return encryptedData;
-  const [iv, encrypted] = encryptedData.split(':');
-  const decipher = crypto.createDecipher(ALGORITHM, ENCRYPTION_KEY);
+  
+  // Split the IV and encrypted data
+  const parts = encryptedData.split(':');
+  if (parts.length !== 2) {
+    throw new Error('Invalid encrypted data format');
+  }
+  
+  const iv = Buffer.from(parts[0], 'hex');
+  const encrypted = parts[1];
+  
+  // Create decipher using the modern method
+  const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+  
+  // Decrypt the data
   let decrypted = decipher.update(encrypted, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
+  
   return decrypted;
 }
 
