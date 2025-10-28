@@ -135,7 +135,7 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
-// Get user profile (alias for /me route to match frontend expectations)
+// Get user profile (alias for /me route - returns data wrapped in 'user' for frontend compatibility)
 router.get('/profile', auth, async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');
@@ -143,12 +143,15 @@ router.get('/profile', auth, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
+    // Return wrapped in 'user' property to match frontend expectations
     res.json({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt,
-      lastLogin: user.lastLogin
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin
+      }
     });
     
   } catch (error) {
