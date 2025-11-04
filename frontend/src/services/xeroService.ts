@@ -148,46 +148,77 @@ class XeroService {
   /**
    * Get Xero customers (contacts marked as customers)
    */
-  async getCustomers(): Promise<XeroContact[]> {
+  async getCustomers(connectionId: string): Promise<XeroContact[]> {
     try {
-      console.log('Fetching Xero customers...');
-      const response = await apiClient.get('xero/customers');
+      console.log('🔍 [xeroService] Fetching Xero customers for connection:', connectionId);
+      const response = await apiClient.get('xero/customers', {
+        params: { connectionId }
+      });
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch customers');
       }
       
-      console.log('✅ Customers fetched:', response.data.customers?.length || 0);
-      return response.data.customers || [];
+      const customers = response.data.data?.customers || response.data.customers || [];
+      console.log('✅ [xeroService] Customers fetched:', customers.length);
+      return customers;
     } catch (error: any) {
-      console.error('Failed to fetch Xero customers:', error);
+      console.error('❌ [xeroService] Failed to fetch Xero customers:', error);
       throw new Error(error.response?.data?.message || 'Failed to fetch customers');
     }
   }
   
   /**
-   * Get invoices for a specific customer
-   * Returns invoices in TransactionRecord format for matching
+   * Get invoices from Xero
+   * @param params - Query parameters for filtering invoices
+   * @param params.connectionId - Required: The Xero connection ID
+   * @param params.contactId - Optional: Filter by specific contact/customer
+   * @param params.page - Optional: Page number for pagination
+   * @param params.limit - Optional: Number of results per page
+   * @param params.dateFrom - Optional: Filter invoices from this date
+   * @param params.dateTo - Optional: Filter invoices to this date
+   * @param params.status - Optional: Filter by invoice status
    */
-  async getInvoices(contactId: string, includeHistory: boolean = false): Promise<TransactionRecord[]> {
+  async getInvoices(params: {
+    connectionId: string;
+    contactId?: string;
+    page?: number;
+    limit?: number;
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+  }): Promise<TransactionRecord[]> {
     try {
-      console.log('🔍 [xeroService] Fetching invoices for customer:', contactId);
-      const response = await apiClient.get(`xero/customers/${contactId}/invoices`, {
-        params: { includeHistory: includeHistory ? 'true' : 'false' }
+      console.log('🔍 [xeroService] Fetching invoices for customer:', params);
+      
+      const queryParams: any = {
+        connectionId: params.connectionId,
+        page: params.page || 1,
+        limit: params.limit || 50
+      };
+      
+      // Add optional filters
+      if (params.contactId) queryParams.contactId = params.contactId;
+      if (params.dateFrom) queryParams.dateFrom = params.dateFrom;
+      if (params.dateTo) queryParams.dateTo = params.dateTo;
+      if (params.status) queryParams.status = params.status;
+      
+      const response = await apiClient.get('xero/invoices', {
+        params: queryParams
       });
       
       console.log('📦 [xeroService] Invoices response status:', response.status);
       console.log('📦 [xeroService] Response data structure:', {
         success: response.data.success,
-        hasInvoices: !!response.data.invoices,
-        invoicesLength: response.data.invoices?.length
+        hasInvoices: !!response.data.data?.invoices,
+        invoicesLength: response.data.data?.invoices?.length
       });
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch invoices');
       }
       
-      const invoices = response.data.invoices || [];
+      const invoices = response.data.data?.invoices || [];
       console.log('📊 [xeroService] Raw invoices from API:', invoices.length);
       
       // Handle empty invoices array
