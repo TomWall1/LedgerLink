@@ -8,10 +8,22 @@ const CustomerTransactionMatcher = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState('');
+  
+  // Connection states
+  const [connections, setConnections] = useState([]);
+  const [selectedConnection, setSelectedConnection] = useState(null);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
+  
+  // Customer states
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  
+  // Invoice states
   const [customerInvoices, setCustomerInvoices] = useState([]);
   const [customerDataLoading, setCustomerDataLoading] = useState(false);
+  
+  // Matching states
   const [findingMatches, setFindingMatches] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [dateFormat, setDateFormat] = useState('DD/MM/YYYY');
@@ -21,21 +33,79 @@ const CustomerTransactionMatcher = () => {
   
   const apiUrl = process.env.REACT_APP_API_URL || 'https://ledgerlink.onrender.com';
   
-  // Load customers on mount
+  // Load connections on mount
   useEffect(() => {
-    fetchCustomers();
+    fetchConnections();
   }, []);
   
-  // Fetch Xero customers
-  const fetchCustomers = async () => {
+  // Fetch available Xero connections
+  const fetchConnections = async () => {
     try {
+      setConnectionsLoading(true);
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`${apiUrl}/api/xero/customers`, {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${apiUrl}/api/xero/connections`, {
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('Please log in to access Xero connections.');
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Fetched connections:', data);
+      
+      const connectionsList = data.data || [];
+      setConnections(connectionsList);
+      
+      // Auto-select if only one connection
+      if (connectionsList.length === 1) {
+        setSelectedConnection(connectionsList[0]);
+      }
+      
+      if (connectionsList.length === 0) {
+        setError('No Xero connections found. Please connect to Xero first from the Connections page.');
+      }
+    } catch (err) {
+      console.error('Error fetching connections:', err);
+      setError('Failed to fetch Xero connections. Please ensure you are connected.');
+    } finally {
+      setConnectionsLoading(false);
+      setLoading(false);
+    }
+  };
+  
+  // Fetch Xero customers for selected connection
+  const fetchCustomers = async () => {
+    if (!selectedConnection) {
+      setError('Please select a Xero connection first.');
+      return;
+    }
+    
+    try {
+      setCustomersLoading(true);
+      setError(null);
+      
+      const token = localStorage.getItem('authToken');
+      console.log('📞 Fetching customers from Xero for AR...');
+      console.log('   Using endpoint: xero/customers');
+      console.log('   Connection ID:', selectedConnection._id);
+      
+      const response = await fetch(`${apiUrl}/api/xero/customers?connectionId=${selectedConnection._id}`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
         }
       });
       
@@ -44,26 +114,49 @@ const CustomerTransactionMatcher = () => {
           setError('Not connected to Xero. Please connect your Xero account first.');
           return;
         }
+        if (response.status === 400) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Connection ID is required');
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const customers = await response.json();
-      console.log('Fetched customers:', customers);
+      const data = await response.json();
+      console.log('Fetched customers response:', data);
+      
+      // Handle different response formats
+      const customersList = data.data?.customers || data.customers || [];
       
       // Transform the data to match our expected format
-      const formattedCustomers = customers.map(customer => ({
-        id: customer.contactID,
-        name: customer.name,
-        email: customer.emailAddress || 'No email'
+      const formattedCustomers = customersList.map(customer => ({
+        id: customer.ContactID || customer.contactID,
+        name: customer.Name || customer.name,
+        email: customer.EmailAddress || customer.emailAddress || 'No email'
       }));
       
       setCustomers(formattedCustomers);
+      
+      if (formattedCustomers.length === 0) {
+        setError('No customers found for this connection.');
+      }
     } catch (err) {
-      console.error('Error fetching customers:', err);
-      setError('Failed to fetch customers from Xero. Please ensure you are connected.');
+      console.error('❌ Error fetching customers:', err);
+      console.error('   Error message:', err.message);
+      setError(`Failed to fetch customers: ${err.message}`);
     } finally {
-      setLoading(false);
+      setCustomersLoading(false);
     }
+  };
+  
+  // Handle connection selection
+  const handleConnectionSelect = (connection) => {
+    setSelectedConnection(connection);
+    setCustomers([]);
+    setSelectedCustomer(null);
+    setCustomerInvoices([]);
+    setMatches([]);
+    setError(null);
+    setSuccess('');
   };
   
   // Handle customer selection
@@ -78,10 +171,14 @@ const CustomerTransactionMatcher = () => {
     try {
       setCustomerDataLoading(true);
       
-      const response = await fetch(`${apiUrl}/api/xero/customers/${customer.id}/invoices`, {
+      const token = localStorage.getItem('authToken');
+      
+      // Use the invoices endpoint with customer filter
+      const response = await fetch(`${apiUrl}/api/xero/invoices?connectionId=${selectedConnection._id}&contactId=${customer.id}`, {
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
         }
       });
       
@@ -89,25 +186,29 @@ const CustomerTransactionMatcher = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const invoices = await response.json();
-      console.log('Fetched invoices for customer:', invoices);
+      const data = await response.json();
+      console.log('Fetched invoices for customer:', data);
+      
+      // Handle different response formats
+      const invoicesList = data.data?.invoices || data.invoices || [];
       
       // Transform the data to match our expected format
-      const formattedInvoices = invoices.map(invoice => ({
-        id: invoice.invoiceID,
-        type: invoice.type,
-        amount: parseFloat(invoice.total),
-        issueDate: invoice.date || invoice.dateString,
-        dueDate: invoice.dueDate || invoice.dueDateString,
-        status: invoice.status,
-        reference: invoice.reference || invoice.invoiceNumber,
+      const formattedInvoices = invoicesList.map(invoice => ({
+        id: invoice.InvoiceID || invoice.invoiceID,
+        type: invoice.Type || invoice.type,
+        amount: parseFloat(invoice.Total || invoice.total || 0),
+        issueDate: invoice.Date || invoice.date || invoice.dateString,
+        dueDate: invoice.DueDate || invoice.dueDate || invoice.dueDateString,
+        status: invoice.Status || invoice.status,
+        reference: invoice.Reference || invoice.reference || invoice.InvoiceNumber || invoice.invoiceNumber,
         customer: customer.name
       }));
       
       setCustomerInvoices(formattedInvoices);
     } catch (err) {
       console.error('Error fetching customer invoices:', err);
-      setError('Failed to fetch customer invoices from Xero.');
+      // Don't set main error, just log it
+      setCustomerInvoices([]);
     } finally {
       setCustomerDataLoading(false);
     }
@@ -133,9 +234,16 @@ const CustomerTransactionMatcher = () => {
       formData.append('dateFormat', dateFormat);
       formData.append('useHistoricalData', useHistoricalData);
       
+      const token = localStorage.getItem('authToken');
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const response = await fetch(`${apiUrl}/api/transactions/match-customer-invoices`, {
         method: 'POST',
         credentials: 'include',
+        headers,
         body: formData
       });
       
@@ -166,11 +274,13 @@ const CustomerTransactionMatcher = () => {
     try {
       setApprovingMatches(prev => ({ ...prev, [matchId]: true }));
       
+      const token = localStorage.getItem('authToken');
       const response = await fetch(`${apiUrl}/api/transactions/approve-customer-match`, {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
         },
         body: JSON.stringify({ matchId })
       });
@@ -228,7 +338,7 @@ const CustomerTransactionMatcher = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">Loading customers...</p>
+          <p className="mt-4 text-lg text-gray-600">Loading connections...</p>
         </div>
       </div>
     );
@@ -276,24 +386,84 @@ const CustomerTransactionMatcher = () => {
           </div>
         )}
         
-        {/* Three Panel Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Four Panel Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Panel 0: Connection Selection */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold text-[#1B365D] mb-4">1. Select ERP</h2>
+            
+            {connectionsLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-sm text-gray-600">Loading connections...</p>
+              </div>
+            ) : connections.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500 mb-4">No connections found</p>
+                <button
+                  onClick={() => navigate('/connections')}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm"
+                >
+                  Go to Connections
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {connections.map((connection) => (
+                  <div
+                    key={connection._id}
+                    onClick={() => handleConnectionSelect(connection)}
+                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                      selectedConnection?._id === connection._id
+                        ? 'bg-blue-50 border-blue-300'
+                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    <h3 className="font-medium text-[#1B365D]">{connection.tenantName}</h3>
+                    <p className="text-xs text-gray-500 mt-1">{connection.provider.toUpperCase()}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {selectedConnection && (
+              <div className="mt-4">
+                <button
+                  onClick={fetchCustomers}
+                  disabled={customersLoading}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                >
+                  {customersLoading ? 'Loading...' : 'Load Customers'}
+                </button>
+              </div>
+            )}
+          </div>
+          
           {/* Panel 1: Customer Selection */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-[#1B365D] mb-4">1. Select Customer</h2>
+            <h2 className="text-xl font-semibold text-[#1B365D] mb-4">2. Select Customer</h2>
             
-            {customers.length === 0 ? (
+            {!selectedConnection ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">Please select a connection first</p>
+              </div>
+            ) : customersLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-2 text-sm text-gray-600">Loading customers...</p>
+              </div>
+            ) : customers.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 mb-4">No customers found</p>
                 <button
                   onClick={fetchCustomers}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium"
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm"
                 >
                   Retry
                 </button>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-96 overflow-y-auto">
                 {customers.map((customer) => (
                   <div
                     key={customer.id}
@@ -329,7 +499,7 @@ const CustomerTransactionMatcher = () => {
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-600">No outstanding invoices</p>
+                  <p className="text-sm text-gray-600">No invoices found</p>
                 )}
               </div>
             )}
@@ -337,7 +507,7 @@ const CustomerTransactionMatcher = () => {
           
           {/* Panel 2: File Upload */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-[#1B365D] mb-4">2. Upload CSV File</h2>
+            <h2 className="text-xl font-semibold text-[#1B365D] mb-4">3. Upload CSV</h2>
             
             <div className="space-y-4">
               <FileUpload
@@ -394,7 +564,7 @@ const CustomerTransactionMatcher = () => {
           
           {/* Panel 3: Match Results */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-[#1B365D] mb-4">3. Review Matches</h2>
+            <h2 className="text-xl font-semibold text-[#1B365D] mb-4">4. Review Matches</h2>
             
             {matches.length === 0 ? (
               <div className="text-center py-8">
