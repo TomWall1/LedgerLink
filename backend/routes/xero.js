@@ -128,13 +128,20 @@ router.delete('/connections/:id', auth, async (req, res) => {
  * @access  Private
  */
 router.get('/invoices', auth, async (req, res) => {
+  console.log('🚀 ========== XERO INVOICES ENDPOINT HIT ==========');
+  console.log('📥 Request Query:', req.query);
+  console.log('👤 User ID:', req.user?.id);
+  
   try {
     const { connectionId, page = 1, limit = 100, dateFrom, dateTo, status } = req.query;
     const userId = req.user.id;
     
     if (!connectionId) {
+      console.log('❌ No connection ID provided');
       return res.status(400).json({ message: 'Connection ID is required' });
     }
+    
+    console.log('🔍 Looking for connection:', { connectionId, userId });
     
     // Get connection and verify ownership
     const connection = await XeroConnection.findOne({
@@ -143,10 +150,18 @@ router.get('/invoices', auth, async (req, res) => {
     }).select('+accessToken +refreshToken');
     
     if (!connection) {
+      console.log('❌ Connection not found');
       return res.status(404).json({ message: 'Xero connection not found' });
     }
     
+    console.log('✅ Connection found:', {
+      tenantId: connection.tenantId,
+      tenantName: connection.tenantName,
+      status: connection.status
+    });
+    
     if (connection.status !== 'active') {
+      console.log('❌ Connection not active:', connection.status);
       return res.status(400).json({ message: 'Xero connection is not active' });
     }
     
@@ -158,9 +173,21 @@ router.get('/invoices', auth, async (req, res) => {
       status
     };
     
+    console.log('📋 Calling xeroService.getInvoices with filters:', filters);
+    
     const invoices = await xeroService.getInvoices(connection, filters);
     
-    res.json({
+    console.log('✅ Got invoices from service:', {
+      count: invoices.length,
+      firstInvoice: invoices[0] ? {
+        transaction_number: invoices[0].transaction_number,
+        amount: invoices[0].amount,
+        status: invoices[0].status,
+        contact_name: invoices[0].contact_name
+      } : 'No invoices'
+    });
+    
+    const response = {
       success: true,
       data: {
         invoices,
@@ -170,9 +197,14 @@ router.get('/invoices', auth, async (req, res) => {
           total: invoices.length
         }
       }
-    });
+    };
+    
+    console.log('📤 Sending response with', invoices.length, 'invoices');
+    
+    res.json(response);
   } catch (error) {
-    console.error('Get invoices error:', error);
+    console.error('❌ Get invoices error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch invoices from Xero'
