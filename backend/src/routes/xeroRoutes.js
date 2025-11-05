@@ -516,7 +516,7 @@ router.get('/customers', async (req, res) => {
       return res.status(401).json({
         success: false,
         error: 'Not authenticated with Xero',
-        customers: []
+        data: { customers: [] }
       });
     }
     
@@ -534,7 +534,7 @@ router.get('/customers', async (req, res) => {
       return res.json({
         success: false,
         error: 'No Xero organizations found for this connection',
-        customers: []
+        data: { customers: [] }
       });
     }
     
@@ -563,9 +563,12 @@ router.get('/customers', async (req, res) => {
       }, null, 2));
     }
     
+    // FIXED: Wrap in proper data structure
     res.json({
       success: true,
-      customers: customers
+      data: {
+        customers: customers
+      }
     });
   } catch (error) {
     console.error('❌ Error fetching Xero customers:', error);
@@ -579,7 +582,7 @@ router.get('/customers', async (req, res) => {
       success: false,
       error: 'Failed to fetch Xero customers',
       details: error.message,
-      customers: []
+      data: { customers: [] }
     });
   }
 });
@@ -679,7 +682,8 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
     if (!tokens) {
       return res.status(401).json({
         success: false,
-        error: 'Not authenticated with Xero'
+        error: 'Not authenticated with Xero',
+        data: { invoices: [] }
       });
     }
     
@@ -694,7 +698,7 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
       return res.json({
         success: false,
         error: 'No Xero organizations found for this connection',
-        invoices: []
+        data: { invoices: [] }
       });
     }
     
@@ -702,28 +706,9 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
     const firstTenant = tenants[0];
     console.log('   Using tenant:', firstTenant.tenantName);
     
-    // STEP 1: First, let's get ALL invoices to see what exists
-    console.log('   🔍 DEBUG: Fetching ALL invoices first...');
-    const allInvoicesData = await callXeroApi(
-      'https://api.xero.com/api.xro/2.0/Invoices',
-      tokens.access_token,
-      firstTenant.tenantId
-    );
-    
-    const allInvoices = allInvoicesData.Invoices || [];
-    console.log('   📊 Total invoices in Xero:', allInvoices.length);
-    
-    // Log details about all invoices
-    if (allInvoices.length > 0) {
-      console.log('   📋 All invoices:');
-      allInvoices.forEach((inv, index) => {
-        console.log(`      ${index + 1}. Invoice: ${inv.InvoiceNumber || 'N/A'}, Status: ${inv.Status}, Contact: ${inv.Contact?.Name || 'N/A'} (${inv.Contact?.ContactID || 'N/A'})`);
-      });
-    }
-    
-    // STEP 2: Now try with the where clause using direct API
+    // Try with the where clause using direct API
     const whereClause = `Contact.ContactID==Guid("${contactId}")`;
-    console.log('   🔍 Trying with where clause:', whereClause);
+    console.log('   🔍 Fetching invoices with where clause:', whereClause);
     
     const filteredInvoicesData = await callXeroApi(
       `https://api.xero.com/api.xro/2.0/Invoices?where=${encodeURIComponent(whereClause)}`,
@@ -750,9 +735,17 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
       console.log('   📊 Outstanding invoices (not PAID/VOIDED):', invoices.length, 'of', originalCount);
     }
     
+    // FIXED: Wrap in proper data structure with pagination info
     res.json({
       success: true,
-      invoices: invoices
+      data: {
+        invoices: invoices,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: invoices.length
+        }
+      }
     });
   } catch (error) {
     console.error('❌ Error fetching customer invoices:', error);
@@ -760,7 +753,7 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
       success: false,
       error: 'Failed to fetch customer invoices',
       details: error.message,
-      invoices: []
+      data: { invoices: [] }
     });
   }
 });
