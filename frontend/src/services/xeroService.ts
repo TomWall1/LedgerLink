@@ -155,11 +155,18 @@ class XeroService {
         params: { connectionId }
       });
       
+      console.log('📦 [xeroService] Raw response:', {
+        success: response.data.success,
+        hasData: !!response.data.data,
+        hasCustomers: !!response.data.data?.customers
+      });
+      
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch customers');
       }
       
-      const customers = response.data.data?.customers || response.data.customers || [];
+      // FIXED: Handle the nested data structure properly
+      const customers = response.data.data?.customers || [];
       console.log('✅ [xeroService] Customers fetched:', customers.length);
       return customers;
     } catch (error: any) {
@@ -187,7 +194,7 @@ class XeroService {
     dateFrom?: string;
     dateTo?: string;
     status?: string;
-  }): Promise<TransactionRecord[]> {
+  }): Promise<{ invoices: TransactionRecord[]; pagination: any }> {
     try {
       console.log('🔍 [xeroService] Fetching invoices for customer:', params);
       
@@ -210,6 +217,7 @@ class XeroService {
       console.log('📦 [xeroService] Invoices response status:', response.status);
       console.log('📦 [xeroService] Response data structure:', {
         success: response.data.success,
+        hasData: !!response.data.data,
         hasInvoices: !!response.data.data?.invoices,
         invoicesLength: response.data.data?.invoices?.length
       });
@@ -218,13 +226,16 @@ class XeroService {
         throw new Error(response.data.message || 'Failed to fetch invoices');
       }
       
+      // FIXED: Handle the nested data structure properly
       const invoices = response.data.data?.invoices || [];
+      const pagination = response.data.data?.pagination || { page: 1, limit: 50, total: 0 };
+      
       console.log('📊 [xeroService] Raw invoices from API:', invoices.length);
       
       // Handle empty invoices array
       if (invoices.length === 0) {
         console.log('ℹ️ [xeroService] No invoices found for this customer');
-        return [];
+        return { invoices: [], pagination };
       }
       
       // Log the first raw invoice to see its structure
@@ -301,7 +312,7 @@ class XeroService {
         console.error('❌ [xeroService] Found invoices without ID:', invalidInvoices.length);
       }
       
-      return transformed;
+      return { invoices: transformed, pagination };
     } catch (error: any) {
       console.error('❌ [xeroService] Failed to fetch customer invoices:', error);
       console.error('❌ [xeroService] Error details:', {
