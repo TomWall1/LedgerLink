@@ -313,13 +313,43 @@ class XeroService {
         params.where = whereConditions.join(' AND ');
       }
       
+      console.log('🔍 Fetching Xero invoices with params:', params);
+      
       const data = await this.makeApiRequest(connection, '/Invoices', {
         params
       });
       
-      return this.transformInvoices(data.Invoices || []);
+      // Enhanced logging
+      console.log('📦 Raw Xero API response structure:', {
+        hasInvoices: !!data.Invoices,
+        invoiceCount: data.Invoices?.length || 0,
+        dataKeys: Object.keys(data)
+      });
+      
+      // Extract invoices - handle various response structures
+      let invoices = [];
+      if (Array.isArray(data.Invoices)) {
+        invoices = data.Invoices;
+      } else if (Array.isArray(data)) {
+        invoices = data;
+      } else if (data.Invoices?.Invoices) {
+        invoices = data.Invoices.Invoices;
+      }
+      
+      console.log(`✅ Extracted ${invoices.length} invoices from Xero API`);
+      
+      if (invoices.length > 0) {
+        console.log('📋 First invoice sample:', {
+          InvoiceNumber: invoices[0].InvoiceNumber,
+          Type: invoices[0].Type,
+          Total: invoices[0].Total,
+          Status: invoices[0].Status
+        });
+      }
+      
+      return this.transformInvoices(invoices);
     } catch (error) {
-      console.error('Failed to fetch invoices:', error);
+      console.error('❌ Failed to fetch invoices:', error);
       throw error;
     }
   }
@@ -354,22 +384,57 @@ class XeroService {
    * @returns {Array} - Transformed invoices
    */
   transformInvoices(xeroInvoices) {
-    return xeroInvoices.map(invoice => {
-      const transformed = {
-        transaction_number: invoice.InvoiceNumber,
-        transaction_type: invoice.Type,
-        amount: parseFloat(invoice.AmountDue || invoice.Total || 0),
-        issue_date: invoice.Date ? new Date(invoice.Date) : null,
-        due_date: invoice.DueDate ? new Date(invoice.DueDate) : null,
-        status: this.mapXeroStatus(invoice.Status),
-        reference: invoice.Reference || '',
-        contact_name: invoice.Contact?.Name || '',
-        xero_id: invoice.InvoiceID,
-        source: 'xero',
-        raw_data: invoice // Store original for debugging
-      };
-      
-      return transformed;
+    console.log(`🔄 Transforming ${xeroInvoices.length} Xero invoices`);
+    
+    return xeroInvoices.map((invoice, index) => {
+      try {
+        // Safely access nested properties
+        const contactName = invoice.Contact?.Name || 
+                           invoice.ContactName || 
+                           invoice.contact?.name || 
+                           '';
+        
+        const transformed = {
+          transaction_number: invoice.InvoiceNumber || invoice.invoiceNumber || '',
+          transaction_type: invoice.Type || invoice.type || 'UNKNOWN',
+          amount: parseFloat(invoice.AmountDue || invoice.Total || invoice.total || 0),
+          issue_date: invoice.Date || invoice.date || invoice.IssueDate || null,
+          due_date: invoice.DueDate || invoice.dueDate || invoice.due_date || null,
+          status: this.mapXeroStatus(invoice.Status || invoice.status || 'UNKNOWN'),
+          reference: invoice.Reference || invoice.reference || '',
+          contact_name: contactName,
+          xero_id: invoice.InvoiceID || invoice.invoiceID || invoice.invoice_id || '',
+          source: 'xero',
+          raw_data: invoice // Keep for debugging
+        };
+        
+        // Log first transformed invoice
+        if (index === 0) {
+          console.log('✅ First transformed invoice:', {
+            transaction_number: transformed.transaction_number,
+            amount: transformed.amount,
+            contact_name: transformed.contact_name,
+            status: transformed.status
+          });
+        }
+        
+        return transformed;
+      } catch (error) {
+        console.error(`❌ Error transforming invoice ${index}:`, error);
+        // Return minimal valid object to prevent crash
+        return {
+          transaction_number: 'ERROR',
+          transaction_type: 'ERROR',
+          amount: 0,
+          issue_date: null,
+          due_date: null,
+          status: 'error',
+          reference: 'Error processing',
+          contact_name: '',
+          xero_id: '',
+          source: 'xero'
+        };
+      }
     });
   }
   
