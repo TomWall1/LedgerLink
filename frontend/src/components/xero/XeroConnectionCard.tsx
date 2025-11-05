@@ -26,35 +26,49 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
   const [isSyncing, setIsSyncing] = useState(false);
   
   const handleDisconnectClick = () => {
-    console.log('🔴 Disconnect button clicked for connection:', connection._id);
-    console.log('🔴 Opening disconnect confirmation modal');
+    console.log('🔴 [XeroConnectionCard] Disconnect button clicked');
+    console.log('🔴 [XeroConnectionCard] Connection ID:', connection._id);
+    console.log('🔴 [XeroConnectionCard] Connection Name:', connection.tenantName);
+    console.log('🔴 [XeroConnectionCard] Opening disconnect modal...');
     setShowDisconnectModal(true);
+    console.log('🔴 [XeroConnectionCard] Modal state set to true');
   };
   
   const handleDisconnect = async () => {
-    console.log('🔴 Confirming disconnect for connection:', connection._id);
+    console.log('🔴 [XeroConnectionCard] Confirming disconnect');
+    console.log('🔴 [XeroConnectionCard] Connection ID:', connection._id);
     setIsDisconnecting(true);
     try {
+      console.log('🔴 [XeroConnectionCard] Calling onDisconnect...');
       await onDisconnect(connection._id);
+      console.log('✅ [XeroConnectionCard] Disconnect successful, closing modal');
       setShowDisconnectModal(false);
-      console.log('✅ Successfully disconnected');
     } catch (error) {
-      console.error('❌ Disconnect error:', error);
+      console.error('❌ [XeroConnectionCard] Disconnect error:', error);
       // Error handling is done in parent component
     } finally {
       setIsDisconnecting(false);
+      console.log('🔴 [XeroConnectionCard] Disconnect process completed');
     }
   };
   
   const handleSync = async () => {
+    console.log('🔄 [XeroConnectionCard] Starting sync');
     setIsSyncing(true);
     try {
       await onSync(connection._id);
+      console.log('✅ [XeroConnectionCard] Sync successful');
     } catch (error) {
+      console.error('❌ [XeroConnectionCard] Sync error:', error);
       // Error handling is done in parent component
     } finally {
       setIsSyncing(false);
     }
+  };
+  
+  const handleCloseModal = () => {
+    console.log('🔴 [XeroConnectionCard] Closing disconnect modal');
+    setShowDisconnectModal(false);
   };
   
   const getStatusIcon = (status: string) => {
@@ -192,7 +206,10 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => onHealthCheck(connection._id)}
+                onClick={() => {
+                  console.log('🏥 [XeroConnectionCard] Health check clicked');
+                  onHealthCheck(connection._id);
+                }}
                 disabled={isLoading}
               >
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -219,31 +236,28 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
               variant="destructive"
               size="sm"
               onClick={handleDisconnectClick}
-              disabled={isLoading}
+              disabled={isLoading || isDisconnecting}
+              isLoading={isDisconnecting}
             >
-              Disconnect
+              {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
             </Button>
           </div>
         </CardFooter>
       </Card>
       
       {/* Disconnect confirmation modal */}
+      {console.log('🔴 [XeroConnectionCard] Rendering modal, isOpen:', showDisconnectModal)}
       <Modal
         isOpen={showDisconnectModal}
-        onClose={() => {
-          console.log('🔴 Closing disconnect modal');
-          setShowDisconnectModal(false);
-        }}
+        onClose={handleCloseModal}
         title="Disconnect Xero"
         description={`Are you sure you want to disconnect ${connection.tenantName}? This will stop syncing data from Xero.`}
+        size="md"
       >
         <div className="flex items-center justify-end space-x-3 mt-6">
           <Button
             variant="secondary"
-            onClick={() => {
-              console.log('🔴 Cancel disconnect clicked');
-              setShowDisconnectModal(false);
-            }}
+            onClick={handleCloseModal}
             disabled={isDisconnecting}
           >
             Cancel
@@ -252,8 +266,9 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
             variant="destructive"
             onClick={handleDisconnect}
             isLoading={isDisconnecting}
+            disabled={isDisconnecting}
           >
-            Disconnect
+            {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
           </Button>
         </div>
       </Modal>
