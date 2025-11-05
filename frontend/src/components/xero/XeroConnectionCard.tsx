@@ -25,12 +25,21 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   
+  const handleDisconnectClick = () => {
+    console.log('🔴 Disconnect button clicked for connection:', connection._id);
+    console.log('🔴 Opening disconnect confirmation modal');
+    setShowDisconnectModal(true);
+  };
+  
   const handleDisconnect = async () => {
+    console.log('🔴 Confirming disconnect for connection:', connection._id);
     setIsDisconnecting(true);
     try {
       await onDisconnect(connection._id);
       setShowDisconnectModal(false);
+      console.log('✅ Successfully disconnected');
     } catch (error) {
+      console.error('❌ Disconnect error:', error);
       // Error handling is done in parent component
     } finally {
       setIsDisconnecting(false);
@@ -209,7 +218,7 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => setShowDisconnectModal(true)}
+              onClick={handleDisconnectClick}
               disabled={isLoading}
             >
               Disconnect
@@ -221,14 +230,20 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
       {/* Disconnect confirmation modal */}
       <Modal
         isOpen={showDisconnectModal}
-        onClose={() => setShowDisconnectModal(false)}
+        onClose={() => {
+          console.log('🔴 Closing disconnect modal');
+          setShowDisconnectModal(false);
+        }}
         title="Disconnect Xero"
         description={`Are you sure you want to disconnect ${connection.tenantName}? This will stop syncing data from Xero.`}
       >
         <div className="flex items-center justify-end space-x-3 mt-6">
           <Button
             variant="secondary"
-            onClick={() => setShowDisconnectModal(false)}
+            onClick={() => {
+              console.log('🔴 Cancel disconnect clicked');
+              setShowDisconnectModal(false);
+            }}
             disabled={isDisconnecting}
           >
             Cancel
