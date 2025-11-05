@@ -226,7 +226,7 @@ class XeroService {
         throw new Error(response.data.message || 'Failed to fetch invoices');
       }
       
-      // FIXED: Handle the nested data structure properly
+      // The backend now returns ALREADY TRANSFORMED invoices with the correct property names
       const invoices = response.data.data?.invoices || [];
       const pagination = response.data.data?.pagination || { page: 1, limit: 50, total: 0 };
       
@@ -238,39 +238,36 @@ class XeroService {
         return { invoices: [], pagination };
       }
       
-      // Log the first raw invoice to see its structure
+      // Log the first invoice to verify structure
       if (invoices.length > 0) {
         console.log('📋 [xeroService] First raw invoice structure:', {
-          InvoiceID: invoices[0].InvoiceID,
-          InvoiceNumber: invoices[0].InvoiceNumber,
-          Type: invoices[0].Type,
-          Total: invoices[0].Total,
-          Status: invoices[0].Status,
-          hasContact: !!invoices[0].Contact
+          transaction_number: invoices[0].transaction_number,
+          transaction_type: invoices[0].transaction_type,
+          amount: invoices[0].amount,
+          status: invoices[0].status,
+          contact_name: invoices[0].contact_name
         });
       }
       
-      // Transform Xero invoices to TransactionRecord format with robust error handling
+      // Convert backend's transformed format to TransactionRecord format
+      // The backend sends: transaction_number, transaction_type, amount, status, etc.
+      // We need to ensure each invoice has an 'id' field for the frontend
       const transformed = invoices.map((invoice: any, index: number) => {
         try {
-          // Generate a unique ID - use InvoiceID first, then InvoiceNumber, finally a fallback
-          const id = invoice.InvoiceID || invoice.InvoiceNumber || `TEMP-${Date.now()}-${index}`;
-          
-          if (!id) {
-            console.warn(`⚠️ [xeroService] Invoice ${index} has no ID, using fallback`);
-          }
+          // Generate a unique ID using xero_id if available, otherwise use transaction_number
+          const id = invoice.xero_id || invoice.transaction_number || `TEMP-${Date.now()}-${index}`;
           
           const transformedInvoice: TransactionRecord = {
-            id: String(id), // Ensure it's a string
-            transaction_number: String(invoice.InvoiceNumber || invoice.InvoiceID || ''),
-            transaction_type: invoice.Type || 'ACCREC',
-            amount: parseFloat(invoice.Total) || 0,
-            issue_date: invoice.Date || invoice.DateString || '',
-            due_date: invoice.DueDate || invoice.DueDateString || '',
-            status: invoice.Status || '',
-            reference: invoice.Reference || '',
-            contact_name: invoice.Contact?.Name || '',
-            xero_id: invoice.InvoiceID || '',
+            id: String(id),
+            transaction_number: invoice.transaction_number || '',
+            transaction_type: invoice.transaction_type || 'ACCREC',
+            amount: invoice.amount || 0,
+            issue_date: invoice.issue_date || '',
+            due_date: invoice.due_date || '',
+            status: invoice.status || '',
+            reference: invoice.reference || '',
+            contact_name: invoice.contact_name || '',
+            xero_id: invoice.xero_id || '',
             source: 'xero' as const
           };
           
@@ -305,12 +302,6 @@ class XeroService {
       });
       
       console.log('✅ [xeroService] Successfully transformed invoices:', transformed.length);
-      
-      // Validate that all invoices have an id
-      const invalidInvoices = transformed.filter(inv => !inv.id);
-      if (invalidInvoices.length > 0) {
-        console.error('❌ [xeroService] Found invoices without ID:', invalidInvoices.length);
-      }
       
       return { invoices: transformed, pagination };
     } catch (error: any) {
