@@ -86,8 +86,12 @@ const xeroConnectionSchema = new mongoose.Schema({
     default: 'success'
   },
   
+  // FIXED: syncErrors as array of subdocuments with proper schema
   syncErrors: [{
-    type: String,
+    type: {
+      type: String,
+      required: true
+    },
     timestamp: {
       type: Date,
       default: Date.now
@@ -197,8 +201,12 @@ xeroConnectionSchema.methods.updateTokens = async function(tokens) {
 
 xeroConnectionSchema.methods.markAsError = async function(error) {
   this.status = 'error';
+  
+  // FIXED: Properly format error for schema
+  const errorMessage = typeof error === 'string' ? error : (error.message || String(error));
+  
   this.syncErrors.push({
-    type: error.message || error,
+    type: errorMessage,
     timestamp: new Date()
   });
   
