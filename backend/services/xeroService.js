@@ -185,7 +185,7 @@ class XeroService {
       return connection;
     } catch (error) {
       console.error('Token refresh error:', error.response?.data || error.message);
-      await connection.markAsError('Token refresh failed');
+      // Don't mark as error here - let the calling code decide
       throw new Error('Failed to refresh Xero tokens');
     }
   }
@@ -195,9 +195,12 @@ class XeroService {
    * @param {Object} connection - Xero connection
    * @param {string} endpoint - API endpoint
    * @param {Object} options - Request options
+   * @param {boolean} options.markErrorOnFailure - Whether to mark connection as error on auth failure (default: true for critical operations)
    * @returns {Object} - API response data
    */
   async makeApiRequest(connection, endpoint, options = {}) {
+    const markErrorOnFailure = options.markErrorOnFailure !== undefined ? options.markErrorOnFailure : true;
+    
     try {
       // Check if token needs refresh
       if (connection.isTokenExpired()) {
@@ -251,7 +254,10 @@ class XeroService {
           });
           return retryResponse.data;
         } catch (retryError) {
-          await connection.markAsError('Authentication failed');
+          // Only mark as error if this is a critical operation
+          if (markErrorOnFailure) {
+            await connection.markAsError('Authentication failed');
+          }
           throw new Error('Xero authentication failed');
         }
       }
@@ -367,14 +373,17 @@ class XeroService {
         ...filters
       };
       
+      // Don't mark connection as error if contact fetch fails - it's not critical
       const data = await this.makeApiRequest(connection, '/Contacts', {
-        params
+        params,
+        markErrorOnFailure: false
       });
       
       return data.Contacts || [];
     } catch (error) {
       console.error('Failed to fetch contacts:', error);
-      throw error;
+      // Don't throw - just return empty array so the connection doesn't get marked as error
+      return [];
     }
   }
   
