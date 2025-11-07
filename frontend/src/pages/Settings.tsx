@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/Card';
@@ -9,6 +11,8 @@ export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
   const [resetPasswordModal, setResetPasswordModal] = useState(false);
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   
   // Profile settings
   const [profile, setProfile] = useState({
@@ -83,6 +87,15 @@ export const Settings: React.FC = () => {
   
   const handleSaveMatchingSettings = () => {
     console.log('Saving matching settings:', matchingSettings);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
   
   const renderProfileTab = () => (
@@ -393,6 +406,26 @@ export const Settings: React.FC = () => {
               </div>
               <Button variant="ghost" size="sm">Revoke</Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Logout Section */}
+      <Card>
+        <CardHeader>
+          <h3 className="text-h3 text-neutral-900">Account Access</h3>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-body font-medium text-neutral-900">Logout</h4>
+              <p className="text-small text-neutral-600">
+                Sign out of your account on this device
+              </p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              Logout
+            </Button>
           </div>
         </CardContent>
       </Card>
