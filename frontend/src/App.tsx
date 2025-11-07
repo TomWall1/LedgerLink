@@ -1,6 +1,6 @@
-// Force cache invalidation - v1.0.10 - COUNTERPARTIES ENABLED
+// Force cache invalidation - v1.0.11 - LOGOUT FUNCTIONALITY ADDED
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './hooks/useToast';
 import { AppLayout } from './components/layout/AppLayout';
@@ -15,6 +15,7 @@ import Register from './components/Register';
 import Matches from './pages/Matches';
 import { Counterparties } from './pages/Counterparties';
 import { InviteAcceptance } from './components/counterparty/InviteAcceptance';
+import { Settings } from './pages/Settings';
 
 import './styles/global.css';
 
@@ -29,6 +30,7 @@ type AppView = 'landing' | 'login' | 'register' | 'dashboard' | 'invite-acceptan
 // Component to handle tab state based on current route
 const AppContent: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout, loading } = useAuth();
   
   // Authentication and view state
@@ -111,12 +113,14 @@ const AppContent: React.FC = () => {
   const handleLoginSuccess = () => {
     console.log('✅ Login successful');
     setCurrentView('dashboard');
+    navigate('/dashboard');
     // User and company will be set by AuthContext
   };
   
   const handleRegisterSuccess = () => {
     console.log('✅ Registration successful');
     setCurrentView('dashboard');
+    navigate('/dashboard');
     // User and company will be set by AuthContext
   };
   
@@ -124,8 +128,9 @@ const AppContent: React.FC = () => {
     console.log('🔓 Logging out');
     await logout();
     setCompany(null);
-    setCurrentView('landing');
     localStorage.removeItem('authToken');
+    setCurrentView('landing');
+    navigate('/');
   };
   
   const handleInvite = () => {
@@ -135,6 +140,7 @@ const AppContent: React.FC = () => {
 
   const handleBackToLanding = () => {
     setCurrentView('landing');
+    navigate('/');
   };
 
   // Navigation handler for tab-based navigation
@@ -277,11 +283,9 @@ const AppContent: React.FC = () => {
                 <Route 
                   path="/settings" 
                   element={
-                    <div className="p-8">
-                      <h1 className="text-2xl font-bold mb-4">Settings</h1>
-                      <p className="text-gray-600">Application settings</p>
-                      <p className="text-sm text-gray-500 mt-2">This feature is available in the full version</p>
-                    </div>
+                    <ErrorBoundary>
+                      <Settings />
+                    </ErrorBoundary>
                   } 
                 />
                 <Route 
@@ -300,7 +304,7 @@ const AppContent: React.FC = () => {
                       <p className="text-gray-600">The requested page could not be found: {location.pathname}</p>
                       <div className="mt-4">
                         <button 
-                          onClick={() => window.location.href = '/dashboard'}
+                          onClick={() => navigate('/dashboard')}
                           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
                         >
                           Go to Dashboard
