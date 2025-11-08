@@ -507,8 +507,8 @@ class XeroService {
   }
   
   /**
-   * Disconnect/revoke Xero connection
-   * @param {string} connectionId - Connection ID to revoke
+   * Disconnect/delete Xero connection
+   * @param {string} connectionId - Connection ID to delete
    * @param {string} userId - User ID for authorization
    */
   async disconnectXero(connectionId, userId) {
@@ -535,11 +535,12 @@ class XeroService {
         console.warn('Failed to revoke tokens with Xero:', revokeError.message);
       }
       
-      // Update connection status
-      connection.status = 'revoked';
-      await connection.save();
+      // Delete the connection from the database
+      await XeroConnection.deleteOne({ _id: connectionId });
       
-      return connection;
+      console.log(`✅ Successfully deleted Xero connection ${connectionId}`);
+      
+      return { success: true, message: 'Connection deleted successfully' };
     } catch (error) {
       console.error('Disconnect error:', error);
       throw new Error('Failed to disconnect Xero');
