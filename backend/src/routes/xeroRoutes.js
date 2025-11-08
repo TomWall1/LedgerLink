@@ -104,6 +104,114 @@ router.get('/connections', async (req, res) => {
   }
 });
 
+// NEW: Get connection statistics (customers and vendors count)
+router.get('/connection-stats/:connectionId', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    console.log('GET /api/xero/connection-stats/:connectionId - connectionId:', connectionId);
+    
+    // Get valid tokens
+    const tokens = await tokenStore.getValidTokens();
+    
+    if (!tokens) {
+      console.log('   ❌ No valid tokens - authentication required');
+      return res.json({
+        success: false,
+        error: 'Authentication required. Please reconnect your Xero account.',
+        data: {
+          customers: 0,
+          vendors: 0,
+          totalContacts: 0
+        }
+      });
+    }
+    
+    // Create Xero client and set tokens
+    const xero = getXeroClient();
+    xero.setTokenSet(tokens);
+    console.log('   Xero client created and tokens set');
+    
+    // Get available tenant connections
+    const tenants = await xero.updateTenants();
+    console.log('   Tenants found:', tenants ? tenants.length : 0);
+    
+    if (!tenants || tenants.length === 0) {
+      console.log('   ❌ No Xero organizations found');
+      return res.json({
+        success: false,
+        error: 'No Xero organizations found for this connection',
+        data: {
+          customers: 0,
+          vendors: 0,
+          totalContacts: 0
+        }
+      });
+    }
+    
+    // Find the specific tenant or use the first one
+    let tenant = tenants.find(t => t.tenantId === connectionId);
+    if (!tenant) {
+      tenant = tenants[0];
+      console.log('   ⚠️ Specific tenant not found, using first tenant:', tenant.tenantName);
+    } else {
+      console.log('   Using tenant:', tenant.tenantName);
+    }
+    
+    // Fetch ALL contacts from Xero
+    console.log('   Calling Xero API to fetch all active contacts...');
+    const contactsData = await callXeroApi(
+      'https://api.xero.com/api.xro/2.0/Contacts?where=ContactStatus=="ACTIVE"',
+      tokens.access_token,
+      tenant.tenantId
+    );
+    
+    console.log('   Response received');
+    const contacts = contactsData.Contacts || [];
+    console.log('   ✅ Total active contacts found:', contacts.length);
+    
+    // Count customers and vendors based on Xero flags
+    let customersCount = 0;
+    let vendorsCount = 0;
+    
+    contacts.forEach(contact => {
+      if (contact.IsCustomer) {
+        customersCount++;
+      }
+      if (contact.IsSupplier) {
+        vendorsCount++;
+      }
+    });
+    
+    console.log(`   📊 Statistics: ${customersCount} customers, ${vendorsCount} vendors`);
+    
+    res.json({
+      success: true,
+      data: {
+        customers: customersCount,
+        vendors: vendorsCount,
+        totalContacts: contacts.length
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching connection stats:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Return error with suggestion to reconnect
+    res.json({
+      success: false,
+      error: 'Failed to fetch connection statistics. Your Xero connection may have expired. Please try reconnecting.',
+      data: {
+        customers: 0,
+        vendors: 0,
+        totalContacts: 0
+      }
+    });
+  }
+});
+
 // Sync connection endpoint
 router.post('/sync', async (req, res) => {
   try {
@@ -858,6 +966,7 @@ router.get('/test', (req, res) => {
     timestamp: new Date().toISOString(),
     availableEndpoints: {
       'connections': '/api/xero/connections',
+      'connection-stats': '/api/xero/connection-stats/:connectionId',
       'auth': '/api/xero/auth',
       'auth-status': '/api/xero/auth-status',
       'sync': '/api/xero/sync',

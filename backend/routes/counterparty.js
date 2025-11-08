@@ -4,6 +4,7 @@
  * Uses Prisma for database access (PostgreSQL)
  * 
  * UPDATED: Now uses MongoDB-based Xero connections instead of file-based tokens
+ * UPDATED: Added graceful error handling for PostgreSQL database operations
  */
 
 import express from 'express';
@@ -48,7 +49,7 @@ router.get('/erp-contacts', auth, async (req, res) => {
 
     // Get all existing counterparty links for status checking
     console.log('🔗 STEP 3: Fetching existing counterparty links...');
-    let existingLinks;
+    let existingLinks = [];
     try {
       existingLinks = await prisma.counterpartyLink.findMany({
         where: {
@@ -58,9 +59,9 @@ router.get('/erp-contacts', auth, async (req, res) => {
       });
       console.log(`✅ STEP 3: Found ${existingLinks.length} existing counterparty links`);
     } catch (error) {
-      console.error('❌ STEP 3: Failed to fetch counterparty links');
-      console.error('   - Error:', error.message);
-      // Continue without links - this is not critical
+      console.log('ℹ️ STEP 3: PostgreSQL database not configured - continuing without counterparty links');
+      console.log('   Note: This is expected if you have not set up the PostgreSQL database for counterparty linking');
+      // Continue without links - this is not critical for basic functionality
       existingLinks = [];
     }
 
@@ -253,40 +254,50 @@ router.post('/invite', auth, async (req, res) => {
     const linkExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
     // Create counterparty link with PENDING status
-    const counterpartyLink = await prisma.counterpartyLink.create({
-      data: {
-        companyId: companyId,
-        ourCustomerName: contactDetails.name,
-        theirCompanyName: contactDetails.name, // They'll update this when they accept
-        theirSystemType: 'UNKNOWN', // They'll specify when they accept
-        theirContactEmail: recipientEmail,
-        theirContactName: contactDetails.name,
-        connectionStatus: 'PENDING',
-        linkToken: linkToken,
-        linkExpiresAt: linkExpiresAt,
-        matchingRules: {},
-        isActive: true
-      }
-    });
+    try {
+      const counterpartyLink = await prisma.counterpartyLink.create({
+        data: {
+          companyId: companyId,
+          ourCustomerName: contactDetails.name,
+          theirCompanyName: contactDetails.name, // They'll update this when they accept
+          theirSystemType: 'UNKNOWN', // They'll specify when they accept
+          theirContactEmail: recipientEmail,
+          theirContactName: contactDetails.name,
+          connectionStatus: 'PENDING',
+          linkToken: linkToken,
+          linkExpiresAt: linkExpiresAt,
+          matchingRules: {},
+          isActive: true
+        }
+      });
 
-    // TODO: Send invitation email
-    // This would typically use a service like SendGrid, AWS SES, etc.
-    console.log(`✅ Created invitation with ID: ${counterpartyLink.id}`);
-    console.log(`Invitation link: ${process.env.FRONTEND_URL}/accept-invite/${linkToken}`);
+      // TODO: Send invitation email
+      // This would typically use a service like SendGrid, AWS SES, etc.
+      console.log(`✅ Created invitation with ID: ${counterpartyLink.id}`);
+      console.log(`Invitation link: ${process.env.FRONTEND_URL}/accept-invite/${linkToken}`);
 
-    // For now, log the invitation details
-    console.log('Invitation details:', {
-      to: recipientEmail,
-      from: req.user.email,
-      message: message,
-      inviteUrl: `${process.env.FRONTEND_URL}/accept-invite/${linkToken}`
-    });
+      // For now, log the invitation details
+      console.log('Invitation details:', {
+        to: recipientEmail,
+        from: req.user.email,
+        message: message,
+        inviteUrl: `${process.env.FRONTEND_URL}/accept-invite/${linkToken}`
+      });
 
-    res.json({
-      success: true,
-      inviteId: counterpartyLink.id,
-      message: 'Invitation created successfully'
-    });
+      res.json({
+        success: true,
+        inviteId: counterpartyLink.id,
+        message: 'Invitation created successfully'
+      });
+    } catch (dbError) {
+      console.error('❌ Database error creating invitation:', dbError);
+      console.log('ℹ️ Note: PostgreSQL database may not be configured');
+      res.status(503).json({
+        error: 'Database unavailable',
+        message: 'The counterparty linking feature requires PostgreSQL database setup. Please contact support.',
+        details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+      });
+    }
 
   } catch (error) {
     console.error('❌ Error sending invitation:', error);
@@ -309,38 +320,48 @@ router.post('/invite/resend', auth, async (req, res) => {
 
     console.log(`🔄 Resending invitation ${inviteId}`);
 
-    // Get the invitation
-    const invite = await prisma.counterpartyLink.findFirst({
-      where: {
-        id: inviteId,
-        companyId: companyId,
-        connectionStatus: 'PENDING',
-        isActive: true
-      }
-    });
+    try {
+      // Get the invitation
+      const invite = await prisma.counterpartyLink.findFirst({
+        where: {
+          id: inviteId,
+          companyId: companyId,
+          connectionStatus: 'PENDING',
+          isActive: true
+        }
+      });
 
-    if (!invite) {
-      return res.status(404).json({
-        error: 'Invitation not found or already accepted'
+      if (!invite) {
+        return res.status(404).json({
+          error: 'Invitation not found or already accepted'
+        });
+      }
+
+      // Update the expiry date
+      await prisma.counterpartyLink.update({
+        where: { id: inviteId },
+        data: {
+          linkExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Extend by 30 days
+          updatedAt: new Date()
+        }
+      });
+
+      // TODO: Resend invitation email
+      console.log(`✅ Invitation ${inviteId} reminder sent to ${invite.theirContactEmail}`);
+
+      res.json({
+        success: true,
+        message: 'Invitation reminder sent successfully'
+      });
+    } catch (dbError) {
+      console.error('❌ Database error resending invitation:', dbError);
+      console.log('ℹ️ Note: PostgreSQL database may not be configured');
+      res.status(503).json({
+        error: 'Database unavailable',
+        message: 'The counterparty linking feature requires PostgreSQL database setup.',
+        details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
       });
     }
-
-    // Update the expiry date
-    await prisma.counterpartyLink.update({
-      where: { id: inviteId },
-      data: {
-        linkExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Extend by 30 days
-        updatedAt: new Date()
-      }
-    });
-
-    // TODO: Resend invitation email
-    console.log(`✅ Invitation ${inviteId} reminder sent to ${invite.theirContactEmail}`);
-
-    res.json({
-      success: true,
-      message: 'Invitation reminder sent successfully'
-    });
 
   } catch (error) {
     console.error('❌ Error resending invitation:', error);
@@ -372,50 +393,59 @@ router.get('/check-link', auth, async (req, res) => {
 
     console.log(`🔍 Checking counterparty link for: ${name} (${ledgerType})`);
 
-    // Query CounterpartyLink table using Prisma
-    const link = await prisma.counterpartyLink.findFirst({
-      where: {
-        companyId: companyId,
-        ourCustomerName: {
-          equals: name,
-          mode: 'insensitive' // Case-insensitive match
+    try {
+      // Query CounterpartyLink table using Prisma
+      const link = await prisma.counterpartyLink.findFirst({
+        where: {
+          companyId: companyId,
+          ourCustomerName: {
+            equals: name,
+            mode: 'insensitive' // Case-insensitive match
+          },
+          connectionStatus: 'LINKED', // Only return if fully linked
+          isActive: true
         },
-        connectionStatus: 'LINKED', // Only return if fully linked
-        isActive: true
-      },
-      select: {
-        id: true,
-        theirCompanyName: true,
-        theirSystemType: true,
-        theirContactEmail: true,
-        theirContactName: true,
-        connectionStatus: true,
-        updatedAt: true
-      }
-    });
-
-    if (link) {
-      console.log(`✅ Found linked counterparty:`, link.theirCompanyName);
-      return res.json({
-        success: true,
-        linked: true,
-        counterparty: {
-          id: link.id,
-          companyName: link.theirCompanyName,
-          erpType: link.theirSystemType,
-          contactEmail: link.theirContactEmail,
-          contactName: link.theirContactName,
-          lastUpdated: link.updatedAt
+        select: {
+          id: true,
+          theirCompanyName: true,
+          theirSystemType: true,
+          theirContactEmail: true,
+          theirContactName: true,
+          connectionStatus: true,
+          updatedAt: true
         }
       });
-    }
 
-    console.log(`ℹ️ No linked counterparty found for ${name}`);
-    return res.json({
-      success: true,
-      linked: false,
-      counterparty: null
-    });
+      if (link) {
+        console.log(`✅ Found linked counterparty:`, link.theirCompanyName);
+        return res.json({
+          success: true,
+          linked: true,
+          counterparty: {
+            id: link.id,
+            companyName: link.theirCompanyName,
+            erpType: link.theirSystemType,
+            contactEmail: link.theirContactEmail,
+            contactName: link.theirContactName,
+            lastUpdated: link.updatedAt
+          }
+        });
+      }
+
+      console.log(`ℹ️ No linked counterparty found for ${name}`);
+      return res.json({
+        success: true,
+        linked: false,
+        counterparty: null
+      });
+    } catch (dbError) {
+      console.log('ℹ️ PostgreSQL database not configured - returning unlinked status');
+      return res.json({
+        success: true,
+        linked: false,
+        counterparty: null
+      });
+    }
 
   } catch (error) {
     console.error('❌ Error checking counterparty link:', error);
@@ -437,34 +467,43 @@ router.get('/:linkId/invoices', auth, async (req, res) => {
     const { linkId } = req.params;
     const companyId = req.user.companyId;
 
-    // Verify the link exists and belongs to this company
-    const link = await prisma.counterpartyLink.findFirst({
-      where: {
-        id: linkId,
-        companyId: companyId,
-        connectionStatus: 'LINKED',
-        isActive: true
-      }
-    });
+    try {
+      // Verify the link exists and belongs to this company
+      const link = await prisma.counterpartyLink.findFirst({
+        where: {
+          id: linkId,
+          companyId: companyId,
+          connectionStatus: 'LINKED',
+          isActive: true
+        }
+      });
 
-    if (!link) {
-      return res.status(404).json({
+      if (!link) {
+        return res.status(404).json({
+          success: false,
+          error: 'Counterparty link not found or not accessible'
+        });
+      }
+
+      // TODO: Implement actual invoice fetching from counterparty's system
+      // This would require:
+      // 1. Secure cross-account data access mechanism
+      // 2. Permission system for counterparties to grant access
+      // 3. Handling different ERP types on the counterparty side
+      
+      res.status(501).json({
         success: false,
-        error: 'Counterparty link not found or not accessible'
+        error: 'Invoice fetching from counterparties not yet implemented',
+        message: 'This feature requires cross-account data access implementation'
+      });
+    } catch (dbError) {
+      console.log('ℹ️ PostgreSQL database not configured');
+      res.status(503).json({
+        success: false,
+        error: 'Database unavailable',
+        message: 'The counterparty linking feature requires PostgreSQL database setup.'
       });
     }
-
-    // TODO: Implement actual invoice fetching from counterparty's system
-    // This would require:
-    // 1. Secure cross-account data access mechanism
-    // 2. Permission system for counterparties to grant access
-    // 3. Handling different ERP types on the counterparty side
-    
-    res.status(501).json({
-      success: false,
-      error: 'Invoice fetching from counterparties not yet implemented',
-      message: 'This feature requires cross-account data access implementation'
-    });
 
   } catch (error) {
     console.error('❌ Error fetching counterparty invoices:', error);
@@ -485,31 +524,40 @@ router.get('/links', auth, async (req, res) => {
   try {
     const companyId = req.user.companyId;
 
-    const links = await prisma.counterpartyLink.findMany({
-      where: {
-        companyId: companyId,
-        isActive: true
-      },
-      select: {
-        id: true,
-        ourCustomerName: true,
-        theirCompanyName: true,
-        theirSystemType: true,
-        theirContactEmail: true,
-        connectionStatus: true,
-        createdAt: true,
-        updatedAt: true
-      },
-      orderBy: {
-        updatedAt: 'desc'
-      }
-    });
+    try {
+      const links = await prisma.counterpartyLink.findMany({
+        where: {
+          companyId: companyId,
+          isActive: true
+        },
+        select: {
+          id: true,
+          ourCustomerName: true,
+          theirCompanyName: true,
+          theirSystemType: true,
+          theirContactEmail: true,
+          connectionStatus: true,
+          createdAt: true,
+          updatedAt: true
+        },
+        orderBy: {
+          updatedAt: 'desc'
+        }
+      });
 
-    res.json({
-      success: true,
-      links: links,
-      count: links.length
-    });
+      res.json({
+        success: true,
+        links: links,
+        count: links.length
+      });
+    } catch (dbError) {
+      console.log('ℹ️ PostgreSQL database not configured - returning empty links');
+      res.json({
+        success: true,
+        links: [],
+        count: 0
+      });
+    }
 
   } catch (error) {
     console.error('❌ Error fetching counterparty links:', error);
