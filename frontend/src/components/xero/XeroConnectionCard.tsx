@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardContent, CardFooter } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -14,6 +14,14 @@ export interface XeroConnectionCardProps {
   isLoading?: boolean;
 }
 
+interface ConnectionStats {
+  customers: number;
+  vendors: number;
+  totalContacts: number;
+  loading: boolean;
+  error?: string;
+}
+
 const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
   connection,
   onDisconnect,
@@ -24,6 +32,74 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [stats, setStats] = useState<ConnectionStats>({
+    customers: 0,
+    vendors: 0,
+    totalContacts: 0,
+    loading: true
+  });
+  
+  // Fetch connection stats when component mounts
+  useEffect(() => {
+    fetchConnectionStats();
+  }, [connection._id]);
+  
+  const fetchConnectionStats = async () => {
+    try {
+      console.log('📊 Fetching connection stats for:', connection._id);
+      const response = await fetch(
+        `https://ledgerlink.onrender.com/api/xero/connection-stats/${connection._id}`
+      );
+      const data = await response.json();
+      
+      console.log('📊 Stats response:', data);
+      
+      if (data.success) {
+        setStats({
+          customers: data.data.customers,
+          vendors: data.data.vendors,
+          totalContacts: data.data.totalContacts,
+          loading: false
+        });
+      } else {
+        // Authentication error or other issue
+        setStats({
+          customers: 0,
+          vendors: 0,
+          totalContacts: 0,
+          loading: false,
+          error: data.error
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch connection stats:', error);
+      setStats({
+        customers: 0,
+        vendors: 0,
+        totalContacts: 0,
+        loading: false,
+        error: 'Failed to load statistics'
+      });
+    }
+  };
+  
+  const handleReconnect = async () => {
+    console.log('🔄 Reconnecting to Xero...');
+    try {
+      // Get auth URL from backend
+      const response = await fetch('https://ledgerlink.onrender.com/api/xero/auth');
+      const data = await response.json();
+      
+      if (data.success && data.data.authUrl) {
+        // Redirect to Xero authorization
+        window.location.href = data.data.authUrl;
+      } else {
+        console.error('Failed to get auth URL:', data);
+      }
+    } catch (error) {
+      console.error('Error initiating reconnection:', error);
+    }
+  };
   
   const handleDisconnectClick = () => {
     console.log('🔴 [XeroConnectionCard] Disconnect button clicked');
@@ -57,6 +133,8 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
     setIsSyncing(true);
     try {
       await onSync(connection._id);
+      // Refresh stats after sync
+      await fetchConnectionStats();
       console.log('✅ [XeroConnectionCard] Sync successful');
     } catch (error) {
       console.error('❌ [XeroConnectionCard] Sync error:', error);
@@ -105,7 +183,8 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
       <Card className={cn(
         'transition-all duration-200 hover:shadow-lg',
         connection.status === 'error' && 'border-error-200 bg-error-50',
-        connection.status === 'expired' && 'border-warning-200 bg-warning-50'
+        connection.status === 'expired' && 'border-warning-200 bg-warning-50',
+        stats.error && 'border-warning-200 bg-warning-50'
       )}>
         <CardHeader>
           <div className="flex items-start justify-between">
@@ -130,9 +209,9 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
             </div>
             
             <div className="flex items-center space-x-2">
-              {getStatusIcon(connection.status)}
-              <Badge variant={xeroService.getStatusColor(connection.status)}>
-                {xeroService.getConnectionStatusText(connection.status)}
+              {getStatusIcon(stats.error ? 'error' : connection.status)}
+              <Badge variant={stats.error ? 'warning' : xeroService.getStatusColor(connection.status)}>
+                {stats.error ? 'Auth Required' : xeroService.getConnectionStatusText(connection.status)}
               </Badge>
             </div>
           </div>
@@ -154,20 +233,44 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
               </div>
             )}
             
-            {/* Data counts */}
-            {connection.dataCounts && (
+            {/* Error message with reconnect button */}
+            {stats.error && (
+              <div className="bg-warning-50 border border-warning-200 rounded-md p-3">
+                <div className="flex items-start space-x-2">
+                  <svg className="w-5 h-5 text-warning-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-small font-medium text-warning-800">
+                      {stats.error}
+                    </p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleReconnect}
+                      className="mt-2"
+                    >
+                      Reconnect to Xero
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Data counts - Customers and Vendors */}
+            {!stats.error && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-neutral-50 rounded-md p-3">
                   <div className="text-h3 font-semibold text-neutral-900">
-                    {connection.dataCounts.invoices.toLocaleString()}
+                    {stats.loading ? '...' : stats.customers.toLocaleString()}
                   </div>
-                  <div className="text-small text-neutral-600">Invoices</div>
+                  <div className="text-small text-neutral-600">Customers</div>
                 </div>
                 <div className="bg-neutral-50 rounded-md p-3">
                   <div className="text-h3 font-semibold text-neutral-900">
-                    {connection.dataCounts.contacts.toLocaleString()}
+                    {stats.loading ? '...' : stats.vendors.toLocaleString()}
                   </div>
-                  <div className="text-small text-neutral-600">Contacts</div>
+                  <div className="text-small text-neutral-600">Vendors</div>
                 </div>
               </div>
             )}
@@ -179,7 +282,7 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
             </div>
             
             {/* Sync status */}
-            {connection.lastSyncStatus !== 'success' && (
+            {connection.lastSyncStatus !== 'success' && !stats.error && (
               <div className="flex items-center space-x-2 text-small">
                 <svg className="w-4 h-4 text-warning-500" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -189,7 +292,7 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
             )}
             
             {/* Recent errors */}
-            {connection.syncErrors && connection.syncErrors.length > 0 && (
+            {connection.syncErrors && connection.syncErrors.length > 0 && !stats.error && (
               <div className="text-small">
                 <div className="text-neutral-600 mb-1">Recent errors:</div>
                 <div className="text-error-600 truncate">
@@ -210,7 +313,7 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
                   console.log('🏥 [XeroConnectionCard] Health check clicked');
                   onHealthCheck(connection._id);
                 }}
-                disabled={isLoading}
+                disabled={isLoading || !!stats.error}
               >
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -222,7 +325,7 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
                 variant="secondary"
                 size="sm"
                 onClick={handleSync}
-                disabled={isLoading || connection.status !== 'active'}
+                disabled={isLoading || connection.status !== 'active' || !!stats.error}
                 isLoading={isSyncing}
               >
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
