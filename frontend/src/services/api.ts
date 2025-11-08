@@ -39,9 +39,13 @@ const createApiClient = (): AxiosInstance => {
   // Request interceptor to add auth token
   client.interceptors.request.use(
     (config: any) => {
-      const token = localStorage.getItem('authToken');
+      // Fixed: Changed from 'authToken' to 'token' to match the key used throughout the app
+      const token = localStorage.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        console.log('✅ Token added to request');
+      } else {
+        console.log('❌ No auth token found');
       }
       return config;
     },
@@ -59,7 +63,7 @@ const createApiClient = (): AxiosInstance => {
       // Handle common errors
       if (error.response?.status === 401) {
         // Unauthorized - just remove token, don't redirect
-        localStorage.removeItem('authToken');
+        localStorage.removeItem('token');
         console.warn('Authentication failed - token removed');
       }
       
