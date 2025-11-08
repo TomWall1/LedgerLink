@@ -98,6 +98,133 @@ router.get('/connections', auth, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/xero/connection-stats/:id
+ * @desc    Get customer and vendor counts for a Xero connection
+ * @access  Private
+ */
+router.get('/connection-stats/:id', auth, async (req, res) => {
+  try {
+    const connectionId = req.params.id;
+    const userId = req.user.id;
+    
+    console.log('📊 GET /api/xero/connection-stats/:id - connectionId:', connectionId);
+    
+    // Get connection and verify ownership
+    const connection = await XeroConnection.findOne({
+      _id: connectionId,
+      userId
+    }).select('+accessToken +refreshToken');
+    
+    if (!connection) {
+      console.log('❌ Connection not found');
+      return res.json({
+        success: false,
+        error: 'Connection not found',
+        data: {
+          customers: 0,
+          vendors: 0,
+          totalContacts: 0
+        }
+      });
+    }
+    
+    if (connection.status !== 'active') {
+      console.log('⚠️ Connection not active:', connection.status);
+      return res.json({
+        success: false,
+        error: 'Connection is not active. Please reconnect your Xero account.',
+        data: {
+          customers: 0,
+          vendors: 0,
+          totalContacts: 0
+        }
+      });
+    }
+    
+    // Check if tokens are expired
+    if (connection.isTokenExpired()) {
+      console.log('⚠️ Tokens expired');
+      return res.json({
+        success: false,
+        error: 'Authentication required. Please reconnect your Xero account.',
+        data: {
+          customers: 0,
+          vendors: 0,
+          totalContacts: 0
+        }
+      });
+    }
+    
+    // Fetch contacts from Xero
+    try {
+      const contacts = await xeroService.getContacts(connection);
+      console.log(`✅ Retrieved ${contacts.length} contacts`);
+      
+      // Count customers and vendors
+      let customersCount = 0;
+      let vendorsCount = 0;
+      
+      contacts.forEach(contact => {
+        if (contact.IsCustomer) {
+          customersCount++;
+        }
+        if (contact.IsSupplier) {
+          vendorsCount++;
+        }
+      });
+      
+      console.log(`📊 Stats: ${customersCount} customers, ${vendorsCount} vendors`);
+      
+      res.json({
+        success: true,
+        data: {
+          customers: customersCount,
+          vendors: vendorsCount,
+          totalContacts: contacts.length
+        }
+      });
+    } catch (apiError) {
+      console.error('❌ Error fetching contacts:', apiError);
+      
+      // Check if it's an authentication error
+      if (apiError.message && apiError.message.includes('authentication')) {
+        return res.json({
+          success: false,
+          error: 'Authentication required. Please reconnect your Xero account.',
+          data: {
+            customers: 0,
+            vendors: 0,
+            totalContacts: 0
+          }
+        });
+      }
+      
+      // Other errors
+      return res.json({
+        success: false,
+        error: 'Failed to fetch connection statistics. Please try again.',
+        data: {
+          customers: 0,
+          vendors: 0,
+          totalContacts: 0
+        }
+      });
+    }
+  } catch (error) {
+    console.error('❌ Connection stats error:', error);
+    res.json({
+      success: false,
+      error: 'Failed to fetch connection statistics',
+      data: {
+        customers: 0,
+        vendors: 0,
+        totalContacts: 0
+      }
+    });
+  }
+});
+
+/**
  * @route   DELETE /api/xero/connections/:id
  * @desc    Disconnect Xero connection
  * @access  Private
