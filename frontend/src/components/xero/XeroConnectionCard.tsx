@@ -47,9 +47,32 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
   const fetchConnectionStats = async () => {
     try {
       console.log('📊 Fetching connection stats for:', connection._id);
+      
+      // Get the auth token from localStorage
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.error('❌ No auth token found');
+        setStats({
+          customers: 0,
+          vendors: 0,
+          totalContacts: 0,
+          loading: false,
+          error: 'Authentication required. Please log in again.'
+        });
+        return;
+      }
+      
       const response = await fetch(
-        `https://ledgerlink.onrender.com/api/xero/connection-stats/${connection._id}`
+        `https://ledgerlink.onrender.com/api/xero/connection-stats/${connection._id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
       );
+      
       const data = await response.json();
       
       console.log('📊 Stats response:', data);
@@ -86,8 +109,25 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
   const handleReconnect = async () => {
     console.log('🔄 Reconnecting to Xero...');
     try {
+      // Get the auth token from localStorage
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.error('❌ No auth token found');
+        return;
+      }
+      
       // Get auth URL from backend
-      const response = await fetch('https://ledgerlink.onrender.com/api/xero/auth');
+      const response = await fetch(
+        'https://ledgerlink.onrender.com/api/xero/auth?companyId=default',
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
       const data = await response.json();
       
       if (data.success && data.data.authUrl) {
