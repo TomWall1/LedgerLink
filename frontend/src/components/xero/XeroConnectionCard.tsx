@@ -48,8 +48,8 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
     try {
       console.log('📊 Fetching connection stats for:', connection._id);
       
-      // Get the auth token from localStorage
-      const token = localStorage.getItem('token');
+      // FIXED: Get the auth token using 'authToken' key to match Login component
+      const token = localStorage.getItem('authToken');
       
       if (!token) {
         console.error('❌ No auth token found');
@@ -109,8 +109,8 @@ const XeroConnectionCard: React.FC<XeroConnectionCardProps> = ({
   const handleReconnect = async () => {
     console.log('🔄 Reconnecting to Xero...');
     try {
-      // Get the auth token from localStorage
-      const token = localStorage.getItem('token');
+      // FIXED: Get the auth token using 'authToken' key to match Login component
+      const token = localStorage.getItem('authToken');
       
       if (!token) {
         console.error('❌ No auth token found');
