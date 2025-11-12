@@ -6,7 +6,7 @@ import User from '../models/User.js';
 import ERPConnection from '../models/ERPConnection.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { sendInvitationEmail } from '../utils/emailService.js';
-import axios from 'axios';
+import { fetchXeroContacts } from '../services/xeroService.js';
 
 const router = express.Router();
 
@@ -36,18 +36,10 @@ router.get('/erp-contacts', authenticateToken, async (req, res) => {
       
       if (connection.platform === 'Xero') {
         try {
-          // Fetch contacts from Xero
-          const xeroResponse = await axios.get(
-            `${process.env.BACKEND_URL || 'http://localhost:5001'}/api/xero/contacts`,
-            {
-              headers: {
-                Authorization: req.headers.authorization,
-                'x-erp-connection-id': connection._id.toString()
-              }
-            }
-          );
-          
-          const xeroContacts = xeroResponse.data.contacts || [];
+          // FIXED: Fetch contacts directly from Xero service instead of HTTP call
+          console.log('   [CounterpartyRoutes] Fetching Xero contacts using service...');
+          const xeroContacts = await fetchXeroContacts();
+          console.log('   [CounterpartyRoutes] ✅ Received', xeroContacts.length, 'contacts from service');
           
           // Check which contacts already have invites or links
           const existingInvites = await CounterpartyInvite.find({
