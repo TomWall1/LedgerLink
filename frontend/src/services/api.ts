@@ -43,9 +43,6 @@ const createApiClient = (): AxiosInstance => {
       const token = localStorage.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log('✅ Token added to request');
-      } else {
-        console.log('❌ No auth token found');
       }
       return config;
     },
@@ -62,9 +59,18 @@ const createApiClient = (): AxiosInstance => {
     (error) => {
       // Handle common errors
       if (error.response?.status === 401) {
-        // Unauthorized - just remove token, don't redirect
-        localStorage.removeItem('token');
-        console.warn('Authentication failed - token removed');
+        // Only remove token if this is a true authentication failure
+        // Don't remove token for OAuth initiation or other expected 401s
+        const url = error.config?.url || '';
+        const isAuthEndpoint = url.includes('/auth') || url.includes('/xero/auth');
+        
+        // If this is NOT an auth endpoint and we got a 401, it means our token is invalid
+        if (!isAuthEndpoint) {
+          console.warn('Authentication token invalid - removing');
+          localStorage.removeItem('token');
+        } else {
+          console.log('Auth endpoint returned 401 - this may be expected, not removing token');
+        }
       }
       
       // Handle 404 errors for missing backend endpoints gracefully
