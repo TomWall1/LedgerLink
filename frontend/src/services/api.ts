@@ -39,8 +39,8 @@ const createApiClient = (): AxiosInstance => {
   // Request interceptor to add auth token
   client.interceptors.request.use(
     (config: any) => {
-      // Fixed: Changed from 'authToken' to 'token' to match the key used throughout the app
-      const token = localStorage.getItem('token');
+      // FIXED: Use 'authToken' to match the key used by Login component
+      const token = localStorage.getItem('authToken');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -67,7 +67,7 @@ const createApiClient = (): AxiosInstance => {
         // If this is NOT an auth endpoint and we got a 401, it means our token is invalid
         if (!isAuthEndpoint) {
           console.warn('Authentication token invalid - removing');
-          localStorage.removeItem('token');
+          localStorage.removeItem('authToken');
         } else {
           console.log('Auth endpoint returned 401 - this may be expected, not removing token');
         }
