@@ -500,10 +500,15 @@ class XeroService {
    * Get all connections for a user
    * @param {string} userId - User ID
    * @param {string} companyId - Company ID (optional)
-   * @returns {Array} - Array of connections
+   * @returns {Array} - Array of connections WITH TOKENS for API calls
    */
   async getUserConnections(userId, companyId = null) {
-    return await XeroConnection.findByUser(userId, companyId);
+    const query = { userId };
+    if (companyId) query.companyId = companyId;
+    
+    // CRITICAL FIX: Must explicitly select tokens for API calls to work
+    // Tokens are marked as select: false in schema for security, but we need them here
+    return await XeroConnection.find(query).select('+accessToken +refreshToken +idToken');
   }
   
   /**
