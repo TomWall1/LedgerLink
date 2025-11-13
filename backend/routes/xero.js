@@ -459,6 +459,65 @@ router.get('/customers', auth, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/xero/customers/:contactId/invoices
+ * @desc    Get invoices for a specific customer
+ * @access  Private
+ */
+router.get('/customers/:contactId/invoices', auth, async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    const { connectionId } = req.query;
+    const userId = req.user.id;
+    
+    console.log('📞 GET /api/xero/customers/:contactId/invoices');
+    console.log('   contactId:', contactId);
+    console.log('   connectionId:', connectionId);
+    
+    if (!connectionId) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Connection ID is required' 
+      });
+    }
+    
+    // Get connection and verify ownership
+    const connection = await XeroConnection.findOne({
+      _id: connectionId,
+      userId
+    }).select('+accessToken +refreshToken');
+    
+    if (!connection) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Xero connection not found' 
+      });
+    }
+    
+    if (connection.status !== 'active') {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Xero connection is not active' 
+      });
+    }
+    
+    // Fetch invoices for this contact from Xero
+    const invoices = await xeroService.getInvoicesForContact(connection, contactId, 'ACCREC');
+    console.log(`   Retrieved ${invoices.length} invoices for customer`);
+    
+    res.json({
+      success: true,
+      invoices: invoices
+    });
+  } catch (error) {
+    console.error('Get customer invoices error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch customer invoices from Xero'
+    });
+  }
+});
+
+/**
  * @route   GET /api/xero/suppliers
  * @desc    Get suppliers from Xero (contacts where IsSupplier === true)
  * @access  Private
@@ -518,6 +577,65 @@ router.get('/suppliers', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch suppliers from Xero'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/xero/suppliers/:contactId/invoices
+ * @desc    Get bills for a specific supplier
+ * @access  Private
+ */
+router.get('/suppliers/:contactId/invoices', auth, async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    const { connectionId } = req.query;
+    const userId = req.user.id;
+    
+    console.log('📞 GET /api/xero/suppliers/:contactId/invoices');
+    console.log('   contactId:', contactId);
+    console.log('   connectionId:', connectionId);
+    
+    if (!connectionId) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Connection ID is required' 
+      });
+    }
+    
+    // Get connection and verify ownership
+    const connection = await XeroConnection.findOne({
+      _id: connectionId,
+      userId
+    }).select('+accessToken +refreshToken');
+    
+    if (!connection) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Xero connection not found' 
+      });
+    }
+    
+    if (connection.status !== 'active') {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Xero connection is not active' 
+      });
+    }
+    
+    // Fetch bills for this contact from Xero
+    const invoices = await xeroService.getInvoicesForContact(connection, contactId, 'ACCPAY');
+    console.log(`   Retrieved ${invoices.length} bills for supplier`);
+    
+    res.json({
+      success: true,
+      invoices: invoices
+    });
+  } catch (error) {
+    console.error('Get supplier invoices error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch supplier invoices from Xero'
     });
   }
 });
