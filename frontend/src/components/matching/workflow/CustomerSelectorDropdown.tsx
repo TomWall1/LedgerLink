@@ -6,6 +6,7 @@
  * 
  * FIX: Now supports both AR (customers) and AP (suppliers) matching
  * FIX: Added connectionId parameter to prevent infinite loop
+ * FIX: Corrected data extraction from nested API response structure
  */
 
 import React, { useState, useEffect } from 'react';
@@ -52,7 +53,7 @@ interface XeroInvoice {
 }
 
 interface CustomerSelectorDropdownProps {
-  ledgerType: 'AR' | 'AP' | null;  // NEW: Now knows which type to fetch
+  ledgerType: 'AR' | 'AP' | null;
   onLoadData: (data: { 
     invoices: any[];
     customerName: string;
@@ -73,7 +74,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
 
-  // NEW: Connection management state
+  // Connection management state
   const [connections, setConnections] = useState<XeroConnection[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [loadingConnections, setLoadingConnections] = useState(true);
@@ -85,7 +86,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
   const invoiceLabel = isAR ? 'invoices' : 'bills';
 
   /**
-   * NEW: Fetch available Xero connections on component mount
+   * Fetch available Xero connections on component mount
    */
   useEffect(() => {
     const fetchConnections = async () => {
@@ -128,7 +129,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         return;
       }
 
-      // NEW: Don't fetch if we don't have a connection
+      // Don't fetch if we don't have a connection
       if (!selectedConnectionId) {
         console.log('⏸️ No connection selected, skipping contact fetch');
         setLoading(false);
@@ -139,26 +140,32 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         setLoading(true);
         console.log(`📞 Fetching ${contactsLabel.toLowerCase()} from Xero for ${ledgerType}...`);
         
-        // FIX: Use different endpoints based on ledger type
         const endpoint = isAR ? 'xero/customers' : 'xero/suppliers';
         const responseKey = isAR ? 'customers' : 'suppliers';
         
         console.log(`   Using endpoint: ${endpoint}`);
         console.log(`   Using connectionId: ${selectedConnectionId}`);
         
-        // NEW: Include connectionId in request
+        // Include connectionId in request
         const response = await apiClient.get(endpoint, {
           params: { connectionId: selectedConnectionId }
         });
         console.log('📦 Response received:', response.status, response.data);
         
-        // Safely access response data
-        const data = response?.data || {};
-        const success = data.success !== false;
-        const contactsList = data[responseKey] || [];
+        // FIX: Correctly access nested response data structure
+        // Backend returns: { success: true, data: { customers: [...], pagination: {...} } }
+        const responseData = response?.data || {};
+        const success = responseData.success !== false;
+        const innerData = responseData.data || {};
+        const contactsList = innerData[responseKey] || [];
         
         console.log('   Success:', success);
         console.log(`   ${contactsLabel} count:`, contactsList.length);
+        console.log('   Response structure check:', {
+          hasData: !!responseData.data,
+          hasResponseKey: !!innerData[responseKey],
+          isArray: Array.isArray(contactsList)
+        });
         
         if (success && Array.isArray(contactsList)) {
           setContacts(contactsList);
@@ -167,7 +174,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
             console.log(`⚠️ No ${contactsLabel.toLowerCase()} found in Xero account`);
           }
         } else {
-          throw new Error(data.error || data.message || `Failed to fetch ${contactsLabel.toLowerCase()}`);
+          throw new Error(responseData.error || responseData.message || `Failed to fetch ${contactsLabel.toLowerCase()}`);
         }
       } catch (error: any) {
         console.error(`❌ Error fetching ${contactsLabel.toLowerCase()}:`, error);
@@ -185,12 +192,12 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     };
 
     fetchContacts();
-  }, [ledgerType, selectedConnectionId, onError, isAR, contactsLabel]); // NEW: Added selectedConnectionId to dependencies
+  }, [ledgerType, selectedConnectionId, onError, isAR, contactsLabel]);
 
   const handleLoadData = async () => {
     if (!selectedContact || !ledgerType) return;
 
-    // NEW: Validate connectionId exists
+    // Validate connectionId exists
     if (!selectedConnectionId) {
       onError('No Xero connection available. Please reconnect in the Connections tab.');
       return;
@@ -201,14 +208,13 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       console.log(`   Using connectionId: ${selectedConnectionId}`);
       setLoadingData(true);
       
-      // FIX: Use different endpoints based on ledger type
       const endpoint = isAR 
         ? `xero/customers/${selectedContact.ContactID}/invoices`
         : `xero/suppliers/${selectedContact.ContactID}/invoices`;
       
       console.log(`   Using endpoint: ${endpoint}`);
       
-      // NEW: Include connectionId in request
+      // Include connectionId in request
       const response = await apiClient.get(endpoint, {
         params: { 
           connectionId: selectedConnectionId,
@@ -225,19 +231,16 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       if (success && Array.isArray(invoicesList)) {
         console.log(`   Raw ${invoiceLabel} found:`, invoicesList.length);
         
-        // CRITICAL FIX #1: Filter out null/undefined/invalid invoices BEFORE transformation
+        // Filter out null/undefined/invalid invoices BEFORE transformation
         const validRawInvoices = invoicesList.filter((invoice, index) => {
-          // Check for null/undefined
           if (invoice === null || invoice === undefined) {
             console.warn(`⚠️ Skipping null/undefined invoice at index ${index}`);
             return false;
           }
-          // Check that it's actually an object
           if (typeof invoice !== 'object') {
             console.warn(`⚠️ Skipping non-object invoice at index ${index}:`, typeof invoice);
             return false;
           }
-          // Check it has at least one identifier
           if (!invoice.InvoiceID && !invoice.InvoiceNumber) {
             console.warn(`⚠️ Skipping invoice without ID or Number at index ${index}`);
             return false;
@@ -251,17 +254,15 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           throw new Error(`No valid ${invoiceLabel} found in response. Please check your Xero data.`);
         }
         
-        // CRITICAL FIX #2: Transform with explicit null checks and error handling
+        // Transform with explicit null checks and error handling
         const transformedInvoices = validRawInvoices
           .map((invoice: XeroInvoice, index: number) => {
             try {
-              // Double-check invoice exists (defensive programming)
               if (!invoice) {
                 console.warn(`⚠️ Unexpected null invoice at index ${index}`);
                 return null;
               }
 
-              // Generate unique ID - MUST NOT be undefined
               const uniqueId = invoice.InvoiceID || invoice.InvoiceNumber || `INV-${Date.now()}-${index}`;
               
               if (!uniqueId || uniqueId === 'undefined') {
@@ -269,22 +270,21 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
                 return null;
               }
 
-              // CRITICAL FIX: Use camelCase property names to match TransactionRecord interface
+              // Use camelCase property names to match TransactionRecord interface
               const transformed = {
-                id: uniqueId,                                            // ← MUST exist
-                transactionNumber: invoice.InvoiceNumber || '',         // ← camelCase
+                id: uniqueId,
+                transactionNumber: invoice.InvoiceNumber || '',
                 type: invoice.Type === 'ACCREC' ? 'Invoice' : invoice.Type === 'ACCPAY' ? 'Bill' : 'Credit Note',
                 amount: invoice.Total || 0,
-                date: invoice.Date || '',                               // ← camelCase
-                dueDate: invoice.DueDate || '',                         // ← camelCase
+                date: invoice.Date || '',
+                dueDate: invoice.DueDate || '',
                 status: invoice.Status || '',
                 reference: invoice.Reference || '',
-                vendor: invoice.Contact?.Name || selectedContact.Name, // ← camelCase
-                xeroId: invoice.InvoiceID || '',                        // ← camelCase
+                vendor: invoice.Contact?.Name || selectedContact.Name,
+                xeroId: invoice.InvoiceID || '',
                 source: 'xero' as const
               };
               
-              // CRITICAL FIX #3: Validate transformed object before returning
               if (!transformed.id || transformed.id === 'undefined') {
                 console.error(`❌ Transformed invoice has invalid id at index ${index}`);
                 return null;
@@ -304,12 +304,10 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
             }
           })
           .filter((invoice): invoice is NonNullable<typeof invoice> => {
-            // CRITICAL FIX #4: Filter out any null results
             if (invoice === null || invoice === undefined) {
               console.warn('⚠️ Filtering out null/undefined transformed invoice');
               return false;
             }
-            // Double-check id exists
             if (!invoice.id || invoice.id === 'undefined') {
               console.warn('⚠️ Filtering out invoice with invalid id:', invoice);
               return false;
@@ -319,21 +317,18 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         
         console.log(`   Transformed ${invoiceLabel} count:`, transformedInvoices.length);
         
-        // CRITICAL FIX #5: Final validation with explicit checks
+        // Final validation with explicit checks
         const validInvoices = transformedInvoices.filter((invoice, index) => {
-          // Paranoid null check
           if (!invoice) {
             console.warn(`⚠️ Invoice ${index} is null/undefined in final validation`);
             return false;
           }
           
-          // Check required id field - CRITICAL
           if (!invoice.id || invoice.id === 'undefined' || invoice.id === 'null') {
             console.warn(`⚠️ Filtering invoice with invalid id at index ${index}:`, invoice.id);
             return false;
           }
           
-          // Check other required camelCase fields
           if (invoice.transactionNumber === undefined) {
             console.warn(`⚠️ Filtering invoice without transactionNumber at index ${index}`);
             return false;
@@ -358,12 +353,11 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         
         console.log(`   ✅ Final valid ${invoiceLabel} count:`, validInvoices.length);
         
-        // CRITICAL FIX #6: Ensure we have at least one valid invoice
         if (validInvoices.length === 0) {
           throw new Error(`No valid ${invoiceLabel} remained after filtering. The data format may be incompatible.`);
         }
         
-        // CRITICAL FIX #7: Verify structure of first invoice before sending
+        // Verify structure of first invoice before sending
         const firstInvoice = validInvoices[0];
         if (!firstInvoice || !firstInvoice.id || firstInvoice.id === 'undefined') {
           console.error('❌ First invoice validation failed:', firstInvoice);
@@ -387,7 +381,6 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           }
         });
         
-        // CRITICAL FIX #8: Wrap callback in try-catch
         try {
           onLoadData(dataToPass);
           console.log('   ✅ onLoadData called successfully');
@@ -401,7 +394,6 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     } catch (error: any) {
       console.error(`❌ Error loading ${contactLabel.toLowerCase()} data:`, error);
       
-      // Provide more helpful error messages
       let errorMessage = `Failed to load ${contactLabel.toLowerCase()} ${invoiceLabel}. `;
       
       if (error.response?.status === 500) {
@@ -427,7 +419,6 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     }
   };
 
-  // NEW: Updated loading check to include connections loading
   if (loading || loadingConnections) {
     return (
       <div className="flex flex-col items-center justify-center py-8">
@@ -440,7 +431,6 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     );
   }
 
-  // NEW: Show error if no connections available
   if (!selectedConnectionId && connections.length === 0) {
     return (
       <div className="p-4 bg-warning-50 border border-warning-200 rounded-md">
@@ -518,7 +508,6 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         )}
       </Button>
       
-      {/* Help text for first-time users */}
       {selectedContact && !loadingData && (
         <div className="text-xs text-neutral-500 mt-2">
           💡 Tip: If the first request fails, wait 30-60 seconds for the backend to wake up, then try again.
