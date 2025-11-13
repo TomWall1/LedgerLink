@@ -5,6 +5,7 @@
  * Includes a "Load Data" button to fetch invoices
  * 
  * FIX: Now supports both AR (customers) and AP (suppliers) matching
+ * FIX: Added connectionId parameter to prevent infinite loop
  */
 
 import React, { useState, useEffect } from 'react';
@@ -21,6 +22,14 @@ interface Contact {
       Outstanding?: number;
     };
   };
+}
+
+interface XeroConnection {
+  _id: string;
+  tenantId: string;
+  tenantName: string;
+  status: string;
+  createdAt: string;
 }
 
 interface XeroInvoice {
@@ -64,17 +73,64 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
 
+  // NEW: Connection management state
+  const [connections, setConnections] = useState<XeroConnection[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [loadingConnections, setLoadingConnections] = useState(true);
+
   // Determine labels based on ledger type
   const isAR = ledgerType === 'AR';
   const contactLabel = isAR ? 'Customer' : 'Supplier';
   const contactsLabel = isAR ? 'Customers' : 'Suppliers';
   const invoiceLabel = isAR ? 'invoices' : 'bills';
 
+  /**
+   * NEW: Fetch available Xero connections on component mount
+   */
+  useEffect(() => {
+    const fetchConnections = async () => {
+      try {
+        setLoadingConnections(true);
+        console.log('🔍 Fetching Xero connections...');
+        
+        const response = await apiClient.get('xero/connections');
+        const connectionsList = response?.data?.data || [];
+        
+        console.log(`✅ Found ${connectionsList.length} Xero connection(s)`);
+        setConnections(connectionsList);
+        
+        // Auto-select first active connection
+        const activeConnection = connectionsList.find((c: XeroConnection) => c.status === 'active');
+        if (activeConnection) {
+          console.log(`🎯 Auto-selected connection: ${activeConnection.tenantName}`);
+          setSelectedConnectionId(activeConnection._id);
+        } else {
+          console.log('⚠️ No active connections found');
+        }
+      } catch (error: any) {
+        console.error('❌ Error fetching Xero connections:', error);
+        onError('Failed to load Xero connections. Please check your connection in the Connections tab.');
+        setConnections([]);
+      } finally {
+        setLoadingConnections(false);
+      }
+    };
+
+    fetchConnections();
+  }, [onError]);
+
   useEffect(() => {
     const fetchContacts = async () => {
       // Don't fetch if ledger type is not set
       if (!ledgerType) {
         console.log('⏸️ Ledger type not set, skipping contact fetch');
+        setLoading(false);
+        return;
+      }
+
+      // NEW: Don't fetch if we don't have a connection
+      if (!selectedConnectionId) {
+        console.log('⏸️ No connection selected, skipping contact fetch');
         setLoading(false);
         return;
       }
@@ -88,7 +144,12 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         const responseKey = isAR ? 'customers' : 'suppliers';
         
         console.log(`   Using endpoint: ${endpoint}`);
-        const response = await apiClient.get(endpoint);
+        console.log(`   Using connectionId: ${selectedConnectionId}`);
+        
+        // NEW: Include connectionId in request
+        const response = await apiClient.get(endpoint, {
+          params: { connectionId: selectedConnectionId }
+        });
         console.log('📦 Response received:', response.status, response.data);
         
         // Safely access response data
@@ -124,13 +185,20 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     };
 
     fetchContacts();
-  }, [ledgerType, onError, isAR, contactsLabel]);
+  }, [ledgerType, selectedConnectionId, onError, isAR, contactsLabel]); // NEW: Added selectedConnectionId to dependencies
 
   const handleLoadData = async () => {
     if (!selectedContact || !ledgerType) return;
 
+    // NEW: Validate connectionId exists
+    if (!selectedConnectionId) {
+      onError('No Xero connection available. Please reconnect in the Connections tab.');
+      return;
+    }
+
     try {
       console.log(`📞 Fetching ${invoiceLabel} for ${contactLabel.toLowerCase()}:`, selectedContact.Name);
+      console.log(`   Using connectionId: ${selectedConnectionId}`);
       setLoadingData(true);
       
       // FIX: Use different endpoints based on ledger type
@@ -139,8 +207,13 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         : `xero/suppliers/${selectedContact.ContactID}/invoices`;
       
       console.log(`   Using endpoint: ${endpoint}`);
+      
+      // NEW: Include connectionId in request
       const response = await apiClient.get(endpoint, {
-        params: { includeHistory: 'false' }
+        params: { 
+          connectionId: selectedConnectionId,
+          includeHistory: 'false' 
+        }
       });
       
       console.log(`📦 ${invoiceLabel} response:`, response.status, response.data);
@@ -354,12 +427,26 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     }
   };
 
-  if (loading) {
+  // NEW: Updated loading check to include connections loading
+  if (loading || loadingConnections) {
     return (
       <div className="flex flex-col items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-        <span className="ml-3 text-body text-neutral-600 mt-3">Loading {contactsLabel.toLowerCase()}...</span>
+        <span className="ml-3 text-body text-neutral-600 mt-3">
+          {loadingConnections ? 'Loading connections...' : `Loading ${contactsLabel.toLowerCase()}...`}
+        </span>
         <p className="text-xs text-neutral-500 mt-2">If this is your first request, the server may need 30-60 seconds to wake up...</p>
+      </div>
+    );
+  }
+
+  // NEW: Show error if no connections available
+  if (!selectedConnectionId && connections.length === 0) {
+    return (
+      <div className="p-4 bg-warning-50 border border-warning-200 rounded-md">
+        <p className="text-small text-warning-900">
+          No Xero connections found. Please connect your Xero account in the Connections tab first.
+        </p>
       </div>
     );
   }
