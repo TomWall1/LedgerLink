@@ -396,13 +396,15 @@ router.get('/contacts', auth, async (req, res) => {
 
 /**
  * @route   GET /api/xero/customers
- * @desc    Get customers from Xero (alias for contacts endpoint)
+ * @desc    Get customers from Xero (contacts where IsCustomer === true)
  * @access  Private
  */
 router.get('/customers', auth, async (req, res) => {
   try {
     const { connectionId, page = 1, limit = 100 } = req.query;
     const userId = req.user.id;
+    
+    console.log('📞 GET /api/xero/customers - connectionId:', connectionId);
     
     if (!connectionId) {
       return res.status(400).json({ message: 'Connection ID is required' });
@@ -427,18 +429,23 @@ router.get('/customers', auth, async (req, res) => {
       limit: parseInt(limit)
     };
     
-    // Use the same getContacts method since Xero calls them "Contacts"
-    const contacts = await xeroService.getContacts(connection, filters);
+    // Get all contacts from Xero
+    const allContacts = await xeroService.getContacts(connection, filters);
+    console.log(`   Retrieved ${allContacts.length} total contacts from Xero`);
+    
+    // Filter to only customers (IsCustomer === true)
+    const customers = allContacts.filter(contact => contact.IsCustomer === true);
+    console.log(`   Filtered to ${customers.length} customers (IsCustomer === true)`);
     
     // Return as "customers" for frontend compatibility
     res.json({
       success: true,
       data: {
-        customers: contacts,
+        customers: customers,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
-          total: contacts.length
+          total: customers.length
         }
       }
     });
@@ -447,6 +454,70 @@ router.get('/customers', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch customers from Xero'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/xero/suppliers
+ * @desc    Get suppliers from Xero (contacts where IsSupplier === true)
+ * @access  Private
+ */
+router.get('/suppliers', auth, async (req, res) => {
+  try {
+    const { connectionId, page = 1, limit = 100 } = req.query;
+    const userId = req.user.id;
+    
+    console.log('📞 GET /api/xero/suppliers - connectionId:', connectionId);
+    
+    if (!connectionId) {
+      return res.status(400).json({ message: 'Connection ID is required' });
+    }
+    
+    // Get connection and verify ownership
+    const connection = await XeroConnection.findOne({
+      _id: connectionId,
+      userId
+    }).select('+accessToken +refreshToken');
+    
+    if (!connection) {
+      return res.status(404).json({ message: 'Xero connection not found' });
+    }
+    
+    if (connection.status !== 'active') {
+      return res.status(400).json({ message: 'Xero connection is not active' });
+    }
+    
+    const filters = {
+      page: parseInt(page),
+      limit: parseInt(limit)
+    };
+    
+    // Get all contacts from Xero
+    const allContacts = await xeroService.getContacts(connection, filters);
+    console.log(`   Retrieved ${allContacts.length} total contacts from Xero`);
+    
+    // Filter to only suppliers (IsSupplier === true)
+    const suppliers = allContacts.filter(contact => contact.IsSupplier === true);
+    console.log(`   Filtered to ${suppliers.length} suppliers (IsSupplier === true)`);
+    
+    // Return as "suppliers" for frontend compatibility
+    res.json({
+      success: true,
+      data: {
+        suppliers: suppliers,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: suppliers.length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get suppliers error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch suppliers from Xero'
     });
   }
 });
