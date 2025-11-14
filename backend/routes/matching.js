@@ -228,6 +228,9 @@ router.post('/match-from-erp', requireAuth, async (req, res) => {
       sourceType2
     });
     
+    // Log a few sample records to debug the data
+    console.log('Company2 sample data:', company2Data.slice(0, 3));
+    
     // Record start time
     const startTime = Date.now();
     
@@ -285,7 +288,9 @@ router.post('/match-from-erp', requireAuth, async (req, res) => {
     res.json({
       success: true,
       matchId: matchingResultDoc._id,
-      result: matchingResultDoc
+      data: {
+        results: matchingResultDoc
+      }
     });
     
   } catch (error) {
