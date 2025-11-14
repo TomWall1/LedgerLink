@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 5000;
 
 // Import route modules
 const counterpartyRoutes = require('./routes/counterparty');
+const matchingRoutes = require('./routes/matching');
 
 // Middleware
 app.use(cors());
@@ -21,6 +22,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Register API routes
 app.use('/api/counterparty', counterpartyRoutes);
+app.use('/api/matching', matchingRoutes);
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
