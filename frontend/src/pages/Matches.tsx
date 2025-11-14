@@ -10,6 +10,7 @@
  * PHASE 1 FIX: Added isCounterpartySelection prop to prevent showing YOUR Xero
  * connection when selecting counterparty data source in Step 3
  * PHASE 2: Added automatic counterparty link checking when Data Source 1 is loaded
+ * FIX: Added CSV upload handler for Data Source 2 to properly load CSV data into workflow
  */
 
 import React, { useState, useEffect } from 'react';
@@ -370,6 +371,102 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   };
 
   /**
+   * NEW: Handle CSV file upload for Data Source 2
+   * This properly integrates CSV uploads into the workflow
+   */
+  const handleCSV2Upload = async (file: File) => {
+    try {
+      console.log('📂 Processing CSV upload for Data Source 2:', file.name);
+      
+      // Validate the file
+      const validation = await matchingService.validateCSVFile(file);
+      
+      if (!validation.isValid) {
+        showToast(validation.error || 'Invalid CSV file', 'error');
+        return;
+      }
+
+      // Parse the CSV file to extract invoice data
+      // We'll use a FileReader to read the file contents
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        try {
+          const text = e.target?.result as string;
+          const lines = text.split('\n').filter(line => line.trim());
+          
+          if (lines.length < 2) {
+            showToast('CSV must have at least a header row and one data row', 'error');
+            return;
+          }
+
+          // Parse headers
+          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').toLowerCase());
+          
+          // Find column indices
+          const transactionNumberIndex = headers.findIndex(h => 
+            h.includes('transaction') || h.includes('invoice') || h.includes('number')
+          );
+          const amountIndex = headers.findIndex(h => h.includes('amount') || h.includes('total'));
+          const dateIndex = headers.findIndex(h => h.includes('date'));
+          
+          if (transactionNumberIndex === -1 || amountIndex === -1 || dateIndex === -1) {
+            showToast('CSV must include transaction number, amount, and date columns', 'error');
+            return;
+          }
+
+          // Parse data rows into TransactionRecord format
+          const invoices: TransactionRecord[] = lines.slice(1).map((line, index) => {
+            const cells = line.split(',').map(c => c.trim().replace(/"/g, ''));
+            
+            return {
+              id: `csv-${index}`,
+              transactionNumber: cells[transactionNumberIndex] || `CSV-${index}`,
+              amount: parseFloat(cells[amountIndex]) || 0,
+              date: cells[dateIndex] || '',
+              status: cells[headers.findIndex(h => h.includes('status'))] || 'UNKNOWN',
+              dueDate: cells[headers.findIndex(h => h.includes('due'))] || undefined,
+              reference: cells[headers.findIndex(h => h.includes('reference'))] || undefined,
+              vendorName: cells[headers.findIndex(h => h.includes('vendor') || h.includes('customer'))] || undefined,
+            };
+          }).filter(invoice => invoice.transactionNumber && invoice.amount && invoice.date);
+
+          if (invoices.length === 0) {
+            showToast('No valid invoice records found in CSV', 'error');
+            return;
+          }
+
+          console.log(`✅ Parsed ${invoices.length} invoices from CSV`);
+
+          const loadedData: LoadedDataSource = {
+            type: 'csv',
+            invoices: invoices,
+            fileName: file.name,
+            invoiceCount: invoices.length
+          };
+
+          setDataSource2(loadedData);
+          showToast(`Loaded ${invoices.length} invoices from ${file.name}`, 'success');
+          
+        } catch (error) {
+          console.error('❌ Error parsing CSV:', error);
+          showToast('Failed to parse CSV file', 'error');
+        }
+      };
+
+      reader.onerror = () => {
+        showToast('Failed to read CSV file', 'error');
+      };
+
+      reader.readAsText(file);
+      
+    } catch (error) {
+      console.error('❌ Error processing CSV upload:', error);
+      showToast('Failed to process CSV upload', 'error');
+    }
+  };
+
+  /**
    * Clear data source
    */
   const handleClearDataSource = (sourceNumber: 1 | 2) => {
@@ -416,6 +513,13 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
       showToast('Both data sources are required', 'error');
       return;
     }
+
+    console.log('🚀 Starting matching with:', {
+      source1: dataSource1.type,
+      source1Count: dataSource1.invoices.length,
+      source2: dataSource2.type,
+      source2Count: dataSource2.invoices.length
+    });
 
     try {
       const results = await matchingService.matchFromERP(
@@ -727,8 +831,28 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                         {/* Show CSV upload instruction if CSV is selected */}
                         {dataSource2Type === 'csv' && (
                           <div className="mt-4 p-4 bg-neutral-50 rounded-lg">
-                            <p className="text-small text-neutral-700 mb-3">
-                              Use the CSV upload section below to upload the counterparty's file
+                            <p className="text-small text-neutral-700 mb-3 font-medium">
+                              Upload counterparty CSV file
+                            </p>
+                            <input
+                              type="file"
+                              accept=".csv"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  handleCSV2Upload(file);
+                                }
+                              }}
+                              className="block w-full text-sm text-neutral-600
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-md file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-primary-50 file:text-primary-700
+                                hover:file:bg-primary-100
+                                cursor-pointer"
+                            />
+                            <p className="text-xs text-neutral-500 mt-2">
+                              Select a CSV file with transaction data from your counterparty
                             </p>
                           </div>
                         )}
@@ -767,13 +891,11 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
               </CardContent>
             </Card>
 
-            {/* CSV Upload Component (for when CSV is selected in workflow) */}
-            {(dataSource2Type === 'csv' || (!ledgerType && !dataSource1)) && (
+            {/* CSV Upload Component (for legacy two-file uploads) */}
+            {!dataSource1 && !ledgerType && (
               <CSVUpload
                 onMatchingComplete={handleMatchingComplete}
                 onError={handleMatchingError}
-                xeroData={dataSource1?.invoices}
-                xeroCustomerName={dataSource1?.customerName}
               />
             )}
 
