@@ -11,6 +11,7 @@
  * connection when selecting counterparty data source in Step 3
  * PHASE 2: Added automatic counterparty link checking when Data Source 1 is loaded
  * FIX: Added CSV upload handler for Data Source 2 to properly load CSV data into workflow
+ * FIX: Improved CSV parsing with better debugging and error handling
  */
 
 import React, { useState, useEffect } from 'react';
@@ -60,6 +61,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showTemplateInfo, setShowTemplateInfo] = useState(false);
+  const [isProcessingCSV, setIsProcessingCSV] = useState(false);
   
   // Xero integration state
   const [isXeroConnected, setIsXeroConnected] = useState(false);
@@ -156,6 +158,25 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
     checkCounterpartyLink();
   }, [dataSource1, ledgerType]);
+
+  /**
+   * Debug effect to log data source changes
+   */
+  useEffect(() => {
+    console.log('📊 Data Source States:', {
+      dataSource1: dataSource1 ? {
+        type: dataSource1.type,
+        invoiceCount: dataSource1.invoiceCount,
+        name: dataSource1.customerName || dataSource1.fileName
+      } : null,
+      dataSource2: dataSource2 ? {
+        type: dataSource2.type,
+        invoiceCount: dataSource2.invoiceCount,
+        name: dataSource2.customerName || dataSource2.fileName
+      } : null,
+      readyToMatch: !!(dataSource1 && dataSource2)
+    });
+  }, [dataSource1, dataSource2]);
 
   /**
    * Show toast notification
@@ -371,98 +392,193 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   };
 
   /**
-   * NEW: Handle CSV file upload for Data Source 2
-   * This properly integrates CSV uploads into the workflow
+   * IMPROVED: Handle CSV file upload for Data Source 2
+   * Much better error handling and debugging
    */
   const handleCSV2Upload = async (file: File) => {
+    console.log('=== CSV UPLOAD DEBUG START ===');
+    console.log('📂 File received:', file.name, 'Size:', file.size, 'bytes');
+    
+    setIsProcessingCSV(true);
+    
     try {
-      console.log('📂 Processing CSV upload for Data Source 2:', file.name);
-      
-      // Validate the file
+      // Step 1: Validate file
+      console.log('Step 1: Validating file...');
       const validation = await matchingService.validateCSVFile(file);
+      console.log('Validation result:', validation);
       
       if (!validation.isValid) {
+        console.error('❌ File validation failed:', validation.error);
         showToast(validation.error || 'Invalid CSV file', 'error');
+        setIsProcessingCSV(false);
+        return;
+      }
+      console.log('✅ File validation passed');
+
+      // Step 2: Read file
+      console.log('Step 2: Reading file contents...');
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsText(file);
+      });
+      
+      console.log('✅ File read successfully, length:', text.length);
+      console.log('First 200 characters:', text.substring(0, 200));
+
+      // Step 3: Parse CSV
+      console.log('Step 3: Parsing CSV...');
+      const lines = text.split('\n').filter(line => line.trim());
+      console.log('Total lines (including header):', lines.length);
+      
+      if (lines.length < 2) {
+        console.error('❌ Not enough lines in CSV');
+        showToast('CSV must have at least a header row and one data row', 'error');
+        setIsProcessingCSV(false);
         return;
       }
 
-      // Parse the CSV file to extract invoice data
-      // We'll use a FileReader to read the file contents
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        try {
-          const text = e.target?.result as string;
-          const lines = text.split('\n').filter(line => line.trim());
+      // Step 4: Parse headers
+      console.log('Step 4: Parsing headers...');
+      // Better CSV parsing that handles quoted commas
+      const parseCSVLine = (line: string): string[] => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
           
-          if (lines.length < 2) {
-            showToast('CSV must have at least a header row and one data row', 'error');
-            return;
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
           }
-
-          // Parse headers
-          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').toLowerCase());
-          
-          // Find column indices
-          const transactionNumberIndex = headers.findIndex(h => 
-            h.includes('transaction') || h.includes('invoice') || h.includes('number')
-          );
-          const amountIndex = headers.findIndex(h => h.includes('amount') || h.includes('total'));
-          const dateIndex = headers.findIndex(h => h.includes('date'));
-          
-          if (transactionNumberIndex === -1 || amountIndex === -1 || dateIndex === -1) {
-            showToast('CSV must include transaction number, amount, and date columns', 'error');
-            return;
-          }
-
-          // Parse data rows into TransactionRecord format
-          const invoices: TransactionRecord[] = lines.slice(1).map((line, index) => {
-            const cells = line.split(',').map(c => c.trim().replace(/"/g, ''));
-            
-            return {
-              id: `csv-${index}`,
-              transactionNumber: cells[transactionNumberIndex] || `CSV-${index}`,
-              amount: parseFloat(cells[amountIndex]) || 0,
-              date: cells[dateIndex] || '',
-              status: cells[headers.findIndex(h => h.includes('status'))] || 'UNKNOWN',
-              dueDate: cells[headers.findIndex(h => h.includes('due'))] || undefined,
-              reference: cells[headers.findIndex(h => h.includes('reference'))] || undefined,
-              vendorName: cells[headers.findIndex(h => h.includes('vendor') || h.includes('customer'))] || undefined,
-            };
-          }).filter(invoice => invoice.transactionNumber && invoice.amount && invoice.date);
-
-          if (invoices.length === 0) {
-            showToast('No valid invoice records found in CSV', 'error');
-            return;
-          }
-
-          console.log(`✅ Parsed ${invoices.length} invoices from CSV`);
-
-          const loadedData: LoadedDataSource = {
-            type: 'csv',
-            invoices: invoices,
-            fileName: file.name,
-            invoiceCount: invoices.length
-          };
-
-          setDataSource2(loadedData);
-          showToast(`Loaded ${invoices.length} invoices from ${file.name}`, 'success');
-          
-        } catch (error) {
-          console.error('❌ Error parsing CSV:', error);
-          showToast('Failed to parse CSV file', 'error');
         }
+        result.push(current.trim());
+        return result.map(s => s.replace(/^"|"$/g, ''));
       };
 
-      reader.onerror = () => {
-        showToast('Failed to read CSV file', 'error');
+      const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
+      console.log('Headers found:', headers);
+      
+      // Step 5: Find column indices
+      console.log('Step 5: Finding column indices...');
+      const transactionNumberIndex = headers.findIndex(h => 
+        h.includes('transaction') || h.includes('invoice') || h.includes('number') || h.includes('id')
+      );
+      const amountIndex = headers.findIndex(h => 
+        h.includes('amount') || h.includes('total') || h.includes('value')
+      );
+      const dateIndex = headers.findIndex(h => h.includes('date'));
+      
+      console.log('Column indices:', {
+        transactionNumber: transactionNumberIndex,
+        amount: amountIndex,
+        date: dateIndex
+      });
+      
+      if (transactionNumberIndex === -1) {
+        console.error('❌ No transaction number column found');
+        showToast('CSV must include a transaction number/invoice/ID column', 'error');
+        setIsProcessingCSV(false);
+        return;
+      }
+      
+      if (amountIndex === -1) {
+        console.error('❌ No amount column found');
+        showToast('CSV must include an amount/total column', 'error');
+        setIsProcessingCSV(false);
+        return;
+      }
+      
+      if (dateIndex === -1) {
+        console.error('❌ No date column found');
+        showToast('CSV must include a date column', 'error');
+        setIsProcessingCSV(false);
+        return;
+      }
+
+      console.log('✅ All required columns found');
+
+      // Step 6: Parse data rows
+      console.log('Step 6: Parsing data rows...');
+      const invoices: TransactionRecord[] = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        const cells = parseCSVLine(lines[i]);
+        
+        const transactionNumber = cells[transactionNumberIndex];
+        const amountStr = cells[amountIndex];
+        const date = cells[dateIndex];
+        
+        // Skip if missing required fields
+        if (!transactionNumber || !amountStr || !date) {
+          console.warn(`⚠️ Skipping row ${i}: missing required fields`);
+          continue;
+        }
+        
+        const amount = parseFloat(amountStr.replace(/[^0-9.-]/g, ''));
+        
+        if (isNaN(amount)) {
+          console.warn(`⚠️ Skipping row ${i}: invalid amount "${amountStr}"`);
+          continue;
+        }
+        
+        invoices.push({
+          id: `csv-${i}`,
+          transactionNumber: transactionNumber,
+          amount: amount,
+          date: date,
+          status: cells[headers.findIndex(h => h.includes('status'))] || 'UNKNOWN',
+          dueDate: cells[headers.findIndex(h => h.includes('due'))] || undefined,
+          reference: cells[headers.findIndex(h => h.includes('reference'))] || undefined,
+          vendorName: cells[headers.findIndex(h => h.includes('vendor') || h.includes('customer'))] || undefined,
+        });
+        
+        // Log first few rows for debugging
+        if (i <= 3) {
+          console.log(`Row ${i}:`, invoices[invoices.length - 1]);
+        }
+      }
+
+      console.log('✅ Parsing complete. Valid invoices:', invoices.length);
+
+      if (invoices.length === 0) {
+        console.error('❌ No valid invoice records found');
+        showToast('No valid invoice records found in CSV. Check that your file has the required columns.', 'error');
+        setIsProcessingCSV(false);
+        return;
+      }
+
+      // Step 7: Create data source
+      console.log('Step 7: Creating data source...');
+      const loadedData: LoadedDataSource = {
+        type: 'csv',
+        invoices: invoices,
+        fileName: file.name,
+        invoiceCount: invoices.length
       };
 
-      reader.readAsText(file);
+      console.log('✅ Data source created:', loadedData);
+      console.log('Setting dataSource2...');
+      setDataSource2(loadedData);
+      console.log('✅ dataSource2 set!');
+      
+      showToast(`Loaded ${invoices.length} invoices from ${file.name}`, 'success');
+      console.log('=== CSV UPLOAD DEBUG END (SUCCESS) ===');
       
     } catch (error) {
-      console.error('❌ Error processing CSV upload:', error);
-      showToast('Failed to process CSV upload', 'error');
+      console.error('❌ CRITICAL ERROR during CSV processing:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      showToast('Failed to process CSV file: ' + (error instanceof Error ? error.message : 'Unknown error'), 'error');
+    } finally {
+      setIsProcessingCSV(false);
+      console.log('=== CSV UPLOAD DEBUG END ===');
     }
   };
 
@@ -834,12 +950,25 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                             <p className="text-small text-neutral-700 mb-3 font-medium">
                               Upload counterparty CSV file
                             </p>
+                            
+                            {/* Processing indicator */}
+                            {isProcessingCSV && (
+                              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <div className="flex items-center space-x-2">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                  <span className="text-small text-blue-900">Processing CSV file... Check console for details</span>
+                                </div>
+                              </div>
+                            )}
+                            
                             <input
                               type="file"
                               accept=".csv"
+                              disabled={isProcessingCSV}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
+                                  console.log('📤 File selected from input:', file.name);
                                   handleCSV2Upload(file);
                                 }
                               }}
@@ -849,10 +978,15 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                                 file:text-sm file:font-semibold
                                 file:bg-primary-50 file:text-primary-700
                                 hover:file:bg-primary-100
-                                cursor-pointer"
+                                cursor-pointer
+                                disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             <p className="text-xs text-neutral-500 mt-2">
-                              Select a CSV file with transaction data from your counterparty
+                              Select a CSV file with transaction data from your counterparty. 
+                              Required columns: transaction number/invoice, amount, date
+                            </p>
+                            <p className="text-xs text-blue-600 mt-1">
+                              💡 Tip: Open your browser's console (F12) to see detailed processing logs
                             </p>
                           </div>
                         )}
