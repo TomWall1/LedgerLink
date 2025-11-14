@@ -386,6 +386,58 @@ class XeroService {
       return [];
     }
   }
+
+  /**
+   * Get invoices for a specific contact from Xero
+   * @param {Object} connection - Xero connection
+   * @param {string} contactId - Xero Contact ID
+   * @param {string} invoiceType - 'ACCREC' for invoices or 'ACCPAY' for bills
+   * @returns {Array} - Array of invoices in Xero format (not transformed)
+   */
+  async getInvoicesForContact(connection, contactId, invoiceType = 'ACCREC') {
+    try {
+      console.log(`🔍 Fetching ${invoiceType} invoices for contact ${contactId}`);
+      
+      // Build where clause to filter by contact and type
+      const whereClause = `Contact.ContactID == Guid("${contactId}") AND Type == "${invoiceType}"`;
+      
+      const params = {
+        where: whereClause,
+        order: 'Date DESC'
+      };
+      
+      console.log('   Query params:', params);
+      
+      const data = await this.makeApiRequest(connection, '/Invoices', {
+        params
+      });
+      
+      // Extract invoices from response
+      let invoices = [];
+      if (Array.isArray(data.Invoices)) {
+        invoices = data.Invoices;
+      } else if (Array.isArray(data)) {
+        invoices = data;
+      }
+      
+      console.log(`✅ Found ${invoices.length} ${invoiceType} invoices for contact`);
+      
+      if (invoices.length > 0) {
+        console.log('   First invoice:', {
+          InvoiceNumber: invoices[0].InvoiceNumber,
+          Type: invoices[0].Type,
+          Total: invoices[0].Total,
+          Contact: invoices[0].Contact?.Name
+        });
+      }
+      
+      // Return raw Xero invoices (not transformed) so frontend can transform them
+      return invoices;
+    } catch (error) {
+      console.error(`❌ Failed to fetch invoices for contact ${contactId}:`, error);
+      throw error;
+    }
+  }
   
   /**
    * Transform Xero invoices to LedgerLink format
