@@ -131,6 +131,7 @@ router.post('/upload-and-match', requireAuth, upload.fields([
     
     // Create matching result document
     const matchingResultDoc = new MatchingResult({
+      companyId: req.user.id || req.user._id,  // FIX: Add required companyId field
       userId: req.user.id || req.user._id,
       company1Name,
       company2Name,
@@ -243,6 +244,7 @@ router.post('/match-from-erp', requireAuth, async (req, res) => {
     
     // Create matching result document
     const matchingResultDoc = new MatchingResult({
+      companyId: req.user.id || req.user._id,  // FIX: Add required companyId field
       userId: req.user.id || req.user._id,
       company1Name: sourceType1 || 'Company 1',
       company2Name: sourceType2 || 'Company 2', 
