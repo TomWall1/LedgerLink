@@ -29,6 +29,67 @@ const upload = multer({
 });
 
 /**
+ * Transform matching results to match MongoDB schema
+ * Strips out extra fields and ensures proper data types
+ */
+const transformForMongoDB = (item) => {
+  if (!item) return null;
+  
+  return {
+    transactionNumber: item.transactionNumber || '',
+    type: item.type || '',
+    amount: typeof item.amount === 'number' ? item.amount : parseFloat(item.amount) || 0,
+    date: item.date ? new Date(item.date) : null,
+    dueDate: item.dueDate ? new Date(item.dueDate) : null,
+    status: item.status || '',
+    reference: item.reference || ''
+  };
+};
+
+/**
+ * Transform matching results array to MongoDB-compatible format
+ */
+const transformMatchingResults = (results) => {
+  return {
+    perfectMatches: (results.perfectMatches || []).map(match => ({
+      company1: transformForMongoDB(match.company1),
+      company2: transformForMongoDB(match.company2)
+    })),
+    mismatches: (results.mismatches || []).map(match => ({
+      company1: transformForMongoDB(match.company1),
+      company2: transformForMongoDB(match.company2)
+    })),
+    unmatchedItems: {
+      company1: (results.unmatchedItems?.company1 || []).map(transformForMongoDB),
+      company2: (results.unmatchedItems?.company2 || []).map(transformForMongoDB)
+    },
+    historicalInsights: (results.historicalInsights || []).map(insight => ({
+      apItem: transformForMongoDB(insight.apItem),
+      historicalMatch: {
+        ...transformForMongoDB(insight.historicalMatch),
+        payment_date: insight.historicalMatch?.payment_date ? new Date(insight.historicalMatch.payment_date) : null,
+        is_paid: insight.historicalMatch?.is_paid || false,
+        is_voided: insight.historicalMatch?.is_voided || false
+      },
+      insight: insight.insight
+    })),
+    dateMismatches: (results.dateMismatches || []).map(mismatch => ({
+      company1: transformForMongoDB(mismatch.company1),
+      company2: transformForMongoDB(mismatch.company2),
+      mismatchType: mismatch.mismatchType || '',
+      company1Date: mismatch.company1Date ? new Date(mismatch.company1Date) : null,
+      company2Date: mismatch.company2Date ? new Date(mismatch.company2Date) : null,
+      daysDifference: mismatch.daysDifference || 0
+    })),
+    totals: results.totals || {
+      company1Total: 0,
+      company2Total: 0,
+      variance: 0
+    }
+  };
+};
+
+/**
  * Parse CSV file and return JSON data
  */
 const parseCSV = async (filePath) => {
@@ -129,28 +190,22 @@ router.post('/upload-and-match', requireAuth, upload.fields([
     
     const processingTime = Date.now() - startTime;
     
+    // Transform results for MongoDB
+    const transformedResults = transformMatchingResults(matchingResults);
+    
     // Create matching result document
     const matchingResultDoc = new MatchingResult({
-      companyId: req.user.id || req.user._id,  // FIX: Add required companyId field
-      userId: req.user.id || req.user._id,
-      company1Name,
-      company2Name,
+      companyId: req.user.id || req.user._id,
       dateFormat1,
       dateFormat2,
-      perfectMatches: matchingResults.perfectMatches || [],
-      mismatches: matchingResults.mismatches || [],
-      company1Unmatched: matchingResults.unmatchedItems?.company1 || [],
-      company2Unmatched: matchingResults.unmatchedItems?.company2 || [],
+      ...transformedResults,
       statistics: {
-        totalCompany1: company1Data.length,
-        totalCompany2: company2Data.length,
-        perfectMatches: matchingResults.perfectMatches?.length || 0,
-        mismatches: matchingResults.mismatches?.length || 0,
-        company1Unmatched: matchingResults.unmatchedItems?.company1?.length || 0,
-        company2Unmatched: matchingResults.unmatchedItems?.company2?.length || 0,
+        perfectMatchCount: transformedResults.perfectMatches.length,
+        mismatchCount: transformedResults.mismatches.length,
+        unmatchedCompany1Count: transformedResults.unmatchedItems.company1.length,
+        unmatchedCompany2Count: transformedResults.unmatchedItems.company2.length,
         matchRate: 0,
-        totalAmount1: company1Data.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
-        totalAmount2: company2Data.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
+        processingTime
       },
       metadata: {
         sourceType1: 'csv',
@@ -158,15 +213,16 @@ router.post('/upload-and-match', requireAuth, upload.fields([
         fileName1: company1File.originalname,
         fileName2: company2File.originalname,
         uploadedBy: req.user.id || req.user._id,
-        processingTime,
         notes: req.body.notes
       }
     });
     
     // Calculate match rate
-    const totalMatches = (matchingResults.perfectMatches?.length || 0) + (matchingResults.mismatches?.length || 0);
     const totalRecords = Math.max(company1Data.length, company2Data.length);
-    matchingResultDoc.statistics.matchRate = totalRecords > 0 ? (totalMatches / totalRecords) * 100 : 0;
+    if (totalRecords > 0) {
+      matchingResultDoc.statistics.matchRate = 
+        (transformedResults.perfectMatches.length / totalRecords) * 100;
+    }
     
     // Save to database
     await matchingResultDoc.save();
@@ -179,7 +235,9 @@ router.post('/upload-and-match', requireAuth, upload.fields([
       success: true,
       matchId: matchingResultDoc._id,
       message: 'Files processed successfully',
-      result: matchingResultDoc
+      data: {
+        results: matchingResultDoc
+      }
     });
     
   } catch (error) {
@@ -245,45 +303,49 @@ router.post('/match-from-erp', requireAuth, async (req, res) => {
     
     const processingTime = Date.now() - startTime;
     
+    console.log('✅ Matching complete, transforming results for MongoDB...');
+    
+    // Transform results for MongoDB
+    const transformedResults = transformMatchingResults(matchingResults);
+    
+    console.log('✅ Transformation complete, creating document...');
+    
     // Create matching result document
     const matchingResultDoc = new MatchingResult({
-      companyId: req.user.id || req.user._id,  // FIX: Add required companyId field
-      userId: req.user.id || req.user._id,
-      company1Name: sourceType1 || 'Company 1',
-      company2Name: sourceType2 || 'Company 2', 
+      companyId: req.user.id || req.user._id,
+      counterpartyId,
       dateFormat1: dateFormat1 || 'DD/MM/YYYY',
       dateFormat2: dateFormat2 || 'DD/MM/YYYY',
-      perfectMatches: matchingResults.perfectMatches || [],
-      mismatches: matchingResults.mismatches || [],
-      company1Unmatched: matchingResults.unmatchedItems?.company1 || [],
-      company2Unmatched: matchingResults.unmatchedItems?.company2 || [],
+      ...transformedResults,
       statistics: {
-        totalCompany1: company1Data.length,
-        totalCompany2: company2Data.length,
-        perfectMatches: matchingResults.perfectMatches?.length || 0,
-        mismatches: matchingResults.mismatches?.length || 0,
-        company1Unmatched: matchingResults.unmatchedItems?.company1?.length || 0,
-        company2Unmatched: matchingResults.unmatchedItems?.company2?.length || 0,
+        perfectMatchCount: transformedResults.perfectMatches.length,
+        mismatchCount: transformedResults.mismatches.length,
+        unmatchedCompany1Count: transformedResults.unmatchedItems.company1.length,
+        unmatchedCompany2Count: transformedResults.unmatchedItems.company2.length,
         matchRate: 0,
-        totalAmount1: company1Data.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
-        totalAmount2: company2Data.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
+        processingTime
       },
       metadata: {
         sourceType1,
         sourceType2,
         uploadedBy: req.user.id || req.user._id,
-        processingTime,
         notes
       }
     });
     
     // Calculate match rate
-    const totalMatches = (matchingResults.perfectMatches?.length || 0) + (matchingResults.mismatches?.length || 0);
     const totalRecords = Math.max(company1Data.length, company2Data.length);
-    matchingResultDoc.statistics.matchRate = totalRecords > 0 ? (totalMatches / totalRecords) * 100 : 0;
+    if (totalRecords > 0) {
+      matchingResultDoc.statistics.matchRate = 
+        (transformedResults.perfectMatches.length / totalRecords) * 100;
+    }
+    
+    console.log('✅ Saving to database...');
     
     // Save to database
     await matchingResultDoc.save();
+    
+    console.log('✅ Saved successfully!');
     
     res.json({
       success: true,
@@ -295,6 +357,7 @@ router.post('/match-from-erp', requireAuth, async (req, res) => {
     
   } catch (error) {
     console.error('ERP matching error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       error: 'Failed to process ERP matching',
       message: error.message
@@ -311,7 +374,7 @@ router.get('/results/:matchId', requireAuth, async (req, res) => {
   try {
     const matchingResult = await MatchingResult.findOne({
       _id: req.params.matchId,
-      userId: req.user.id || req.user._id
+      companyId: req.user.id || req.user._id
     });
     
     if (!matchingResult) {
@@ -337,9 +400,9 @@ router.get('/results/:matchId', requireAuth, async (req, res) => {
 router.get('/history', requireAuth, async (req, res) => {
   try {
     const { limit = 10, skip = 0 } = req.query;
-    const userId = req.user.id || req.user._id;
+    const companyId = req.user.id || req.user._id;
     
-    const matchingHistory = await MatchingResult.find({ userId })
+    const matchingHistory = await MatchingResult.find({ companyId })
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(skip));
@@ -364,7 +427,7 @@ router.delete('/results/:matchId', requireAuth, async (req, res) => {
   try {
     const result = await MatchingResult.findOneAndDelete({
       _id: req.params.matchId,
-      userId: req.user.id || req.user._id
+      companyId: req.user.id || req.user._id
     });
     
     if (!result) {
@@ -391,7 +454,7 @@ router.post('/export/:matchId', requireAuth, async (req, res) => {
   try {
     const matchingResult = await MatchingResult.findOne({
       _id: req.params.matchId,
-      userId: req.user.id || req.user._id
+      companyId: req.user.id || req.user._id
     });
     
     if (!matchingResult) {
@@ -403,21 +466,21 @@ router.post('/export/:matchId', requireAuth, async (req, res) => {
     
     // Add perfect matches
     matchingResult.perfectMatches.forEach(match => {
-      csvContent += `Perfect Match,"${match.company1Transaction?.transactionNumber || ''}","${match.company1Transaction?.amount || ''}","${match.company1Transaction?.date || ''}","${match.company2Transaction?.transactionNumber || ''}","${match.company2Transaction?.amount || ''}","${match.company2Transaction?.date || ''}",Matched\n`;
+      csvContent += `Perfect Match,"${match.company1?.transactionNumber || ''}","${match.company1?.amount || ''}","${match.company1?.date || ''}","${match.company2?.transactionNumber || ''}","${match.company2?.amount || ''}","${match.company2?.date || ''}",Matched\n`;
     });
     
     // Add mismatches
     matchingResult.mismatches.forEach(match => {
-      csvContent += `Mismatch,"${match.company1Transaction?.transactionNumber || ''}","${match.company1Transaction?.amount || ''}","${match.company1Transaction?.date || ''}","${match.company2Transaction?.transactionNumber || ''}","${match.company2Transaction?.amount || ''}","${match.company2Transaction?.date || ''}",Mismatched\n`;
+      csvContent += `Mismatch,"${match.company1?.transactionNumber || ''}","${match.company1?.amount || ''}","${match.company1?.date || ''}","${match.company2?.transactionNumber || ''}","${match.company2?.amount || ''}","${match.company2?.date || ''}",Mismatched\n`;
     });
     
     // Add unmatched items
-    matchingResult.company1Unmatched.forEach(item => {
-      csvContent += `Unmatched (${matchingResult.company1Name}),"${item.transactionNumber || ''}","${item.amount || ''}","${item.date || ''}","","","",No Match\n`;
+    matchingResult.unmatchedItems.company1.forEach(item => {
+      csvContent += `Unmatched (Company 1),"${item.transactionNumber || ''}","${item.amount || ''}","${item.date || ''}","","","",No Match\n`;
     });
     
-    matchingResult.company2Unmatched.forEach(item => {
-      csvContent += `Unmatched (${matchingResult.company2Name}),"","","","${item.transactionNumber || ''}","${item.amount || ''}","${item.date || ''}",No Match\n`;
+    matchingResult.unmatchedItems.company2.forEach(item => {
+      csvContent += `Unmatched (Company 2),"","","","${item.transactionNumber || ''}","${item.amount || ''}","${item.date || ''}",No Match\n`;
     });
     
     // Set headers for CSV download
