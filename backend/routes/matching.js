@@ -29,6 +29,44 @@ const upload = multer({
 });
 
 /**
+ * Parse date safely - handles various formats and returns valid Date or null
+ */
+const parseDateSafely = (dateValue) => {
+  if (!dateValue) return null;
+  
+  // If it's already a Date object, return it
+  if (dateValue instanceof Date) {
+    return isNaN(dateValue.getTime()) ? null : dateValue;
+  }
+  
+  // If it's a string
+  if (typeof dateValue === 'string') {
+    // Check if it looks like a valid date
+    const date = new Date(dateValue);
+    if (!isNaN(date.getTime())) {
+      // Sanity check - date should be between 1900 and 2100
+      const year = date.getFullYear();
+      if (year >= 1900 && year <= 2100) {
+        return date;
+      }
+    }
+  }
+  
+  // If it's a number (timestamp)
+  if (typeof dateValue === 'number') {
+    const date = new Date(dateValue);
+    if (!isNaN(date.getTime())) {
+      const year = date.getFullYear();
+      if (year >= 1900 && year <= 2100) {
+        return date;
+      }
+    }
+  }
+  
+  return null;
+};
+
+/**
  * Transform matching results to match MongoDB schema
  * Strips out extra fields and ensures proper data types
  */
@@ -39,8 +77,8 @@ const transformForMongoDB = (item) => {
     transactionNumber: item.transactionNumber || '',
     type: item.type || '',
     amount: typeof item.amount === 'number' ? item.amount : parseFloat(item.amount) || 0,
-    date: item.date ? new Date(item.date) : null,
-    dueDate: item.dueDate ? new Date(item.dueDate) : null,
+    date: parseDateSafely(item.date),
+    dueDate: parseDateSafely(item.dueDate),
     status: item.status || '',
     reference: item.reference || ''
   };
@@ -50,14 +88,14 @@ const transformForMongoDB = (item) => {
  * Transform matching results array to MongoDB-compatible format
  */
 const transformMatchingResults = (results) => {
-  return {
+  const transformed = {
     perfectMatches: (results.perfectMatches || []).map(match => ({
-      company1: transformForMongoDB(match.company1),
-      company2: transformForMongoDB(match.company2)
+      company1: transformForMongoDB(match.company1Transaction || match.company1),
+      company2: transformForMongoDB(match.company2Transaction || match.company2)
     })),
     mismatches: (results.mismatches || []).map(match => ({
-      company1: transformForMongoDB(match.company1),
-      company2: transformForMongoDB(match.company2)
+      company1: transformForMongoDB(match.company1Transaction || match.company1),
+      company2: transformForMongoDB(match.company2Transaction || match.company2)
     })),
     unmatchedItems: {
       company1: (results.unmatchedItems?.company1 || []).map(transformForMongoDB),
@@ -67,7 +105,7 @@ const transformMatchingResults = (results) => {
       apItem: transformForMongoDB(insight.apItem),
       historicalMatch: {
         ...transformForMongoDB(insight.historicalMatch),
-        payment_date: insight.historicalMatch?.payment_date ? new Date(insight.historicalMatch.payment_date) : null,
+        payment_date: parseDateSafely(insight.historicalMatch?.payment_date),
         is_paid: insight.historicalMatch?.is_paid || false,
         is_voided: insight.historicalMatch?.is_voided || false
       },
@@ -77,8 +115,8 @@ const transformMatchingResults = (results) => {
       company1: transformForMongoDB(mismatch.company1),
       company2: transformForMongoDB(mismatch.company2),
       mismatchType: mismatch.mismatchType || '',
-      company1Date: mismatch.company1Date ? new Date(mismatch.company1Date) : null,
-      company2Date: mismatch.company2Date ? new Date(mismatch.company2Date) : null,
+      company1Date: parseDateSafely(mismatch.company1Date),
+      company2Date: parseDateSafely(mismatch.company2Date),
       daysDifference: mismatch.daysDifference || 0
     })),
     totals: results.totals || {
@@ -87,6 +125,10 @@ const transformMatchingResults = (results) => {
       variance: 0
     }
   };
+  
+  console.log('📊 Transformation sample (first mismatch):', JSON.stringify(transformed.mismatches[0], null, 2));
+  
+  return transformed;
 };
 
 /**
