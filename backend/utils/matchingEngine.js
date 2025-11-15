@@ -70,18 +70,15 @@ const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD/MM/YYY
     // Find matches
     for (const item1 of normalizedCompany1) {
       const potentialMatches = findPotentialMatches(item1, normalizedCompany2);
-      console.log(`Found ${potentialMatches.length} potential matches for transaction: ${item1.transactionNumber}`);
-
+      
       if (potentialMatches.length === 1) {
         const match = potentialMatches[0];
         if (isExactMatch(item1, match)) {
-          console.log(`Perfect match found for transaction: ${item1.transactionNumber}`);
           perfectMatches.push({ company1: item1, company2: match });
           
           // NEW: Check for date mismatches in perfect matches
           const dateMismatch = findDateMismatch(item1, match);
           if (dateMismatch) {
-            console.log(`Date mismatch found for transaction: ${item1.transactionNumber}`);
             dateMismatches.push({
               company1: item1,
               company2: match,
@@ -94,12 +91,10 @@ const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD/MM/YYY
           
           removeFromUnmatched(unmatchedItems, item1, match);
         } else {
-          console.log(`Mismatch found for transaction: ${item1.transactionNumber}`);
           mismatches.push({ company1: item1, company2: match });
           removeFromUnmatched(unmatchedItems, item1, match);
         }
       } else if (potentialMatches.length > 1) {
-        console.log(`Multiple matches found for transaction: ${item1.transactionNumber}, selecting best match`);
         const bestMatch = findBestMatch(item1, potentialMatches);
         mismatches.push({ company1: item1, company2: bestMatch });
         removeFromUnmatched(unmatchedItems, item1, bestMatch);
@@ -375,11 +370,6 @@ const normalizeData = (data, dateFormat) => {
     const issueDate = record.issue_date || record.date;
     const dueDate = record.due_date || record.dueDate;
     
-    // Debug logging to understand the input format
-    if (transactionNumber) {
-      console.log(`Normalizing record ${transactionNumber}, amount: ${amount}, date: ${issueDate}`);
-    }
-    
     // Normalize the data
     const normalized = {
       transactionNumber: transactionNumber?.toString().trim(),
@@ -403,8 +393,34 @@ const normalizeData = (data, dateFormat) => {
   });
 };
 
+/**
+ * Parse date string into standardized format
+ * Handles multiple date formats including Xero's .NET JSON date format
+ * @param {string} dateString - Date string to parse
+ * @param {string} format - Expected date format (e.g., 'DD/MM/YYYY')
+ * @returns {string|null} - Standardized date string in YYYY-MM-DD format or null
+ */
 const parseDate = (dateString, format) => {
   if (!dateString) return null;
+  
+  // CRITICAL FIX: Handle Xero's .NET JSON date format: /Date(1762646400000+0000)/
+  if (typeof dateString === 'string' && dateString.startsWith('/Date(')) {
+    try {
+      // Extract the timestamp from the format: /Date(1762646400000+0000)/
+      const timestampMatch = dateString.match(/\/Date\((\d+)([+-]\d{4})?\)\//);
+      if (timestampMatch) {
+        const timestamp = parseInt(timestampMatch[1]);
+        // Create date from milliseconds timestamp
+        const parsed = dayjs(timestamp);
+        if (parsed.isValid()) {
+          console.log(`✅ Parsed Xero date ${dateString} as ${parsed.format('YYYY-MM-DD')}`);
+          return parsed.format('YYYY-MM-DD');
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Error parsing Xero date ${dateString}:`, error);
+    }
+  }
   
   // If already a standard ISO date string, return it directly
   if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}/)) {
@@ -471,7 +487,6 @@ const isExactMatch = (item1, item2) => {
   
   // If item1 is partially paid, it's not an exact match (should be a mismatch)
   if (item1.is_partially_paid || item2.is_partially_paid) {
-    console.log('Item is partially paid, not an exact match');
     return false;
   }
   
