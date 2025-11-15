@@ -49,20 +49,20 @@ const matchingResultSchema = new mongoose.Schema({
     default: 'DD/MM/YYYY'
   },
   perfectMatches: [{
-    company1: { type: invoiceSchema },
-    company2: { type: invoiceSchema }
+    company1: invoiceSchema,
+    company2: invoiceSchema
   }],
   mismatches: [{
-    company1: { type: invoiceSchema },
-    company2: { type: invoiceSchema }
+    company1: invoiceSchema,
+    company2: invoiceSchema
   }],
   unmatchedItems: {
-    company1: [{ type: invoiceSchema }],
-    company2: [{ type: invoiceSchema }]
+    company1: [invoiceSchema],
+    company2: [invoiceSchema]
   },
   historicalInsights: [{
-    apItem: { type: invoiceSchema },
-    historicalMatch: { type: historicalMatchSchema },
+    apItem: invoiceSchema,
+    historicalMatch: historicalMatchSchema,
     insight: {
       type: {
         type: { type: String },
@@ -75,8 +75,8 @@ const matchingResultSchema = new mongoose.Schema({
     }
   }],
   dateMismatches: [{
-    company1: { type: invoiceSchema },
-    company2: { type: invoiceSchema },
+    company1: invoiceSchema,
+    company2: invoiceSchema,
     mismatchType: { type: String },
     company1Date: { type: Date },
     company2Date: { type: Date },
