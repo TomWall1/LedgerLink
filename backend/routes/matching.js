@@ -88,15 +88,48 @@ const transformForMongoDB = (item) => {
  * Transform matching results array to MongoDB-compatible format
  */
 const transformMatchingResults = (results) => {
+  console.log('🔍 RAW MATCHING RESULTS STRUCTURE:');
+  console.log('Keys:', Object.keys(results));
+  console.log('perfectMatches type:', typeof results.perfectMatches, 'length:', results.perfectMatches?.length);
+  console.log('mismatches type:', typeof results.mismatches, 'length:', results.mismatches?.length);
+  
+  if (results.mismatches && results.mismatches.length > 0) {
+    console.log('🔍 FIRST MISMATCH RAW STRUCTURE:');
+    console.log('Keys:', Object.keys(results.mismatches[0]));
+    console.log('Full object:', JSON.stringify(results.mismatches[0], null, 2));
+  }
+  
   const transformed = {
-    perfectMatches: (results.perfectMatches || []).map(match => ({
-      company1: transformForMongoDB(match.company1Transaction || match.company1),
-      company2: transformForMongoDB(match.company2Transaction || match.company2)
-    })),
-    mismatches: (results.mismatches || []).map(match => ({
-      company1: transformForMongoDB(match.company1Transaction || match.company1),
-      company2: transformForMongoDB(match.company2Transaction || match.company2)
-    })),
+    perfectMatches: (results.perfectMatches || []).map(match => {
+      const transformed = {
+        company1: transformForMongoDB(match.company1Transaction || match.company1),
+        company2: transformForMongoDB(match.company2Transaction || match.company2)
+      };
+      return transformed;
+    }),
+    mismatches: (results.mismatches || []).map((match, index) => {
+      if (index === 0) {
+        console.log('🔍 TRANSFORMING FIRST MISMATCH:');
+        console.log('Input match keys:', Object.keys(match));
+        console.log('match.company1Transaction:', match.company1Transaction);
+        console.log('match.company1:', match.company1);
+        console.log('match.company2Transaction:', match.company2Transaction);
+        console.log('match.company2:', match.company2);
+      }
+      
+      const transformed = {
+        company1: transformForMongoDB(match.company1Transaction || match.company1),
+        company2: transformForMongoDB(match.company2Transaction || match.company2)
+      };
+      
+      if (index === 0) {
+        console.log('🔍 TRANSFORMED FIRST MISMATCH:');
+        console.log('company1:', transformed.company1);
+        console.log('company2:', transformed.company2);
+      }
+      
+      return transformed;
+    }),
     unmatchedItems: {
       company1: (results.unmatchedItems?.company1 || []).map(transformForMongoDB),
       company2: (results.unmatchedItems?.company2 || []).map(transformForMongoDB)
@@ -126,7 +159,11 @@ const transformMatchingResults = (results) => {
     }
   };
   
-  console.log('📊 Transformation sample (first mismatch):', JSON.stringify(transformed.mismatches[0], null, 2));
+  console.log('📊 TRANSFORMED RESULTS COUNTS:');
+  console.log('perfectMatches:', transformed.perfectMatches.length);
+  console.log('mismatches:', transformed.mismatches.length);
+  console.log('unmatchedCompany1:', transformed.unmatchedItems.company1.length);
+  console.log('unmatchedCompany2:', transformed.unmatchedItems.company2.length);
   
   return transformed;
 };
@@ -335,6 +372,7 @@ router.post('/match-from-erp', requireAuth, async (req, res) => {
     const startTime = Date.now();
     
     // Run matching algorithm
+    console.log('🚀 Calling matchRecords...');
     const matchingResults = await matchRecords(
       company1Data,
       company2Data,
