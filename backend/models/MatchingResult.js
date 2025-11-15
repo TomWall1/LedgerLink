@@ -1,5 +1,30 @@
 import mongoose from 'mongoose';
 
+// Define the invoice subdocument schema explicitly
+const invoiceSchema = new mongoose.Schema({
+  transactionNumber: { type: String },
+  type: { type: String },
+  amount: { type: Number },
+  date: { type: Date },
+  dueDate: { type: Date },
+  status: { type: String },
+  reference: { type: String }
+}, { _id: false }); // _id: false means don't create an _id for each subdocument
+
+// Define the historical match schema (extends invoice schema with payment info)
+const historicalMatchSchema = new mongoose.Schema({
+  transactionNumber: { type: String },
+  type: { type: String },
+  amount: { type: Number },
+  date: { type: Date },
+  dueDate: { type: Date },
+  status: { type: String },
+  reference: { type: String },
+  payment_date: { type: Date },
+  is_paid: { type: Boolean },
+  is_voided: { type: Boolean }
+}, { _id: false });
+
 const matchingResultSchema = new mongoose.Schema({
   companyId: {
     type: String,
@@ -24,132 +49,51 @@ const matchingResultSchema = new mongoose.Schema({
     default: 'DD/MM/YYYY'
   },
   perfectMatches: [{
-    company1: {
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String
-    },
-    company2: {
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String
-    }
+    company1: { type: invoiceSchema },
+    company2: { type: invoiceSchema }
   }],
   mismatches: [{
-    company1: {
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String
-    },
-    company2: {
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String
-    }
+    company1: { type: invoiceSchema },
+    company2: { type: invoiceSchema }
   }],
   unmatchedItems: {
-    company1: [{
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String
-    }],
-    company2: [{
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String
-    }]
+    company1: [{ type: invoiceSchema }],
+    company2: [{ type: invoiceSchema }]
   },
   historicalInsights: [{
-    apItem: {
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String
-    },
-    historicalMatch: {
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String,
-      payment_date: Date,
-      is_paid: Boolean,
-      is_voided: Boolean
-    },
+    apItem: { type: invoiceSchema },
+    historicalMatch: { type: historicalMatchSchema },
     insight: {
-      type: String,
-      message: String,
-      severity: {
-        type: String,
-        enum: ['info', 'warning', 'error']
+      type: {
+        type: { type: String },
+        message: { type: String },
+        severity: {
+          type: String,
+          enum: ['info', 'warning', 'error']
+        }
       }
     }
   }],
   dateMismatches: [{
-    company1: {
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String
-    },
-    company2: {
-      transactionNumber: String,
-      type: String,
-      amount: Number,
-      date: Date,
-      dueDate: Date,
-      status: String,
-      reference: String
-    },
-    mismatchType: String,
-    company1Date: Date,
-    company2Date: Date,
-    daysDifference: Number
+    company1: { type: invoiceSchema },
+    company2: { type: invoiceSchema },
+    mismatchType: { type: String },
+    company1Date: { type: Date },
+    company2Date: { type: Date },
+    daysDifference: { type: Number }
   }],
   totals: {
-    company1Total: Number,
-    company2Total: Number,
-    variance: Number
+    company1Total: { type: Number },
+    company2Total: { type: Number },
+    variance: { type: Number }
   },
   statistics: {
-    perfectMatchCount: Number,
-    mismatchCount: Number,
-    unmatchedCompany1Count: Number,
-    unmatchedCompany2Count: Number,
-    matchRate: Number, // Percentage
-    processingTime: Number // milliseconds
+    perfectMatchCount: { type: Number },
+    mismatchCount: { type: Number },
+    unmatchedCompany1Count: { type: Number },
+    unmatchedCompany2Count: { type: Number },
+    matchRate: { type: Number }, // Percentage
+    processingTime: { type: Number } // milliseconds
   },
   metadata: {
     sourceType1: {
@@ -160,10 +104,10 @@ const matchingResultSchema = new mongoose.Schema({
       type: String,
       enum: ['csv', 'xero', 'quickbooks', 'manual', 'other']
     },
-    fileName1: String,
-    fileName2: String,
-    uploadedBy: String,
-    notes: String
+    fileName1: { type: String },
+    fileName2: { type: String },
+    uploadedBy: { type: String },
+    notes: { type: String }
   }
 }, {
   timestamps: true
