@@ -163,7 +163,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.matchRate.toFixed(1)}%</div>
+            <div className="text-2xl font-bold text-green-600">{(stats.matchRate || 0).toFixed(1)}%</div>
             <div className="text-sm text-neutral-600">Match Rate</div>
           </CardContent>
         </Card>
@@ -489,7 +489,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
               <span className="font-medium">Total Variance:</span> {formatCurrency(Math.abs(results.totals.variance))}
             </div>
             <div>
-              <span className="font-medium">Average Confidence:</span> {results.statistics.avgConfidence.toFixed(1)}%
+              <span className="font-medium">Average Confidence:</span> {(results.statistics.avgConfidence || 0).toFixed(1)}%
             </div>
           </div>
         </CardContent>
