@@ -27,6 +27,11 @@ export interface TransactionRecord {
   type?: string;
   vendor?: string;
   description?: string;
+  // Partial payment fields
+  is_partially_paid?: boolean;
+  amount_paid?: number;
+  original_amount?: number;
+  payment_date?: string;
   // Allow for additional fields from different CSV formats
   [key: string]: any;
 }
@@ -59,6 +64,27 @@ export interface UnmatchedItems {
   company2: TransactionRecord[];
 }
 
+// Date Mismatch - When matched transactions have date discrepancies
+export interface DateMismatch {
+  company1: TransactionRecord;
+  company2: TransactionRecord;
+  company1Date: string;
+  company2Date: string;
+  mismatchType: 'transaction_date' | 'due_date';
+  daysDifference: number;
+}
+
+// Historical Insight - Shows AP items with historical AR matches
+export interface HistoricalInsight {
+  apItem: TransactionRecord;
+  historicalMatch: TransactionRecord;
+  insight: {
+    message: string;
+    severity: 'error' | 'warning' | 'info';
+    type: string;
+  };
+}
+
 // Totals and Summary Information
 export interface MatchingTotals {
   company1Total: number;
@@ -86,10 +112,13 @@ export interface MatchingResults {
   perfectMatches: PerfectMatch[];
   mismatches: Mismatch[];
   unmatchedItems: UnmatchedItems;
+  dateMismatches?: DateMismatch[];
+  historicalInsights?: HistoricalInsight[];
   totals: MatchingTotals;
   statistics: MatchingStatistics;
   processingTime: number; // How long the matching took in milliseconds
   matchId?: string; // Database ID for this matching result
+  timestamp: string;
 }
 
 // Upload Request - What we send to the backend when uploading CSVs
