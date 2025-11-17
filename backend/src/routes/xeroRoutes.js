@@ -835,12 +835,15 @@ router.get('/customers/:contactId/invoices', async (req, res) => {
     }
     
     if (includeHistory !== 'true') {
-      // Only include outstanding invoices
+      // Only include outstanding invoices - exclude PAID, VOIDED, and DELETED
+      // This ensures only "open items" that appear on aged receivable reports are included
       const originalCount = invoices.length;
       invoices = invoices.filter(invoice => 
-        invoice.Status !== 'PAID' && invoice.Status !== 'VOIDED'
+        invoice.Status !== 'PAID' && 
+        invoice.Status !== 'VOIDED' && 
+        invoice.Status !== 'DELETED'
       );
-      console.log('   📊 Outstanding invoices (not PAID/VOIDED):', invoices.length, 'of', originalCount);
+      console.log('   📊 Outstanding invoices (not PAID/VOIDED/DELETED):', invoices.length, 'of', originalCount);
     }
     
     // FIXED: Wrap in proper data structure with pagination info
@@ -927,12 +930,15 @@ router.get('/suppliers/:contactId/invoices', async (req, res) => {
     }
     
     if (includeHistory !== 'true') {
-      // Only include outstanding bills
+      // Only include outstanding bills - exclude PAID, VOIDED, and DELETED
+      // This ensures only "open items" that appear on aged payable reports are included
       const originalCount = invoices.length;
       invoices = invoices.filter(invoice => 
-        invoice.Status !== 'PAID' && invoice.Status !== 'VOIDED'
+        invoice.Status !== 'PAID' && 
+        invoice.Status !== 'VOIDED' && 
+        invoice.Status !== 'DELETED'
       );
-      console.log('   📊 Outstanding bills (not PAID/VOIDED):', invoices.length, 'of', originalCount);
+      console.log('   📊 Outstanding bills (not PAID/VOIDED/DELETED):', invoices.length, 'of', originalCount);
     }
     
     res.json({
