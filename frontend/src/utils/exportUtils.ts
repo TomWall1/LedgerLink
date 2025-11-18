@@ -334,11 +334,3 @@ export const exportAllData = (results: MatchingResults, filenamePrefix?: string)
     exportHistoricalInsights(results.historicalInsights, `${prefix}_historical_insights_${dateStr}.csv`);
   }
 };
-
-// Legacy exports for backward compatibility
-export {
-  preparePerfectMatchesForExport as preparePerfectMatchesForExport,
-  prepareMismatchesForExport as prepareMismatchesForExport,
-  prepareUnmatchedItemsForExport as prepareUnmatchedItemsForExport,
-  prepareHistoricalInsightsForExport as prepareHistoricalInsightsForExport
-};
