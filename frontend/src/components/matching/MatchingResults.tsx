@@ -37,14 +37,23 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
   const dateDiscrepanciesRef = useRef<HTMLDivElement>(null);
 
   /**
+   * Safe number conversion - handles undefined/null
+   */
+  const safeNumber = (value: any, defaultValue: number = 0): number => {
+    const num = Number(value);
+    return isNaN(num) ? defaultValue : num;
+  };
+
+  /**
    * Format currency for display (USD)
    */
-  const formatCurrency = (amount: number): string => {
+  const formatCurrency = (amount: any): string => {
+    const num = safeNumber(amount, 0);
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2,
-    }).format(Math.abs(amount));
+    }).format(Math.abs(num));
   };
 
   /**
@@ -54,6 +63,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
     if (!dateString) return '-';
     try {
       const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '-';
       const day = String(date.getDate()).padStart(2, '0');
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = date.getFullYear();
@@ -66,9 +76,11 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
   /**
    * Format percentage for display
    */
-  const formatPercentage = (amount: number, total: number): string => {
-    if (total === 0) return '0%';
-    return `${((amount / total) * 100).toFixed(1)}%`;
+  const formatPercentage = (amount: any, total: any): string => {
+    const amountNum = safeNumber(amount, 0);
+    const totalNum = safeNumber(total, 0);
+    if (totalNum === 0) return '0%';
+    return `${((amountNum / totalNum) * 100).toFixed(1)}%`;
   };
 
   /**
@@ -97,8 +109,11 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
   const getPartialPaymentBadge = (item: TransactionRecord) => {
     if (!item.is_partially_paid) return null;
     
-    const percentPaid = item.amount_paid && item.original_amount
-      ? ((item.amount_paid / item.original_amount) * 100).toFixed(1)
+    const amountPaid = safeNumber(item.amount_paid, 0);
+    const originalAmount = safeNumber(item.original_amount, 0);
+    
+    const percentPaid = originalAmount > 0
+      ? ((amountPaid / originalAmount) * 100).toFixed(1)
       : '0';
     
     return (
@@ -125,25 +140,45 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
   };
 
   /**
-   * Calculate summary statistics
+   * Calculate summary statistics with safe defaults
    */
-  const totalAmount = results.totals.company1Total + results.totals.company2Total;
-  const matchedAmount = results.totals.perfectMatchTotal + results.totals.mismatchTotal;
-  const unmatchedAmount = results.totals.unmatchedTotal;
-  const perfectMatchAmount = results.totals.perfectMatchTotal;
-  const mismatchAmount = results.totals.mismatchTotal;
+  const totals = results.totals || {};
+  const statistics = results.statistics || {};
+  
+  const company1Total = safeNumber(totals.company1Total, 0);
+  const company2Total = safeNumber(totals.company2Total, 0);
+  const variance = safeNumber(totals.variance, 0);
+  const perfectMatchTotal = safeNumber(totals.perfectMatchTotal, 0);
+  const mismatchTotal = safeNumber(totals.mismatchTotal, 0);
+  const unmatchedTotal = safeNumber(totals.unmatchedTotal, 0);
+  
+  const totalAmount = company1Total + company2Total;
+  const matchedAmount = perfectMatchTotal + mismatchTotal;
+  const unmatchedAmount = unmatchedTotal;
+  const perfectMatchAmount = perfectMatchTotal;
+  const mismatchAmount = mismatchTotal;
 
-  const perfectMatchPercentage = totalAmount > 0
-    ? ((results.perfectMatches.length / (results.perfectMatches.length + results.mismatches.length + results.unmatchedItems.company1.length + results.unmatchedItems.company2.length)) * 100).toFixed(1)
+  const perfectMatches = results.perfectMatches || [];
+  const mismatches = results.mismatches || [];
+  const unmatchedCompany1 = results.unmatchedItems?.company1 || [];
+  const unmatchedCompany2 = results.unmatchedItems?.company2 || [];
+  
+  const totalRecords = perfectMatches.length + mismatches.length + unmatchedCompany1.length + unmatchedCompany2.length;
+  
+  const perfectMatchPercentage = totalRecords > 0
+    ? ((perfectMatches.length / totalRecords) * 100).toFixed(1)
     : '0';
   
-  const mismatchPercentage = totalAmount > 0
-    ? ((results.mismatches.length / (results.perfectMatches.length + results.mismatches.length + results.unmatchedItems.company1.length + results.unmatchedItems.company2.length)) * 100).toFixed(1)
+  const mismatchPercentage = totalRecords > 0
+    ? ((mismatches.length / totalRecords) * 100).toFixed(1)
     : '0';
   
-  const unmatchedPercentage = totalAmount > 0
-    ? (((results.unmatchedItems.company1.length + results.unmatchedItems.company2.length) / (results.perfectMatches.length + results.mismatches.length + results.unmatchedItems.company1.length + results.unmatchedItems.company2.length)) * 100).toFixed(1)
+  const unmatchedPercentage = totalRecords > 0
+    ? (((unmatchedCompany1.length + unmatchedCompany2.length) / totalRecords) * 100).toFixed(1)
     : '0';
+
+  const processingTime = safeNumber(results.processingTime, 0);
+  const avgConfidence = safeNumber(statistics.avgConfidence, 0);
 
   return (
     <div className="space-y-6">
@@ -152,7 +187,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
         <div>
           <h2 className="text-2xl font-bold text-[#1B365D]">Matching Results</h2>
           <p className="text-neutral-600">
-            Processing completed in {(results.processingTime / 1000).toFixed(2)} seconds
+            Processing completed in {(processingTime / 1000).toFixed(2)} seconds
           </p>
         </div>
         
@@ -172,7 +207,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
           <CardContent className="p-6">
             <div className="text-sm text-neutral-600 mb-1">AR Total (Accounts Receivable)</div>
             <div className="text-3xl font-bold text-[#00A4B4]">
-              {formatCurrency(results.totals.company1Total)}
+              {formatCurrency(company1Total)}
             </div>
           </CardContent>
         </Card>
@@ -181,16 +216,16 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
           <CardContent className="p-6">
             <div className="text-sm text-neutral-600 mb-1">AP Total (Accounts Payable)</div>
             <div className="text-3xl font-bold text-[#00A4B4]">
-              {formatCurrency(results.totals.company2Total)}
+              {formatCurrency(company2Total)}
             </div>
           </CardContent>
         </Card>
 
-        <Card className={`border-l-4 ${Math.abs(results.totals.variance) < 1 ? 'border-green-500' : 'border-red-500'}`}>
+        <Card className={`border-l-4 ${Math.abs(variance) < 1 ? 'border-green-500' : 'border-red-500'}`}>
           <CardContent className="p-6">
             <div className="text-sm text-neutral-600 mb-1">Variance</div>
-            <div className={`text-3xl font-bold ${Math.abs(results.totals.variance) < 1 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(results.totals.variance)}
+            <div className={`text-3xl font-bold ${Math.abs(variance) < 1 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatCurrency(variance)}
             </div>
           </CardContent>
         </Card>
@@ -205,7 +240,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
         >
           <CardContent className="p-6 text-center">
             <div className="text-4xl font-bold text-green-600 mb-2">
-              {results.perfectMatches.length}
+              {perfectMatches.length}
             </div>
             <div className="text-sm font-medium text-neutral-900 mb-1">Perfect Matches</div>
             <div className="text-xs text-neutral-600 mb-2">{formatCurrency(perfectMatchAmount)}</div>
@@ -220,7 +255,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
         >
           <CardContent className="p-6 text-center">
             <div className="text-4xl font-bold text-yellow-600 mb-2">
-              {results.mismatches.length}
+              {mismatches.length}
             </div>
             <div className="text-sm font-medium text-neutral-900 mb-1">Mismatches</div>
             <div className="text-xs text-neutral-600 mb-2">{formatCurrency(mismatchAmount)}</div>
@@ -235,7 +270,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
         >
           <CardContent className="p-6 text-center">
             <div className="text-4xl font-bold text-red-600 mb-2">
-              {results.unmatchedItems.company1.length + results.unmatchedItems.company2.length}
+              {unmatchedCompany1.length + unmatchedCompany2.length}
             </div>
             <div className="text-sm font-medium text-neutral-900 mb-1">Unmatched Items</div>
             <div className="text-xs text-neutral-600 mb-2">{formatCurrency(unmatchedAmount)}</div>
@@ -266,14 +301,14 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
           <CardHeader>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-[#1B365D]">
-                Perfect Matches ({results.perfectMatches.length})
+                Perfect Matches ({perfectMatches.length})
               </h3>
-              <ExportPerfectMatchesButton data={results.perfectMatches} />
+              <ExportPerfectMatchesButton data={perfectMatches} />
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              {results.perfectMatches.length > 0 ? (
+              {perfectMatches.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -286,11 +321,12 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {results.perfectMatches.map((match, index) => {
-                      const record = match.company1.transactionNumber ? match.company1 : match.company2;
+                    {perfectMatches.map((match, index) => {
+                      const record = match.company1?.transactionNumber ? match.company1 : match.company2;
+                      if (!record) return null;
                       return (
                         <TableRow key={index}>
-                          <TableCell className="font-mono">{record.transactionNumber}</TableCell>
+                          <TableCell className="font-mono">{record.transactionNumber || '-'}</TableCell>
                           <TableCell>{record.type || '-'}</TableCell>
                           <TableCell className="font-mono">
                             {formatCurrency(record.amount)}
@@ -320,14 +356,14 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
           <CardHeader>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-[#1B365D]">
-                Mismatches ({results.mismatches.length})
+                Mismatches ({mismatches.length})
               </h3>
-              <ExportMismatchesButton data={results.mismatches} />
+              <ExportMismatchesButton data={mismatches} />
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              {results.mismatches.length > 0 ? (
+              {mismatches.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -341,33 +377,33 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {results.mismatches.map((mismatch, index) => {
-                      const difference = Math.abs(
-                        (mismatch.company1.amount || 0) - (mismatch.company2.amount || 0)
-                      );
+                    {mismatches.map((mismatch, index) => {
+                      const amount1 = safeNumber(mismatch.company1?.amount, 0);
+                      const amount2 = safeNumber(mismatch.company2?.amount, 0);
+                      const difference = Math.abs(amount1 - amount2);
                       
                       return (
                         <TableRow key={index}>
                           <TableCell className="font-mono">
-                            {mismatch.company1.transactionNumber || mismatch.company2.transactionNumber}
+                            {mismatch.company1?.transactionNumber || mismatch.company2?.transactionNumber || '-'}
                           </TableCell>
-                          <TableCell>{mismatch.company1.type || mismatch.company2.type || '-'}</TableCell>
+                          <TableCell>{mismatch.company1?.type || mismatch.company2?.type || '-'}</TableCell>
                           <TableCell className="font-mono">
-                            {formatCurrency(mismatch.company1.amount)}
-                            {getPartialPaymentBadge(mismatch.company1)}
+                            {formatCurrency(amount1)}
+                            {mismatch.company1 && getPartialPaymentBadge(mismatch.company1)}
                           </TableCell>
                           <TableCell className="font-mono">
-                            {formatCurrency(mismatch.company2.amount)}
-                            {getPartialPaymentBadge(mismatch.company2)}
+                            {formatCurrency(amount2)}
+                            {mismatch.company2 && getPartialPaymentBadge(mismatch.company2)}
                           </TableCell>
                           <TableCell className="font-mono text-orange-600">
                             {formatCurrency(difference)}
                           </TableCell>
                           <TableCell>
-                            {formatDate(mismatch.company1.date || mismatch.company2.date)}
+                            {formatDate(mismatch.company1?.date || mismatch.company2?.date)}
                           </TableCell>
                           <TableCell>
-                            {getStatusBadge(mismatch.company1.status || mismatch.company2.status)}
+                            {getStatusBadge(mismatch.company1?.status || mismatch.company2?.status)}
                           </TableCell>
                         </TableRow>
                       );
@@ -389,7 +425,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
         <Card className="border-l-4 border-red-500">
           <CardHeader>
             <h3 className="text-lg font-semibold text-[#1B365D]">
-              Unmatched Items ({results.unmatchedItems.company1.length + results.unmatchedItems.company2.length})
+              Unmatched Items ({unmatchedCompany1.length + unmatchedCompany2.length})
             </h3>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
@@ -397,12 +433,12 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-md font-medium text-neutral-900">
-                  Unmatched Receivables ({results.unmatchedItems.company1.length})
+                  Unmatched Receivables ({unmatchedCompany1.length})
                 </h4>
-                <ExportUnmatchedReceivablesButton data={results.unmatchedItems.company1} />
+                <ExportUnmatchedReceivablesButton data={unmatchedCompany1} />
               </div>
               <div className="overflow-x-auto">
-                {results.unmatchedItems.company1.length > 0 ? (
+                {unmatchedCompany1.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -414,9 +450,9 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {results.unmatchedItems.company1.map((item, index) => (
+                      {unmatchedCompany1.map((item, index) => (
                         <TableRow key={index}>
-                          <TableCell className="font-mono">{item.transactionNumber}</TableCell>
+                          <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
                           <TableCell className="font-mono">
                             {formatCurrency(item.amount)}
                             {getPartialPaymentBadge(item)}
@@ -440,12 +476,12 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-md font-medium text-neutral-900">
-                  Unmatched Payables ({results.unmatchedItems.company2.length})
+                  Unmatched Payables ({unmatchedCompany2.length})
                 </h4>
-                <ExportUnmatchedPayablesButton data={results.unmatchedItems.company2} />
+                <ExportUnmatchedPayablesButton data={unmatchedCompany2} />
               </div>
               <div className="overflow-x-auto">
-                {results.unmatchedItems.company2.length > 0 ? (
+                {unmatchedCompany2.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -457,9 +493,9 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {results.unmatchedItems.company2.map((item, index) => (
+                      {unmatchedCompany2.map((item, index) => (
                         <TableRow key={index}>
-                          <TableCell className="font-mono">{item.transactionNumber}</TableCell>
+                          <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
                           <TableCell className="font-mono">
                             {formatCurrency(item.amount)}
                             {getPartialPaymentBadge(item)}
@@ -509,20 +545,20 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                     {results.dateMismatches.map((mismatch, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-mono">
-                          {mismatch.company1.transactionNumber}
+                          {mismatch.company1?.transactionNumber || '-'}
                         </TableCell>
-                        <TableCell>{mismatch.company1.type || '-'}</TableCell>
+                        <TableCell>{mismatch.company1?.type || '-'}</TableCell>
                         <TableCell className="font-mono">
-                          {formatCurrency(mismatch.company1.amount)}
+                          {formatCurrency(mismatch.company1?.amount)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="warning">{mismatch.mismatchType.replace('_', ' ')}</Badge>
+                          <Badge variant="warning">{mismatch.mismatchType?.replace('_', ' ') || 'Unknown'}</Badge>
                         </TableCell>
                         <TableCell>{formatDate(mismatch.company1Date)}</TableCell>
                         <TableCell>{formatDate(mismatch.company2Date)}</TableCell>
                         <TableCell>
                           <span className="font-medium text-purple-600">
-                            {Math.abs(mismatch.daysDifference)} days
+                            {Math.abs(safeNumber(mismatch.daysDifference, 0))} days
                           </span>
                         </TableCell>
                       </TableRow>
@@ -554,9 +590,9 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                   <div className="border-r border-neutral-200 pr-4">
                     <div className="text-xs font-medium text-neutral-600 mb-2">AP Item</div>
                     <div className="space-y-1">
-                      <div className="font-mono text-sm">{insight.apItem.transactionNumber}</div>
-                      <div className="text-sm font-medium">{formatCurrency(insight.apItem.amount)}</div>
-                      <div className="text-xs text-neutral-600">{formatDate(insight.apItem.date)}</div>
+                      <div className="font-mono text-sm">{insight.apItem?.transactionNumber || '-'}</div>
+                      <div className="text-sm font-medium">{formatCurrency(insight.apItem?.amount)}</div>
+                      <div className="text-xs text-neutral-600">{formatDate(insight.apItem?.date)}</div>
                     </div>
                   </div>
 
@@ -564,15 +600,15 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                   <div className="border-r border-neutral-200 pr-4">
                     <div className="text-xs font-medium text-neutral-600 mb-2">AR Historical Match</div>
                     <div className="space-y-1">
-                      <div className="font-mono text-sm">{insight.historicalMatch.transactionNumber}</div>
+                      <div className="font-mono text-sm">{insight.historicalMatch?.transactionNumber || '-'}</div>
                       <div className="text-sm">
-                        Original: {formatCurrency(insight.historicalMatch.original_amount || 0)}
+                        Original: {formatCurrency(insight.historicalMatch?.original_amount)}
                       </div>
                       <div className="text-sm text-green-600">
-                        Paid: {formatCurrency(insight.historicalMatch.amount_paid || 0)}
+                        Paid: {formatCurrency(insight.historicalMatch?.amount_paid)}
                       </div>
                       <div className="text-xs text-neutral-600">
-                        {formatDate(insight.historicalMatch.payment_date)}
+                        {formatDate(insight.historicalMatch?.payment_date)}
                       </div>
                     </div>
                   </div>
@@ -580,10 +616,10 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                   {/* Insight */}
                   <div className="pl-4">
                     <div className="text-xs font-medium text-neutral-600 mb-2">Insight</div>
-                    <Badge variant={getInsightBadgeClass(insight.insight.severity)} className="mb-2">
-                      {insight.insight.type}
+                    <Badge variant={getInsightBadgeClass(insight.insight?.severity || 'info')} className="mb-2">
+                      {insight.insight?.type || 'Unknown'}
                     </Badge>
-                    <div className="text-sm text-neutral-700">{insight.insight.message}</div>
+                    <div className="text-sm text-neutral-700">{insight.insight?.message || 'No details available'}</div>
                   </div>
                 </div>
               ))}
@@ -598,15 +634,15 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-neutral-600">
             <div>
               <span className="font-medium text-[#1B365D]">Processing Time:</span>{' '}
-              {(results.processingTime / 1000).toFixed(2)}s
+              {(processingTime / 1000).toFixed(2)}s
             </div>
             <div>
               <span className="font-medium text-[#1B365D]">Total Variance:</span>{' '}
-              {formatCurrency(Math.abs(results.totals.variance))}
+              {formatCurrency(Math.abs(variance))}
             </div>
             <div>
               <span className="font-medium text-[#1B365D]">Average Confidence:</span>{' '}
-              {(results.statistics.avgConfidence || 0).toFixed(1)}%
+              {avgConfidence.toFixed(1)}%
             </div>
           </div>
         </CardContent>
