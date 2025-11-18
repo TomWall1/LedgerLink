@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Button } from '../ui/Button';
-import { MatchingResults, PerfectMatch, Mismatch, TransactionRecord } from '../../types/matching';
+import { MatchingResults } from '../../types/matching';
 import {
   exportPerfectMatches,
   exportMismatches,
@@ -237,14 +237,4 @@ export const ExportAllDataButton: React.FC<ExportAllDataButtonProps> = ({
       {isExporting ? 'Exporting...' : 'Export All Data'}
     </Button>
   );
-};
-
-// Export all components
-export default {
-  ExportPerfectMatchesButton,
-  ExportMismatchesButton,
-  ExportUnmatchedReceivablesButton,
-  ExportUnmatchedPayablesButton,
-  ExportHistoricalInsightsButton,
-  ExportAllDataButton
 };
