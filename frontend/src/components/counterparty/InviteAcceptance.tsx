@@ -40,7 +40,7 @@ export const InviteAcceptance: React.FC = () => {
       }
 
       const response = await axios.post(
-        `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001'}/api/counterparty/invite/accept`,
+        `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'}/api/counterparty/invite/accept`,
         { inviteCode },
         {
           headers: { Authorization: `Bearer ${token}` }
