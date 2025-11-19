@@ -55,7 +55,7 @@ export const CustomerVendorList: React.FC<CustomerVendorListProps> = ({ onInvite
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001'}/api/counterparty/erp-contacts`,
+        `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'}/api/counterparty/erp-contacts`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -81,7 +81,7 @@ export const CustomerVendorList: React.FC<CustomerVendorListProps> = ({ onInvite
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001'}/api/counterparty/invite`,
+        `${process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'}/api/counterparty/invite`,
         {
           erpConnectionId: inviteModal.contact.erpConnectionId,
           erpContactId: inviteModal.contact.erpContactId,
