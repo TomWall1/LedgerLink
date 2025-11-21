@@ -95,9 +95,36 @@ const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD/MM/YYY
           removeFromUnmatched(unmatchedItems, item1, match);
         }
       } else if (potentialMatches.length > 1) {
-        const bestMatch = findBestMatch(item1, potentialMatches);
-        mismatches.push({ company1: item1, company2: bestMatch });
-        removeFromUnmatched(unmatchedItems, item1, bestMatch);
+        // FIX: When multiple potential matches exist, check if one is a PERFECT match
+        // before automatically classifying as mismatch
+        
+        // First, try to find an exact transaction number match with matching amount
+        const perfectMatch = findPerfectMatchAmongCandidates(item1, potentialMatches);
+        
+        if (perfectMatch) {
+          // Found a perfect match among the candidates
+          perfectMatches.push({ company1: item1, company2: perfectMatch });
+          
+          // Check for date mismatches in perfect matches
+          const dateMismatch = findDateMismatch(item1, perfectMatch);
+          if (dateMismatch) {
+            dateMismatches.push({
+              company1: item1,
+              company2: perfectMatch,
+              mismatchType: dateMismatch.type,
+              company1Date: dateMismatch.date1,
+              company2Date: dateMismatch.date2,
+              daysDifference: dateMismatch.daysDifference
+            });
+          }
+          
+          removeFromUnmatched(unmatchedItems, item1, perfectMatch);
+        } else {
+          // No perfect match found, use best match as a mismatch
+          const bestMatch = findBestMatch(item1, potentialMatches);
+          mismatches.push({ company1: item1, company2: bestMatch });
+          removeFromUnmatched(unmatchedItems, item1, bestMatch);
+        }
       }
       // If no matches found, item1 remains in unmatchedItems.company1
     }
@@ -163,6 +190,57 @@ const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD/MM/YYY
     console.error('Error in matchRecords:', error);
     throw new Error(`Matching error: ${error.message}`);
   }
+};
+
+/**
+ * Find a perfect match among multiple candidates
+ * Prioritizes exact transaction number matches over reference-only matches
+ * @param {Object} item1 - Item from first company
+ * @param {Array} candidates - Array of potential matches
+ * @returns {Object|null} - Perfect match or null if none found
+ */
+const findPerfectMatchAmongCandidates = (item1, candidates) => {
+  // First priority: Find exact transaction number match with matching amount
+  for (const candidate of candidates) {
+    // Check for exact transaction number match
+    if (item1.transactionNumber && candidate.transactionNumber && 
+        item1.transactionNumber === candidate.transactionNumber) {
+      
+      // Check if amounts match (within tolerance)
+      const amount1 = Math.abs(item1.amount || 0);
+      const amount2 = Math.abs(candidate.amount || 0);
+      const amountsMatch = Math.abs(amount1 - amount2) < 0.01;
+      
+      // Check if neither is partially paid
+      const notPartiallyPaid = !item1.is_partially_paid && !candidate.is_partially_paid;
+      
+      if (amountsMatch && notPartiallyPaid) {
+        console.log(`✅ Found perfect transaction number match: ${item1.transactionNumber}`);
+        return candidate;
+      }
+    }
+  }
+  
+  // Second priority: If no transaction number match, check for reference match with matching amount
+  // But only if there's exactly one reference match with matching amount
+  const referenceMatches = candidates.filter(candidate => {
+    if (item1.reference && candidate.reference && 
+        item1.reference === candidate.reference) {
+      const amount1 = Math.abs(item1.amount || 0);
+      const amount2 = Math.abs(candidate.amount || 0);
+      return Math.abs(amount1 - amount2) < 0.01;
+    }
+    return false;
+  });
+  
+  // Only return a reference match if there's exactly one
+  if (referenceMatches.length === 1 && !referenceMatches[0].is_partially_paid && !item1.is_partially_paid) {
+    console.log(`✅ Found unique reference match: ${item1.reference}`);
+    return referenceMatches[0];
+  }
+  
+  // No perfect match found
+  return null;
 };
 
 /**
@@ -450,22 +528,33 @@ const calculateVariance = (total1, total2) => {
   return Math.abs(total1 - Math.abs(total2));
 };
 
+/**
+ * Find potential matches for an item in company2 data
+ * Prioritizes transaction number matches over reference matches
+ * @param {Object} item1 - Item from first company
+ * @param {Array} company2Data - Array of items from second company
+ * @returns {Array} - Array of potential matches
+ */
 const findPotentialMatches = (item1, company2Data) => {
-  return company2Data.filter(item2 => {
-    // Basic case: exact transaction number match
-    if (item1.transactionNumber && item2.transactionNumber && 
-        item1.transactionNumber === item2.transactionNumber) {
-      return true;
-    }
-    
-    // Alternative: reference match if both have references
-    if (item1.reference && item2.reference && 
-        item1.reference === item2.reference) {
-      return true;
-    }
-    
-    return false;
+  // First, look for exact transaction number matches
+  const transactionNumberMatches = company2Data.filter(item2 => {
+    return item1.transactionNumber && item2.transactionNumber && 
+           item1.transactionNumber === item2.transactionNumber;
   });
+  
+  // If we have transaction number matches, return only those
+  // This prevents reference-only matches from polluting the results
+  if (transactionNumberMatches.length > 0) {
+    return transactionNumberMatches;
+  }
+  
+  // If no transaction number matches, fall back to reference matches
+  const referenceMatches = company2Data.filter(item2 => {
+    return item1.reference && item2.reference && 
+           item1.reference === item2.reference;
+  });
+  
+  return referenceMatches;
 };
 
 const isExactMatch = (item1, item2) => {
@@ -512,11 +601,11 @@ const calculateMatchScore = (item1, item2) => {
   const amount2 = Math.abs(item2.amount || 0);
   if (Math.abs(amount1 - amount2) < 0.01) score += 3;
 
-  // Transaction number match
+  // Transaction number match - highest priority
   if (item1.transactionNumber && item2.transactionNumber && 
-      item1.transactionNumber === item2.transactionNumber) score += 2;
+      item1.transactionNumber === item2.transactionNumber) score += 5;
 
-  // Reference match
+  // Reference match - lower priority than transaction number
   if (item1.reference && item2.reference && 
       item1.reference === item2.reference) score += 2;
 
@@ -564,5 +653,6 @@ export {
   isExactMatch,
   findBestMatch,
   calculateMatchScore,
-  formatCurrency
+  formatCurrency,
+  findPerfectMatchAmongCandidates
 };
