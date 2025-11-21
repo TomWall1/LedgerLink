@@ -305,6 +305,12 @@ class XeroService {
       
       // Build where clause for filtering
       const whereConditions = [];
+      
+      // IMPORTANT: Always exclude DELETED and VOIDED invoices
+      // These should not appear in reconciliation reports as they are no longer active on the books
+      whereConditions.push('Status != "DELETED"');
+      whereConditions.push('Status != "VOIDED"');
+      
       if (filters.dateFrom) {
         whereConditions.push(`Date >= DateTime(${filters.dateFrom})`);
       }
@@ -315,9 +321,8 @@ class XeroService {
         whereConditions.push(`Status == "${filters.status}"`);
       }
       
-      if (whereConditions.length > 0) {
-        params.where = whereConditions.join(' AND ');
-      }
+      // Always apply the where clause (at minimum to exclude deleted/voided)
+      params.where = whereConditions.join(' AND ');
       
       console.log('🔍 Fetching Xero invoices with params:', params);
       
@@ -342,7 +347,7 @@ class XeroService {
         invoices = data.Invoices.Invoices;
       }
       
-      console.log(`✅ Extracted ${invoices.length} invoices from Xero API`);
+      console.log(`✅ Extracted ${invoices.length} invoices from Xero API (excluding DELETED and VOIDED)`);
       
       if (invoices.length > 0) {
         console.log('📋 First invoice sample:', {
@@ -399,7 +404,8 @@ class XeroService {
       console.log(`🔍 Fetching ${invoiceType} invoices for contact ${contactId}`);
       
       // Build where clause to filter by contact and type
-      const whereClause = `Contact.ContactID == Guid("${contactId}") AND Type == "${invoiceType}"`;
+      // IMPORTANT: Also exclude DELETED and VOIDED invoices - they should not appear in reconciliation
+      const whereClause = `Contact.ContactID == Guid("${contactId}") AND Type == "${invoiceType}" AND Status != "DELETED" AND Status != "VOIDED"`;
       
       const params = {
         where: whereClause,
@@ -420,7 +426,7 @@ class XeroService {
         invoices = data;
       }
       
-      console.log(`✅ Found ${invoices.length} ${invoiceType} invoices for contact`);
+      console.log(`✅ Found ${invoices.length} ${invoiceType} invoices for contact (excluding DELETED and VOIDED)`);
       
       if (invoices.length > 0) {
         console.log('   First invoice:', {
