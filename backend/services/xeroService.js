@@ -394,6 +394,7 @@ class XeroService {
 
   /**
    * Get invoices for a specific contact from Xero
+   * NOW INCLUDES CREDIT NOTES for proper reconciliation
    * @param {Object} connection - Xero connection
    * @param {string} contactId - Xero Contact ID
    * @param {string} invoiceType - 'ACCREC' for invoices or 'ACCPAY' for bills
@@ -401,11 +402,17 @@ class XeroService {
    */
   async getInvoicesForContact(connection, contactId, invoiceType = 'ACCREC') {
     try {
-      console.log(`🔍 Fetching ${invoiceType} invoices for contact ${contactId}`);
+      console.log(`🔍 Fetching ${invoiceType} invoices AND credit notes for contact ${contactId}`);
       
-      // Build where clause to filter by contact and type
-      // IMPORTANT: Also exclude DELETED and VOIDED invoices - they should not appear in reconciliation
-      const whereClause = `Contact.ContactID == Guid("${contactId}") AND Type == "${invoiceType}" AND Status != "DELETED" AND Status != "VOIDED"`;
+      // Determine the credit note type based on invoice type
+      // ACCREC = Sales Invoice, ACCRECCREDIT = Sales Credit Note (reduces customer balance)
+      // ACCPAY = Purchase Bill, ACCPAYCREDIT = Purchase Credit Note (reduces vendor balance)
+      const creditNoteType = invoiceType === 'ACCREC' ? 'ACCRECCREDIT' : 'ACCPAYCREDIT';
+      
+      // Build where clause to include BOTH invoices/bills AND credit notes
+      // IMPORTANT: Also exclude DELETED and VOIDED - they should not appear in reconciliation
+      // The OR condition allows us to get both document types in one query
+      const whereClause = `Contact.ContactID == Guid("${contactId}") AND (Type == "${invoiceType}" OR Type == "${creditNoteType}") AND Status != "DELETED" AND Status != "VOIDED"`;
       
       const params = {
         where: whereClause,
@@ -413,6 +420,7 @@ class XeroService {
       };
       
       console.log('   Query params:', params);
+      console.log('   Including types:', invoiceType, 'and', creditNoteType);
       
       const data = await this.makeApiRequest(connection, '/Invoices', {
         params
@@ -426,15 +434,46 @@ class XeroService {
         invoices = data;
       }
       
-      console.log(`✅ Found ${invoices.length} ${invoiceType} invoices for contact (excluding DELETED and VOIDED)`);
+      // Count document types for logging
+      const invoiceCount = invoices.filter(inv => inv.Type === invoiceType).length;
+      const creditNoteCount = invoices.filter(inv => inv.Type === creditNoteType).length;
+      
+      console.log(`✅ Found ${invoices.length} total documents for contact:`);
+      console.log(`   - ${invoiceCount} ${invoiceType} (${invoiceType === 'ACCREC' ? 'invoices' : 'bills'})`);
+      console.log(`   - ${creditNoteCount} ${creditNoteType} (credit notes)`);
+      console.log(`   (excluding DELETED and VOIDED)`);
       
       if (invoices.length > 0) {
-        console.log('   First invoice:', {
-          InvoiceNumber: invoices[0].InvoiceNumber,
-          Type: invoices[0].Type,
-          Total: invoices[0].Total,
-          Contact: invoices[0].Contact?.Name
+        const firstInvoice = invoices[0];
+        console.log('   First document:', {
+          InvoiceNumber: firstInvoice.InvoiceNumber,
+          Type: firstInvoice.Type,
+          Total: firstInvoice.Total,
+          Contact: firstInvoice.Contact?.Name
         });
+      }
+      
+      // CRITICAL: Convert credit note amounts to NEGATIVE values
+      // Credit notes reduce what's owed, so they should be negative in matching
+      invoices = invoices.map(invoice => {
+        if (invoice.Type === creditNoteType) {
+          // Make credit notes negative for proper reconciliation
+          // This ensures they reduce the balance rather than increase it
+          return {
+            ...invoice,
+            Total: -Math.abs(invoice.Total || 0),
+            AmountDue: -Math.abs(invoice.AmountDue || 0),
+            AmountPaid: -Math.abs(invoice.AmountPaid || 0),
+            SubTotal: -Math.abs(invoice.SubTotal || 0),
+            // Add a flag so frontend knows this is a credit note
+            IsCreditNote: true
+          };
+        }
+        return invoice;
+      });
+      
+      if (creditNoteCount > 0) {
+        console.log('   ✅ Converted credit note amounts to negative values for proper reconciliation');
       }
       
       // Return raw Xero invoices (not transformed) so frontend can transform them
