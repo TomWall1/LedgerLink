@@ -10,6 +10,8 @@
  * - Integrated CSV upload with date format selection
  * - Always-visible CSV templates and requirements
  * - Clean, professional design with LedgerLink branding
+ * 
+ * FIX: Now passes Xero connection ID to DataSourceBox components
  */
 
 import React, { useState, useEffect } from 'react';
@@ -66,6 +68,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   
   // Xero connection state
   const [isXeroConnected, setIsXeroConnected] = useState(false);
+  const [xeroConnectionId, setXeroConnectionId] = useState<string | undefined>(undefined); // FIX: Add connection ID
   const [checkingXero, setCheckingXero] = useState(true);
 
   // AR/AP data states
@@ -81,6 +84,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
   /**
    * Check if Xero is connected on mount
+   * FIX: Now also stores the connection ID (tenant ID)
    */
   useEffect(() => {
     const checkXeroConnection = async () => {
@@ -94,10 +98,22 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
       try {
         const connections = await xeroService.getConnections();
         console.log('✅ Xero connections found:', connections.length);
-        setIsXeroConnected(connections.length > 0);
+        
+        const hasConnection = connections.length > 0;
+        setIsXeroConnected(hasConnection);
+        
+        // FIX: Store the first connection's tenant ID for use in DataSourceBox
+        if (hasConnection) {
+          const connectionId = connections[0].tenantId;
+          console.log('📝 Using Xero connection ID:', connectionId);
+          setXeroConnectionId(connectionId);
+        } else {
+          setXeroConnectionId(undefined);
+        }
       } catch (error) {
         console.error('❌ Error checking Xero connection:', error);
         setIsXeroConnected(false);
+        setXeroConnectionId(undefined);
       } finally {
         setCheckingXero(false);
       }
@@ -399,11 +415,12 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
               <CardContent className="p-6">
                 {/* AR and AP Boxes Side by Side */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                  {/* AR Box */}
+                  {/* AR Box - FIX: Now passes xeroConnectionId */}
                   <DataSourceBox
                     side="AR"
                     title="Accounts Receivable Data"
                     isXeroConnected={isXeroConnected}
+                    xeroConnectionId={xeroConnectionId}
                     onDataLoaded={handleArDataLoad}
                     onError={(error) => showToast(error, 'error')}
                     counterpartyConnection={arCounterparty}
@@ -412,11 +429,12 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                     onConnectCounterparty={handleConnectCounterparty}
                   />
 
-                  {/* AP Box */}
+                  {/* AP Box - FIX: Now passes xeroConnectionId */}
                   <DataSourceBox
                     side="AP"
                     title="Accounts Payable Data"
                     isXeroConnected={isXeroConnected}
+                    xeroConnectionId={xeroConnectionId}
                     onDataLoaded={handleApDataLoad}
                     onError={(error) => showToast(error, 'error')}
                     counterpartyConnection={apCounterparty}
