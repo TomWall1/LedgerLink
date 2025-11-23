@@ -4,6 +4,30 @@ import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 dayjs.extend(customParseFormat);
 
 /**
+ * Detect if an item is a credit note
+ * Credit notes have types like ACCRECCREDIT or ACCPAYCREDIT, or are negative amounts
+ * @param {Object} item - Transaction item to check
+ * @returns {boolean} - True if item is a credit note
+ */
+const isCreditNote = (item) => {
+  // Check by transaction type - Xero uses ACCRECCREDIT and ACCPAYCREDIT
+  if (item.type && (
+    item.type.toUpperCase().includes('CREDIT') || 
+    item.type.toUpperCase() === 'ACCRECCREDIT' ||
+    item.type.toUpperCase() === 'ACCPAYCREDIT'
+  )) {
+    return true;
+  }
+  
+  // Also check if amount is negative (credit notes reduce balances)
+  if (item.amount && item.amount < 0) {
+    return true;
+  }
+  
+  return false;
+};
+
+/**
  * Match records between two datasets based on various criteria
  * @param {Array} company1Data - First company's transaction data
  * @param {Array} company2Data - Second company's transaction data
@@ -47,6 +71,11 @@ const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD/MM/YYY
     // Log normalized data for debugging
     console.log('Normalized Company1 sample:', normalizedCompany1.slice(0, 2));
     console.log('Normalized Company2 sample:', normalizedCompany2.slice(0, 2));
+    
+    // Count credit notes for logging
+    const company1CreditNotes = normalizedCompany1.filter(isCreditNote).length;
+    const company2CreditNotes = normalizedCompany2.filter(isCreditNote).length;
+    console.log(`📋 Credit notes detected - Company1: ${company1CreditNotes}, Company2: ${company2CreditNotes}`);
 
     const perfectMatches = [];
     const mismatches = [];
@@ -76,6 +105,11 @@ const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD/MM/YYY
         if (isExactMatch(item1, match)) {
           perfectMatches.push({ company1: item1, company2: match });
           
+          // Log credit note matches for debugging
+          if (isCreditNote(item1) || isCreditNote(match)) {
+            console.log(`✅ Matched credit note: ${item1.transactionNumber || item1.reference} ↔ ${match.transactionNumber || match.reference}`);
+          }
+          
           // NEW: Check for date mismatches in perfect matches
           const dateMismatch = findDateMismatch(item1, match);
           if (dateMismatch) {
@@ -104,6 +138,11 @@ const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD/MM/YYY
         if (perfectMatch) {
           // Found a perfect match among the candidates
           perfectMatches.push({ company1: item1, company2: perfectMatch });
+          
+          // Log credit note matches for debugging
+          if (isCreditNote(item1) || isCreditNote(perfectMatch)) {
+            console.log(`✅ Matched credit note (from multiple candidates): ${item1.transactionNumber || item1.reference} ↔ ${perfectMatch.transactionNumber || perfectMatch.reference}`);
+          }
           
           // Check for date mismatches in perfect matches
           const dateMismatch = findDateMismatch(item1, perfectMatch);
@@ -195,11 +234,14 @@ const matchRecords = async (company1Data, company2Data, dateFormat1 = 'DD/MM/YYY
 /**
  * Find a perfect match among multiple candidates
  * Prioritizes exact transaction number matches over reference-only matches
+ * SPECIAL HANDLING: For credit notes, reference matching is given equal priority
  * @param {Object} item1 - Item from first company
  * @param {Array} candidates - Array of potential matches
  * @returns {Object|null} - Perfect match or null if none found
  */
 const findPerfectMatchAmongCandidates = (item1, candidates) => {
+  const isItem1CreditNote = isCreditNote(item1);
+  
   // First priority: Find exact transaction number match with matching amount
   for (const candidate of candidates) {
     // Check for exact transaction number match
@@ -221,22 +263,52 @@ const findPerfectMatchAmongCandidates = (item1, candidates) => {
     }
   }
   
-  // Second priority: If no transaction number match, check for reference match with matching amount
-  // But only if there's exactly one reference match with matching amount
-  const referenceMatches = candidates.filter(candidate => {
-    if (item1.reference && candidate.reference && 
-        item1.reference === candidate.reference) {
-      const amount1 = Math.abs(item1.amount || 0);
-      const amount2 = Math.abs(candidate.amount || 0);
-      return Math.abs(amount1 - amount2) < 0.01;
+  // Second priority: For CREDIT NOTES, check for reference match with matching amount
+  // This is CRITICAL because Xero credit notes (CN-001) often reference the original invoice (INV-001)
+  // and CSV credit notes might use the invoice number as their transaction number
+  if (isItem1CreditNote) {
+    const creditNoteReferenceMatches = candidates.filter(candidate => {
+      // Both must be credit notes for this special matching
+      if (!isCreditNote(candidate)) return false;
+      
+      // Check if reference matches
+      if (item1.reference && candidate.reference && 
+          item1.reference === candidate.reference) {
+        const amount1 = Math.abs(item1.amount || 0);
+        const amount2 = Math.abs(candidate.amount || 0);
+        return Math.abs(amount1 - amount2) < 0.01;
+      }
+      
+      return false;
+    });
+    
+    // Only return if there's exactly one credit note reference match
+    if (creditNoteReferenceMatches.length === 1 && 
+        !creditNoteReferenceMatches[0].is_partially_paid && 
+        !item1.is_partially_paid) {
+      console.log(`✅ Found unique credit note reference match: ${item1.reference} (Credit Note)`);
+      return creditNoteReferenceMatches[0];
     }
-    return false;
-  });
+  }
   
-  // Only return a reference match if there's exactly one
-  if (referenceMatches.length === 1 && !referenceMatches[0].is_partially_paid && !item1.is_partially_paid) {
-    console.log(`✅ Found unique reference match: ${item1.reference}`);
-    return referenceMatches[0];
+  // Third priority: If no transaction number match, check for reference match with matching amount
+  // But only if there's exactly one reference match with matching amount (for non-credit notes)
+  if (!isItem1CreditNote) {
+    const referenceMatches = candidates.filter(candidate => {
+      if (item1.reference && candidate.reference && 
+          item1.reference === candidate.reference) {
+        const amount1 = Math.abs(item1.amount || 0);
+        const amount2 = Math.abs(candidate.amount || 0);
+        return Math.abs(amount1 - amount2) < 0.01;
+      }
+      return false;
+    });
+    
+    // Only return a reference match if there's exactly one
+    if (referenceMatches.length === 1 && !referenceMatches[0].is_partially_paid && !item1.is_partially_paid) {
+      console.log(`✅ Found unique reference match: ${item1.reference}`);
+      return referenceMatches[0];
+    }
   }
   
   // No perfect match found
@@ -530,12 +602,14 @@ const calculateVariance = (total1, total2) => {
 
 /**
  * Find potential matches for an item in company2 data
- * Prioritizes transaction number matches over reference matches
+ * ENHANCED: Prioritizes transaction number matches, but for credit notes also considers reference matches
  * @param {Object} item1 - Item from first company
  * @param {Array} company2Data - Array of items from second company
  * @returns {Array} - Array of potential matches
  */
 const findPotentialMatches = (item1, company2Data) => {
+  const isItem1CreditNote = isCreditNote(item1);
+  
   // First, look for exact transaction number matches
   const transactionNumberMatches = company2Data.filter(item2 => {
     return item1.transactionNumber && item2.transactionNumber && 
@@ -548,7 +622,25 @@ const findPotentialMatches = (item1, company2Data) => {
     return transactionNumberMatches;
   }
   
-  // If no transaction number matches, fall back to reference matches
+  // ENHANCED FOR CREDIT NOTES: If this is a credit note, also look for reference matches
+  // where BOTH items are credit notes
+  if (isItem1CreditNote && item1.reference) {
+    const creditNoteReferenceMatches = company2Data.filter(item2 => {
+      // Both must be credit notes
+      if (!isCreditNote(item2)) return false;
+      
+      // Check if references match
+      return item2.reference && item1.reference === item2.reference;
+    });
+    
+    if (creditNoteReferenceMatches.length > 0) {
+      console.log(`🔍 Found ${creditNoteReferenceMatches.length} credit note reference matches for ${item1.reference}`);
+      return creditNoteReferenceMatches;
+    }
+  }
+  
+  // If no transaction number matches and not a credit note with reference matches,
+  // fall back to standard reference matches
   const referenceMatches = company2Data.filter(item2 => {
     return item1.reference && item2.reference && 
            item1.reference === item2.reference;
@@ -557,12 +649,35 @@ const findPotentialMatches = (item1, company2Data) => {
   return referenceMatches;
 };
 
+/**
+ * Check if two items are an exact match
+ * ENHANCED: For credit notes, allows matching by reference alone if both are credit notes
+ * @param {Object} item1 - Item from first company
+ * @param {Object} item2 - Item from second company
+ * @returns {boolean} - True if items match exactly
+ */
 const isExactMatch = (item1, item2) => {
-  // We must have transaction numbers or references that match
-  const idMatch = (item1.transactionNumber && item2.transactionNumber && 
-                  item1.transactionNumber === item2.transactionNumber) ||
-                 (item1.reference && item2.reference && 
-                  item1.reference === item2.reference);
+  const isItem1CreditNote = isCreditNote(item1);
+  const isItem2CreditNote = isCreditNote(item2);
+  
+  // ENHANCED: For credit notes, allow reference-only matching if both are credit notes
+  // This handles the case where Xero credit note CN-001 references invoice INV-001
+  // and CSV credit note uses INV-001 as its transaction number but also has INV-001 as reference
+  let idMatch = false;
+  
+  if (isItem1CreditNote && isItem2CreditNote) {
+    // For credit notes, reference matching is acceptable
+    idMatch = (item1.transactionNumber && item2.transactionNumber && 
+               item1.transactionNumber === item2.transactionNumber) ||
+              (item1.reference && item2.reference && 
+               item1.reference === item2.reference);
+  } else {
+    // For regular invoices, require transaction number or reference match
+    idMatch = (item1.transactionNumber && item2.transactionNumber && 
+               item1.transactionNumber === item2.transactionNumber) ||
+              (item1.reference && item2.reference && 
+               item1.reference === item2.reference);
+  }
   
   if (!idMatch) return false;
   
@@ -605,9 +720,19 @@ const calculateMatchScore = (item1, item2) => {
   if (item1.transactionNumber && item2.transactionNumber && 
       item1.transactionNumber === item2.transactionNumber) score += 5;
 
-  // Reference match - lower priority than transaction number
+  // Reference match - ENHANCED: Higher priority for credit notes
+  const isItem1CreditNote = isCreditNote(item1);
+  const isItem2CreditNote = isCreditNote(item2);
+  
   if (item1.reference && item2.reference && 
-      item1.reference === item2.reference) score += 2;
+      item1.reference === item2.reference) {
+    // Give higher score if both are credit notes
+    if (isItem1CreditNote && isItem2CreditNote) {
+      score += 4; // Almost as high as transaction number match for credit notes
+    } else {
+      score += 2; // Standard reference match score
+    }
+  }
 
   // Date proximity (if dates are valid)
   if (item1.date && item2.date) {
@@ -654,5 +779,6 @@ export {
   findBestMatch,
   calculateMatchScore,
   formatCurrency,
-  findPerfectMatchAmongCandidates
+  findPerfectMatchAmongCandidates,
+  isCreditNote
 };
