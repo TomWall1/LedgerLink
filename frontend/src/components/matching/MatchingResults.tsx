@@ -4,8 +4,8 @@
  * This component provides a comprehensive, professional display of matching results
  * with pagination/scrolling to handle large datasets efficiently.
  * 
- * NEW: Added expandable sections that show first 5 results with "Show More" button
- * NEW: Scroll containers for large result sets
+ * UPDATED: Fixed table layout to use full width with properly sized columns
+ * FIXED: Removed cramped horizontal scrolling, tables now expand to fill container
  */
 
 import React, { useState, useRef } from 'react';
@@ -382,39 +382,41 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className={showAllPerfectMatches && perfectMatches.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
+            <div className={showAllPerfectMatches && perfectMatches.length > INITIAL_DISPLAY_COUNT ? "max-h-96 overflow-y-auto" : ""}>
               {perfectMatches.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Transaction #</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {displayedPerfectMatches.map((match, index) => {
-                      const record = match.company1?.transactionNumber ? match.company1 : match.company2;
-                      if (!record) return null;
-                      return (
-                        <TableRow key={index}>
-                          <TableCell className="font-mono">{record.transactionNumber || '-'}</TableCell>
-                          <TableCell>{record.type || '-'}</TableCell>
-                          <TableCell className="font-mono">
-                            {formatCurrency(record.amount)}
-                            {getPartialPaymentBadge(record)}
-                          </TableCell>
-                          <TableCell>{formatDate(record.date)}</TableCell>
-                          <TableCell>{formatDate(record.dueDate)}</TableCell>
-                          <TableCell>{getStatusBadge(record.status)}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <div className="w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-48">Transaction #</TableHead>
+                        <TableHead className="w-32">Type</TableHead>
+                        <TableHead className="w-40">Amount</TableHead>
+                        <TableHead className="w-32">Date</TableHead>
+                        <TableHead className="w-32">Due Date</TableHead>
+                        <TableHead className="w-32">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedPerfectMatches.map((match, index) => {
+                        const record = match.company1?.transactionNumber ? match.company1 : match.company2;
+                        if (!record) return null;
+                        return (
+                          <TableRow key={index}>
+                            <TableCell className="font-mono">{record.transactionNumber || '-'}</TableCell>
+                            <TableCell>{record.type || '-'}</TableCell>
+                            <TableCell className="font-mono">
+                              {formatCurrency(record.amount)}
+                              {getPartialPaymentBadge(record)}
+                            </TableCell>
+                            <TableCell>{formatDate(record.date)}</TableCell>
+                            <TableCell>{formatDate(record.dueDate)}</TableCell>
+                            <TableCell>{getStatusBadge(record.status)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
                 <div className="p-8 text-center text-neutral-500">
                   No perfect matches found
@@ -445,54 +447,56 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className={showAllMismatches && mismatches.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
+            <div className={showAllMismatches && mismatches.length > INITIAL_DISPLAY_COUNT ? "max-h-96 overflow-y-auto" : ""}>
               {mismatches.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Transaction #</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Receivable Amount</TableHead>
-                      <TableHead>Payable Amount</TableHead>
-                      <TableHead>Difference</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {displayedMismatches.map((mismatch, index) => {
-                      const amount1 = safeNumber(mismatch.company1?.amount, 0);
-                      const amount2 = safeNumber(mismatch.company2?.amount, 0);
-                      const difference = Math.abs(amount1 - amount2);
-                      
-                      return (
-                        <TableRow key={index}>
-                          <TableCell className="font-mono">
-                            {mismatch.company1?.transactionNumber || mismatch.company2?.transactionNumber || '-'}
-                          </TableCell>
-                          <TableCell>{mismatch.company1?.type || mismatch.company2?.type || '-'}</TableCell>
-                          <TableCell className="font-mono">
-                            {formatCurrency(amount1)}
-                            {mismatch.company1 && getPartialPaymentBadge(mismatch.company1)}
-                          </TableCell>
-                          <TableCell className="font-mono">
-                            {formatCurrency(amount2)}
-                            {mismatch.company2 && getPartialPaymentBadge(mismatch.company2)}
-                          </TableCell>
-                          <TableCell className="font-mono text-orange-600">
-                            {formatCurrency(difference)}
-                          </TableCell>
-                          <TableCell>
-                            {formatDate(mismatch.company1?.date || mismatch.company2?.date)}
-                          </TableCell>
-                          <TableCell>
-                            {getStatusBadge(mismatch.company1?.status || mismatch.company2?.status)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <div className="w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-44">Transaction #</TableHead>
+                        <TableHead className="w-28">Type</TableHead>
+                        <TableHead className="w-40">Receivable Amount</TableHead>
+                        <TableHead className="w-40">Payable Amount</TableHead>
+                        <TableHead className="w-32">Difference</TableHead>
+                        <TableHead className="w-32">Date</TableHead>
+                        <TableHead className="w-28">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedMismatches.map((mismatch, index) => {
+                        const amount1 = safeNumber(mismatch.company1?.amount, 0);
+                        const amount2 = safeNumber(mismatch.company2?.amount, 0);
+                        const difference = Math.abs(amount1 - amount2);
+                        
+                        return (
+                          <TableRow key={index}>
+                            <TableCell className="font-mono">
+                              {mismatch.company1?.transactionNumber || mismatch.company2?.transactionNumber || '-'}
+                            </TableCell>
+                            <TableCell>{mismatch.company1?.type || mismatch.company2?.type || '-'}</TableCell>
+                            <TableCell className="font-mono">
+                              {formatCurrency(amount1)}
+                              {mismatch.company1 && getPartialPaymentBadge(mismatch.company1)}
+                            </TableCell>
+                            <TableCell className="font-mono">
+                              {formatCurrency(amount2)}
+                              {mismatch.company2 && getPartialPaymentBadge(mismatch.company2)}
+                            </TableCell>
+                            <TableCell className="font-mono text-orange-600">
+                              {formatCurrency(difference)}
+                            </TableCell>
+                            <TableCell>
+                              {formatDate(mismatch.company1?.date || mismatch.company2?.date)}
+                            </TableCell>
+                            <TableCell>
+                              {getStatusBadge(mismatch.company1?.status || mismatch.company2?.status)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
                 <div className="p-8 text-center text-neutral-500">
                   No mismatches found
@@ -528,33 +532,35 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                 </div>
                 <ExportUnmatchedReceivablesButton data={unmatchedCompany1} />
               </div>
-              <div className={showAllUnmatchedReceivables && unmatchedCompany1.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
+              <div className={showAllUnmatchedReceivables && unmatchedCompany1.length > INITIAL_DISPLAY_COUNT ? "max-h-96 overflow-y-auto" : ""}>
                 {unmatchedCompany1.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Transaction #</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Due Date</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {displayedUnmatchedCompany1.map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
-                          <TableCell className="font-mono">
-                            {formatCurrency(item.amount)}
-                            {getPartialPaymentBadge(item)}
-                          </TableCell>
-                          <TableCell>{formatDate(item.date)}</TableCell>
-                          <TableCell>{formatDate(item.dueDate)}</TableCell>
-                          <TableCell>{getStatusBadge(item.status)}</TableCell>
+                  <div className="w-full">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-1/5">Transaction #</TableHead>
+                          <TableHead className="w-1/5">Amount</TableHead>
+                          <TableHead className="w-1/5">Date</TableHead>
+                          <TableHead className="w-1/5">Due Date</TableHead>
+                          <TableHead className="w-1/5">Status</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {displayedUnmatchedCompany1.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
+                            <TableCell className="font-mono">
+                              {formatCurrency(item.amount)}
+                              {getPartialPaymentBadge(item)}
+                            </TableCell>
+                            <TableCell>{formatDate(item.date)}</TableCell>
+                            <TableCell>{formatDate(item.dueDate)}</TableCell>
+                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 ) : (
                   <div className="p-4 text-center text-neutral-500">
                     All receivables were matched
@@ -579,33 +585,35 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                 </div>
                 <ExportUnmatchedPayablesButton data={unmatchedCompany2} />
               </div>
-              <div className={showAllUnmatchedPayables && unmatchedCompany2.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
+              <div className={showAllUnmatchedPayables && unmatchedCompany2.length > INITIAL_DISPLAY_COUNT ? "max-h-96 overflow-y-auto" : ""}>
                 {unmatchedCompany2.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Transaction #</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Due Date</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {displayedUnmatchedCompany2.map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
-                          <TableCell className="font-mono">
-                            {formatCurrency(item.amount)}
-                            {getPartialPaymentBadge(item)}
-                          </TableCell>
-                          <TableCell>{formatDate(item.date)}</TableCell>
-                          <TableCell>{formatDate(item.dueDate)}</TableCell>
-                          <TableCell>{getStatusBadge(item.status)}</TableCell>
+                  <div className="w-full">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-1/5">Transaction #</TableHead>
+                          <TableHead className="w-1/5">Amount</TableHead>
+                          <TableHead className="w-1/5">Date</TableHead>
+                          <TableHead className="w-1/5">Due Date</TableHead>
+                          <TableHead className="w-1/5">Status</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {displayedUnmatchedCompany2.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
+                            <TableCell className="font-mono">
+                              {formatCurrency(item.amount)}
+                              {getPartialPaymentBadge(item)}
+                            </TableCell>
+                            <TableCell>{formatDate(item.date)}</TableCell>
+                            <TableCell>{formatDate(item.dueDate)}</TableCell>
+                            <TableCell>{getStatusBadge(item.status)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 ) : (
                   <div className="p-4 text-center text-neutral-500">
                     All payables were matched
@@ -635,43 +643,45 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className={showAllDateMismatches && results.dateMismatches.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Transaction #</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Discrepancy Type</TableHead>
-                      <TableHead>AR Date</TableHead>
-                      <TableHead>AP Date</TableHead>
-                      <TableHead>Days Difference</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {displayedDateMismatches.map((mismatch, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-mono">
-                          {mismatch.company1?.transactionNumber || '-'}
-                        </TableCell>
-                        <TableCell>{mismatch.company1?.type || '-'}</TableCell>
-                        <TableCell className="font-mono">
-                          {formatCurrency(mismatch.company1?.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="warning">{mismatch.mismatchType?.replace('_', ' ') || 'Unknown'}</Badge>
-                        </TableCell>
-                        <TableCell>{formatDate(mismatch.company1Date)}</TableCell>
-                        <TableCell>{formatDate(mismatch.company2Date)}</TableCell>
-                        <TableCell>
-                          <span className="font-medium text-purple-600">
-                            {Math.abs(safeNumber(mismatch.daysDifference, 0))} days
-                          </span>
-                        </TableCell>
+              <div className={showAllDateMismatches && results.dateMismatches.length > INITIAL_DISPLAY_COUNT ? "max-h-96 overflow-y-auto" : ""}>
+                <div className="w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-36">Transaction #</TableHead>
+                        <TableHead className="w-28">Type</TableHead>
+                        <TableHead className="w-32">Amount</TableHead>
+                        <TableHead className="w-40">Discrepancy Type</TableHead>
+                        <TableHead className="w-28">AR Date</TableHead>
+                        <TableHead className="w-28">AP Date</TableHead>
+                        <TableHead className="w-32">Days Difference</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedDateMismatches.map((mismatch, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-mono">
+                            {mismatch.company1?.transactionNumber || '-'}
+                          </TableCell>
+                          <TableCell>{mismatch.company1?.type || '-'}</TableCell>
+                          <TableCell className="font-mono">
+                            {formatCurrency(mismatch.company1?.amount)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="warning">{mismatch.mismatchType?.replace('_', ' ') || 'Unknown'}</Badge>
+                          </TableCell>
+                          <TableCell>{formatDate(mismatch.company1Date)}</TableCell>
+                          <TableCell>{formatDate(mismatch.company2Date)}</TableCell>
+                          <TableCell>
+                            <span className="font-medium text-purple-600">
+                              {Math.abs(safeNumber(mismatch.daysDifference, 0))} days
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
               {renderShowMoreButton(results.dateMismatches.length, showAllDateMismatches, () => setShowAllDateMismatches(!showAllDateMismatches), 'discrepancies')}
             </CardContent>
