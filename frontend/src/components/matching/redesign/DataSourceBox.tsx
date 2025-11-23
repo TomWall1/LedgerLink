@@ -10,6 +10,8 @@
  * - CSV upload with date format selection
  * - Counterparty connection display
  * - Smart state management and error handling
+ * 
+ * FIX: Added xeroConnectionId prop to properly fetch contacts from Xero
  */
 
 import React, { useState, useEffect } from 'react';
@@ -44,6 +46,7 @@ interface DataSourceBoxProps {
   side: 'AR' | 'AP';
   title: string;
   isXeroConnected: boolean;
+  xeroConnectionId?: string; // FIX: Add connection ID prop
   onDataLoaded: (data: LoadedDataSource) => void;
   onError: (error: string) => void;
   counterpartyConnection?: CounterpartyConnection | null;
@@ -56,6 +59,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   side,
   title,
   isXeroConnected,
+  xeroConnectionId, // FIX: Receive connection ID
   onDataLoaded,
   onError,
   counterpartyConnection,
@@ -82,57 +86,71 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
 
   /**
    * Load Xero contacts when Xero is selected
+   * FIX: Now properly uses connection ID
    */
   useEffect(() => {
     const loadXeroContacts = async () => {
-      if (dataSourceType !== 'xero' || !isXeroConnected) return;
+      // FIX: Check for connection ID before attempting to load
+      if (dataSourceType !== 'xero' || !isXeroConnected || !xeroConnectionId) {
+        console.log('⏭️ Skipping contact load:', { 
+          dataSourceType, 
+          isXeroConnected, 
+          hasConnectionId: !!xeroConnectionId 
+        });
+        return;
+      }
 
       setLoadingXeroContacts(true);
-      console.log(`📥 Loading Xero ${side === 'AR' ? 'customers' : 'suppliers'}...`);
+      console.log(`📥 Loading Xero ${side === 'AR' ? 'customers' : 'suppliers'} with connection ID:`, xeroConnectionId);
 
       try {
-        const contacts = await xeroService.getContacts(side === 'AR' ? 'customer' : 'supplier');
+        // FIX: Use getCustomers with connection ID
+        const contacts = await xeroService.getCustomers(xeroConnectionId);
         console.log(`✅ Loaded ${contacts.length} ${side === 'AR' ? 'customers' : 'suppliers'}`);
         setXeroContacts(contacts);
       } catch (error) {
         console.error('❌ Error loading Xero contacts:', error);
         onError(`Failed to load ${side === 'AR' ? 'customers' : 'suppliers'} from Xero`);
+        // Reset data source type on error to prevent loop
+        setDataSourceType(null);
       } finally {
         setLoadingXeroContacts(false);
       }
     };
 
     loadXeroContacts();
-  }, [dataSourceType, isXeroConnected, side, onError]);
+  }, [dataSourceType, isXeroConnected, xeroConnectionId, side, onError]);
 
   /**
    * Handle Xero contact selection and invoice loading
+   * FIX: Now properly uses connection ID
    */
   const handleContactSelection = async (contactId: string) => {
     setSelectedContact(contactId);
     
-    if (!contactId) return;
+    if (!contactId || !xeroConnectionId) return;
 
-    const contact = xeroContacts.find(c => c.contactID === contactId);
+    const contact = xeroContacts.find(c => c.ContactID === contactId);
     if (!contact) return;
 
     setLoadingXeroInvoices(true);
-    console.log(`📥 Loading invoices for ${contact.name}...`);
+    console.log(`📥 Loading invoices for ${contact.Name}...`);
 
     try {
-      // Fetch invoices from Xero
-      const invoices = await xeroService.getInvoices(
-        side === 'AR' ? 'customer' : 'supplier',
-        contactId
-      );
+      // FIX: Use correct API signature with connection ID
+      const result = await xeroService.getInvoices({
+        connectionId: xeroConnectionId,
+        contactId: contactId
+      });
 
-      console.log(`✅ Loaded ${invoices.length} invoices for ${contact.name}`);
+      const invoices = result.invoices;
+      console.log(`✅ Loaded ${invoices.length} invoices for ${contact.Name}`);
 
       // Create loaded data source
       const data: LoadedDataSource = {
         type: 'xero',
         invoices: invoices,
-        customerName: contact.name,
+        customerName: contact.Name,
         invoiceCount: invoices.length,
       };
 
@@ -420,8 +438,8 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
                   >
                     <option value="">Choose a {side === 'AR' ? 'customer' : 'supplier'}...</option>
                     {xeroContacts.map(contact => (
-                      <option key={contact.contactID} value={contact.contactID}>
-                        {contact.name}
+                      <option key={contact.ContactID} value={contact.ContactID}>
+                        {contact.Name}
                       </option>
                     ))}
                   </select>
