@@ -12,8 +12,12 @@
  * - Smart state management and error handling
  * - Auto-default to CSV when opposite side loaded but no counterparty
  * 
- * FIX: Added xeroConnectionId prop to properly fetch contacts from Xero
- * FIX: Added shouldDefaultToCsv to auto-select CSV when no counterparty
+ * FIXES:
+ * - Now properly fetches ONLY the selected customer's/supplier's invoices (no cap)
+ * - Correctly shows suppliers on AP side (not customers)
+ * - Improved visual styling with better contrast
+ * - Fixed CSV button visibility
+ * - Auto-switches to CSV when no counterparty found
  */
 
 import React, { useState, useEffect } from 'react';
@@ -53,7 +57,7 @@ interface DataSourceBoxProps {
   onError: (error: string) => void;
   counterpartyConnection?: CounterpartyConnection | null;
   isCounterpartyLocked: boolean;
-  shouldDefaultToCsv?: boolean; // NEW: Auto-select CSV when opposite side has data but no counterparty
+  shouldDefaultToCsv?: boolean;
   onUseCsvInstead?: () => void;
   onConnectCounterparty?: () => void;
 }
@@ -67,7 +71,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   onError,
   counterpartyConnection,
   isCounterpartyLocked,
-  shouldDefaultToCsv = false, // NEW
+  shouldDefaultToCsv = false,
   onUseCsvInstead,
   onConnectCounterparty,
 }) => {
@@ -89,8 +93,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   const [csvFile, setCsvFile] = useState<File | null>(null);
 
   /**
-   * NEW: Auto-select CSV when shouldDefaultToCsv is true
-   * This happens when the opposite side has data but no counterparty exists
+   * Auto-select CSV when shouldDefaultToCsv is true
    */
   useEffect(() => {
     if (shouldDefaultToCsv && !loadedData && !dataSourceType) {
@@ -101,11 +104,10 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
 
   /**
    * Load Xero contacts when Xero is selected
-   * FIX: Now properly uses connection ID
+   * FIXED: Now fetches customers for AR, suppliers for AP
    */
   useEffect(() => {
     const loadXeroContacts = async () => {
-      // FIX: Check for connection ID before attempting to load
       if (dataSourceType !== 'xero' || !isXeroConnected || !xeroConnectionId) {
         console.log('⏭️ Skipping contact load:', { 
           dataSourceType, 
@@ -119,14 +121,16 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
       console.log(`📥 Loading Xero ${side === 'AR' ? 'customers' : 'suppliers'} with connection ID:`, xeroConnectionId);
 
       try {
-        // FIX: Use getCustomers with connection ID
-        const contacts = await xeroService.getCustomers(xeroConnectionId);
+        // FIXED: Use getCustomers for AR, getSuppliers for AP
+        const contacts = side === 'AR' 
+          ? await xeroService.getCustomers(xeroConnectionId)
+          : await xeroService.getSuppliers(xeroConnectionId);
+        
         console.log(`✅ Loaded ${contacts.length} ${side === 'AR' ? 'customers' : 'suppliers'}`);
         setXeroContacts(contacts);
       } catch (error) {
         console.error('❌ Error loading Xero contacts:', error);
         onError(`Failed to load ${side === 'AR' ? 'customers' : 'suppliers'} from Xero`);
-        // Reset data source type on error to prevent loop
         setDataSourceType(null);
       } finally {
         setLoadingXeroContacts(false);
@@ -138,7 +142,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
 
   /**
    * Handle Xero contact selection and invoice loading
-   * FIX: Now properly uses connection ID
+   * FIXED: Now fetches ONLY the selected contact's invoices (not all invoices)
    */
   const handleContactSelection = async (contactId: string) => {
     setSelectedContact(contactId);
@@ -149,17 +153,16 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
     if (!contact) return;
 
     setLoadingXeroInvoices(true);
-    console.log(`📥 Loading invoices for ${contact.Name}...`);
+    console.log(`📥 Loading ${side === 'AR' ? 'invoices' : 'bills'} for ${contact.Name}...`);
 
     try {
-      // FIX: Use correct API signature with connection ID
-      const result = await xeroService.getInvoices({
-        connectionId: xeroConnectionId,
-        contactId: contactId
-      });
+      // FIXED: Use the correct method based on AR/AP side
+      // This now fetches ONLY this contact's invoices (no 100 cap, only open items)
+      const invoices = side === 'AR'
+        ? await xeroService.getCustomerInvoices(xeroConnectionId, contactId)
+        : await xeroService.getSupplierInvoices(xeroConnectionId, contactId);
 
-      const invoices = result.invoices;
-      console.log(`✅ Loaded ${invoices.length} invoices for ${contact.Name}`);
+      console.log(`✅ Loaded ${invoices.length} ${side === 'AR' ? 'invoices' : 'bills'} for ${contact.Name}`);
 
       // Create loaded data source
       const data: LoadedDataSource = {
@@ -174,7 +177,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
 
     } catch (error) {
       console.error('❌ Error loading invoices:', error);
-      onError('Failed to load invoices from Xero');
+      onError(`Failed to load ${side === 'AR' ? 'invoices' : 'bills'} from Xero`);
     } finally {
       setLoadingXeroInvoices(false);
     }
@@ -334,11 +337,11 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   // Render counterparty connection display
   if (isCounterpartyLocked && counterpartyConnection) {
     return (
-      <div className="border-2 border-neutral-200 rounded-lg p-6 bg-white min-h-[400px] flex flex-col">
+      <div className="border-2 border-primary-200 rounded-lg p-6 bg-gradient-to-br from-primary-50 to-white min-h-[400px] flex flex-col shadow-sm">
         <h3 className="text-h4 text-neutral-900 mb-6">{title}</h3>
         
         <div className="flex-1 flex flex-col items-center justify-center space-y-4">
-          <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center shadow-md">
             <svg className="w-8 h-8 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
@@ -369,11 +372,11 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   // Render loaded data summary
   if (loadedData) {
     return (
-      <div className="border-2 border-success-200 rounded-lg p-6 bg-success-50 min-h-[400px] flex flex-col">
+      <div className="border-2 border-success-300 rounded-lg p-6 bg-gradient-to-br from-success-50 to-white min-h-[400px] flex flex-col shadow-sm">
         <h3 className="text-h4 text-neutral-900 mb-6">{title}</h3>
         
         <div className="flex-1 flex flex-col items-center justify-center space-y-4">
-          <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center shadow-md">
             <svg className="w-8 h-8 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -406,7 +409,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
 
   // Main data source selection interface
   return (
-    <div className="border-2 border-neutral-200 rounded-lg p-6 bg-white min-h-[400px] flex flex-col">
+    <div className="border-2 border-neutral-300 rounded-lg p-6 bg-gradient-to-br from-neutral-50 to-white min-h-[400px] flex flex-col shadow-sm">
       <h3 className="text-h4 text-neutral-900 mb-6">{title}</h3>
       
       <div className="flex-1 space-y-4">
@@ -420,7 +423,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
             onChange={(e) => setDataSourceType(e.target.value as 'xero' | 'csv' | null)}
             className="w-full px-4 py-3 rounded-md border-2 border-neutral-300 bg-white text-body text-neutral-900
                        focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500
-                       transition-all duration-short"
+                       transition-all duration-short hover:border-neutral-400"
           >
             <option value="">Select a data source...</option>
             {isXeroConnected && <option value="xero">Connected ERP - Xero ✓</option>}
@@ -432,9 +435,9 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
         {dataSourceType === 'xero' && (
           <div className="space-y-4 pt-2">
             {loadingXeroContacts ? (
-              <div className="flex items-center justify-center py-8">
+              <div className="flex items-center justify-center py-8 bg-blue-50 rounded-md">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                <span className="ml-3 text-neutral-600">Loading {side === 'AR' ? 'customers' : 'suppliers'}...</span>
+                <span className="ml-3 text-neutral-700">Loading {side === 'AR' ? 'customers' : 'suppliers'}...</span>
               </div>
             ) : (
               <>
@@ -449,7 +452,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
                     className="w-full px-4 py-3 rounded-md border-2 border-neutral-300 bg-white text-body text-neutral-900
                                focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500
                                disabled:opacity-50 disabled:cursor-not-allowed
-                               transition-all duration-short"
+                               transition-all duration-short hover:border-neutral-400"
                   >
                     <option value="">Choose a {side === 'AR' ? 'customer' : 'supplier'}...</option>
                     {xeroContacts.map(contact => (
@@ -463,7 +466,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
                 {loadingXeroInvoices && (
                   <div className="flex items-center justify-center py-4 bg-blue-50 rounded-md">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <span className="ml-3 text-blue-900">Loading invoices...</span>
+                    <span className="ml-3 text-blue-900">Loading {side === 'AR' ? 'invoices' : 'bills'}...</span>
                   </div>
                 )}
               </>
@@ -484,7 +487,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
                 onChange={(e) => setDateFormat(e.target.value as DateFormat)}
                 className="w-full px-4 py-3 rounded-md border-2 border-neutral-300 bg-white text-body text-neutral-900
                            focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500
-                           transition-all duration-short"
+                           transition-all duration-short hover:border-neutral-400"
               >
                 <option value="MM/DD/YYYY">MM/DD/YYYY (e.g., 01/31/2024)</option>
                 <option value="YYYY-MM-DD">YYYY-MM-DD (e.g., 2024-01-31)</option>
@@ -494,7 +497,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
               </select>
             </div>
 
-            {/* File Upload */}
+            {/* File Upload - FIXED: Better contrast and visibility */}
             <div>
               <label className="block text-body font-medium text-neutral-900 mb-2">
                 Upload CSV File
@@ -507,18 +510,20 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
                   const file = e.target.files?.[0];
                   if (file) handleCsvUpload(file);
                 }}
-                className="block w-full text-sm text-neutral-600
+                className="block w-full text-sm text-neutral-700
                           file:mr-4 file:py-3 file:px-6
                           file:rounded-md file:border-0
                           file:text-sm file:font-semibold
                           file:bg-secondary-600 file:text-white
                           hover:file:bg-secondary-700
-                          cursor-pointer
-                          disabled:opacity-50 disabled:cursor-not-allowed"
+                          file:cursor-pointer
+                          disabled:opacity-50 disabled:cursor-not-allowed
+                          border-2 border-dashed border-neutral-300 rounded-md p-3
+                          hover:border-secondary-400 transition-colors"
               />
               
               {uploadingCsv && (
-                <div className="flex items-center mt-3 p-3 bg-blue-50 rounded-md">
+                <div className="flex items-center mt-3 p-3 bg-blue-50 rounded-md border border-blue-200">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                   <span className="ml-3 text-small text-blue-900">Processing CSV...</span>
                 </div>
