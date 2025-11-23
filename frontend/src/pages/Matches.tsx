@@ -1,17 +1,7 @@
 /**
- * Redesigned Matches Page - Simplified Two-Box Layout
+ * Redesigned Matches Page - Full Width Layout
  * 
- * Streamlined interface for invoice matching with side-by-side AR/AP boxes.
- * Inspired by Ledger-Match design for simplicity and ease of use.
- * 
- * Key Features:
- * - Two-box layout for AR and AP data
- * - Smart counterparty auto-detection
- * - Integrated CSV upload with date format selection
- * - Always-visible CSV templates and requirements
- * - Clean, professional design with LedgerLink branding
- * 
- * FIX: Now correctly uses MongoDB _id as connectionId (not tenantId)
+ * UPDATED: Removed max-width constraint for full-screen table display
  */
 
 import React, { useState, useEffect } from 'react';
@@ -84,7 +74,6 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
   /**
    * Check if Xero is connected on mount
-   * FIX: Now correctly uses MongoDB _id instead of tenantId
    */
   useEffect(() => {
     const checkXeroConnection = async () => {
@@ -102,9 +91,8 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         const hasConnection = connections.length > 0;
         setIsXeroConnected(hasConnection);
         
-        // FIX: Use MongoDB _id (not tenantId) for API calls
         if (hasConnection) {
-          const connectionId = connections[0]._id;  // This is the MongoDB connection ID
+          const connectionId = connections[0]._id;
           console.log('📝 Using Xero connection ID (_id):', connectionId);
           console.log('   Tenant Name:', connections[0].tenantName);
           setXeroConnectionId(connectionId);
@@ -346,69 +334,71 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 w-full space-y-6">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-8 max-w-7xl mx-auto">
         <h1 className="text-h1 text-neutral-900 mb-2">Invoice Matching</h1>
         <p className="text-body-lg text-neutral-600">
           Compare and reconcile your ledgers with connected systems or CSV uploads.
         </p>
       </div>
 
-      {/* Navigation */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex space-x-2">
-              <Button
-                variant={viewMode === 'upload' ? 'primary' : 'ghost'}
-                onClick={() => setViewMode('upload')}
-              >
-                New Match
-              </Button>
-              <Button
-                variant={viewMode === 'results' ? 'primary' : 'ghost'}
-                onClick={() => setViewMode('results')}
-                disabled={!currentResults}
-              >
-                {selectedHistoryId ? 'Historical Results' : 'Current Results'}
-              </Button>
-              <Button
-                variant={viewMode === 'history' ? 'primary' : 'ghost'}
-                onClick={() => setViewMode('history')}
-              >
-                Statistics & History
-              </Button>
-            </div>
-
-            {/* Quick Actions */}
-            {viewMode !== 'upload' && (
+      {/* Navigation - Constrained */}
+      <div className="max-w-7xl mx-auto">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex space-x-2">
-                {currentResults && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleExport}
-                  >
-                    Export CSV
-                  </Button>
-                )}
                 <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleStartNew}
+                  variant={viewMode === 'upload' ? 'primary' : 'ghost'}
+                  onClick={() => setViewMode('upload')}
                 >
                   New Match
                 </Button>
+                <Button
+                  variant={viewMode === 'results' ? 'primary' : 'ghost'}
+                  onClick={() => setViewMode('results')}
+                  disabled={!currentResults}
+                >
+                  {selectedHistoryId ? 'Historical Results' : 'Current Results'}
+                </Button>
+                <Button
+                  variant={viewMode === 'history' ? 'primary' : 'ghost'}
+                  onClick={() => setViewMode('history')}
+                >
+                  Statistics & History
+                </Button>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Main Content */}
-      <div className="space-y-6">
-        {/* Upload Mode - NEW REDESIGNED LAYOUT */}
+              {/* Quick Actions */}
+              {viewMode !== 'upload' && (
+                <div className="flex space-x-2">
+                  {currentResults && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleExport}
+                    >
+                      Export CSV
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleStartNew}
+                  >
+                    New Match
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content - FULL WIDTH for results, constrained for upload */}
+      <div className={viewMode === 'results' ? 'w-full px-6 space-y-6' : 'max-w-7xl mx-auto space-y-6'}>
+        {/* Upload Mode */}
         {viewMode === 'upload' && (
           <div className="space-y-6">
             {/* Two-Box Matching Interface */}
@@ -416,7 +406,6 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
               <CardContent className="p-6">
                 {/* AR and AP Boxes Side by Side */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                  {/* AR Box - Passes MongoDB connection _id */}
                   <DataSourceBox
                     side="AR"
                     title="Accounts Receivable Data"
@@ -430,7 +419,6 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                     onConnectCounterparty={handleConnectCounterparty}
                   />
 
-                  {/* AP Box - Passes MongoDB connection _id */}
                   <DataSourceBox
                     side="AP"
                     title="Accounts Payable Data"
@@ -445,7 +433,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                   />
                 </div>
 
-                {/* Start Matching Button (appears when both loaded) */}
+                {/* Start Matching Button */}
                 <MatchingReadyButton
                   arData={arData}
                   apData={apData}
@@ -455,7 +443,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
               </CardContent>
             </Card>
 
-            {/* CSV Templates - Always Visible */}
+            {/* CSV Templates */}
             <CSVTemplateSection
               onDownload={() => showToast('Template downloaded successfully!', 'success')}
             />
@@ -465,7 +453,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
           </div>
         )}
 
-        {/* Results Mode */}
+        {/* Results Mode - FULL WIDTH */}
         {viewMode === 'results' && currentResults && (
           <div className="space-y-6">
             {selectedHistoryId && (
