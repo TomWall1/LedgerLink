@@ -1,9 +1,11 @@
 /**
- * Enhanced Matching Results Display Component
+ * Enhanced Matching Results Display Component with Pagination
  * 
  * This component provides a comprehensive, professional display of matching results
- * matching the Ledger-Match reference implementation with detailed statistics,
- * individual tables, and CSV exports.
+ * with pagination/scrolling to handle large datasets efficiently.
+ * 
+ * NEW: Added expandable sections that show first 5 results with "Show More" button
+ * NEW: Scroll containers for large result sets
  */
 
 import React, { useState, useRef } from 'react';
@@ -26,6 +28,8 @@ interface MatchingResultsDisplayProps {
   onStartNew?: () => void;
 }
 
+const INITIAL_DISPLAY_COUNT = 5; // Show first 5 results by default
+
 export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
   results,
   onStartNew
@@ -35,6 +39,14 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
   const mismatchesRef = useRef<HTMLDivElement>(null);
   const unmatchedRef = useRef<HTMLDivElement>(null);
   const dateDiscrepanciesRef = useRef<HTMLDivElement>(null);
+
+  // State for expandable sections
+  const [showAllPerfectMatches, setShowAllPerfectMatches] = useState(false);
+  const [showAllMismatches, setShowAllMismatches] = useState(false);
+  const [showAllUnmatchedReceivables, setShowAllUnmatchedReceivables] = useState(false);
+  const [showAllUnmatchedPayables, setShowAllUnmatchedPayables] = useState(false);
+  const [showAllDateMismatches, setShowAllDateMismatches] = useState(false);
+  const [showAllHistoricalInsights, setShowAllHistoricalInsights] = useState(false);
 
   /**
    * Safe number conversion - handles undefined/null
@@ -140,6 +152,54 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
   };
 
   /**
+   * Get display array with optional limiting
+   */
+  const getDisplayArray = <T,>(array: T[], showAll: boolean): T[] => {
+    if (showAll || array.length <= INITIAL_DISPLAY_COUNT) {
+      return array;
+    }
+    return array.slice(0, INITIAL_DISPLAY_COUNT);
+  };
+
+  /**
+   * Render "Show More" button if needed
+   */
+  const renderShowMoreButton = (
+    totalCount: number,
+    showAll: boolean,
+    onToggle: () => void,
+    label: string = 'results'
+  ) => {
+    if (totalCount <= INITIAL_DISPLAY_COUNT) return null;
+
+    return (
+      <div className="flex justify-center py-4 border-t border-neutral-200">
+        <Button
+          variant="ghost"
+          onClick={onToggle}
+          className="text-sm"
+        >
+          {showAll ? (
+            <>
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+              Show Less
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              Show More ({totalCount - INITIAL_DISPLAY_COUNT} more {label})
+            </>
+          )}
+        </Button>
+      </div>
+    );
+  };
+
+  /**
    * Calculate summary statistics with safe defaults
    */
   const totals = results.totals || {};
@@ -179,6 +239,14 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
 
   const processingTime = safeNumber(results.processingTime, 0);
   const avgConfidence = safeNumber(statistics.avgConfidence, 0);
+
+  // Get display arrays
+  const displayedPerfectMatches = getDisplayArray(perfectMatches, showAllPerfectMatches);
+  const displayedMismatches = getDisplayArray(mismatches, showAllMismatches);
+  const displayedUnmatchedCompany1 = getDisplayArray(unmatchedCompany1, showAllUnmatchedReceivables);
+  const displayedUnmatchedCompany2 = getDisplayArray(unmatchedCompany2, showAllUnmatchedPayables);
+  const displayedDateMismatches = getDisplayArray(results.dateMismatches || [], showAllDateMismatches);
+  const displayedHistoricalInsights = getDisplayArray(results.historicalInsights || [], showAllHistoricalInsights);
 
   return (
     <div className="space-y-6">
@@ -300,14 +368,21 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
         <Card className="border-l-4 border-green-500">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[#1B365D]">
-                Perfect Matches ({perfectMatches.length})
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-[#1B365D]">
+                  Perfect Matches ({perfectMatches.length})
+                </h3>
+                {perfectMatches.length > INITIAL_DISPLAY_COUNT && (
+                  <p className="text-sm text-neutral-600 mt-1">
+                    Showing {displayedPerfectMatches.length} of {perfectMatches.length} matches
+                  </p>
+                )}
+              </div>
               <ExportPerfectMatchesButton data={perfectMatches} />
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className={showAllPerfectMatches && perfectMatches.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
               {perfectMatches.length > 0 ? (
                 <Table>
                   <TableHeader>
@@ -321,7 +396,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {perfectMatches.map((match, index) => {
+                    {displayedPerfectMatches.map((match, index) => {
                       const record = match.company1?.transactionNumber ? match.company1 : match.company2;
                       if (!record) return null;
                       return (
@@ -346,6 +421,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                 </div>
               )}
             </div>
+            {renderShowMoreButton(perfectMatches.length, showAllPerfectMatches, () => setShowAllPerfectMatches(!showAllPerfectMatches), 'matches')}
           </CardContent>
         </Card>
       </div>
@@ -355,14 +431,21 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
         <Card className="border-l-4 border-yellow-500">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[#1B365D]">
-                Mismatches ({mismatches.length})
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-[#1B365D]">
+                  Mismatches ({mismatches.length})
+                </h3>
+                {mismatches.length > INITIAL_DISPLAY_COUNT && (
+                  <p className="text-sm text-neutral-600 mt-1">
+                    Showing {displayedMismatches.length} of {mismatches.length} mismatches
+                  </p>
+                )}
+              </div>
               <ExportMismatchesButton data={mismatches} />
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className={showAllMismatches && mismatches.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
               {mismatches.length > 0 ? (
                 <Table>
                   <TableHeader>
@@ -377,7 +460,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mismatches.map((mismatch, index) => {
+                    {displayedMismatches.map((mismatch, index) => {
                       const amount1 = safeNumber(mismatch.company1?.amount, 0);
                       const amount2 = safeNumber(mismatch.company2?.amount, 0);
                       const difference = Math.abs(amount1 - amount2);
@@ -416,6 +499,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                 </div>
               )}
             </div>
+            {renderShowMoreButton(mismatches.length, showAllMismatches, () => setShowAllMismatches(!showAllMismatches), 'mismatches')}
           </CardContent>
         </Card>
       </div>
@@ -432,12 +516,19 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
             {/* Unmatched Receivables */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-md font-medium text-neutral-900">
-                  Unmatched Receivables ({unmatchedCompany1.length})
-                </h4>
+                <div>
+                  <h4 className="text-md font-medium text-neutral-900">
+                    Unmatched Receivables ({unmatchedCompany1.length})
+                  </h4>
+                  {unmatchedCompany1.length > INITIAL_DISPLAY_COUNT && (
+                    <p className="text-sm text-neutral-600 mt-1">
+                      Showing {displayedUnmatchedCompany1.length} of {unmatchedCompany1.length} items
+                    </p>
+                  )}
+                </div>
                 <ExportUnmatchedReceivablesButton data={unmatchedCompany1} />
               </div>
-              <div className="overflow-x-auto">
+              <div className={showAllUnmatchedReceivables && unmatchedCompany1.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
                 {unmatchedCompany1.length > 0 ? (
                   <Table>
                     <TableHeader>
@@ -450,7 +541,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {unmatchedCompany1.map((item, index) => (
+                      {displayedUnmatchedCompany1.map((item, index) => (
                         <TableRow key={index}>
                           <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
                           <TableCell className="font-mono">
@@ -470,17 +561,25 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                   </div>
                 )}
               </div>
+              {renderShowMoreButton(unmatchedCompany1.length, showAllUnmatchedReceivables, () => setShowAllUnmatchedReceivables(!showAllUnmatchedReceivables), 'items')}
             </div>
 
             {/* Unmatched Payables */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-md font-medium text-neutral-900">
-                  Unmatched Payables ({unmatchedCompany2.length})
-                </h4>
+                <div>
+                  <h4 className="text-md font-medium text-neutral-900">
+                    Unmatched Payables ({unmatchedCompany2.length})
+                  </h4>
+                  {unmatchedCompany2.length > INITIAL_DISPLAY_COUNT && (
+                    <p className="text-sm text-neutral-600 mt-1">
+                      Showing {displayedUnmatchedCompany2.length} of {unmatchedCompany2.length} items
+                    </p>
+                  )}
+                </div>
                 <ExportUnmatchedPayablesButton data={unmatchedCompany2} />
               </div>
-              <div className="overflow-x-auto">
+              <div className={showAllUnmatchedPayables && unmatchedCompany2.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
                 {unmatchedCompany2.length > 0 ? (
                   <Table>
                     <TableHeader>
@@ -493,7 +592,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {unmatchedCompany2.map((item, index) => (
+                      {displayedUnmatchedCompany2.map((item, index) => (
                         <TableRow key={index}>
                           <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
                           <TableCell className="font-mono">
@@ -513,6 +612,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                   </div>
                 )}
               </div>
+              {renderShowMoreButton(unmatchedCompany2.length, showAllUnmatchedPayables, () => setShowAllUnmatchedPayables(!showAllUnmatchedPayables), 'items')}
             </div>
           </CardContent>
         </Card>
@@ -523,12 +623,19 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
         <div ref={dateDiscrepanciesRef}>
           <Card className="border-l-4 border-purple-500">
             <CardHeader>
-              <h3 className="text-lg font-semibold text-[#1B365D]">
-                Date Discrepancies ({results.dateMismatches.length})
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-[#1B365D]">
+                  Date Discrepancies ({results.dateMismatches.length})
+                </h3>
+                {results.dateMismatches.length > INITIAL_DISPLAY_COUNT && (
+                  <p className="text-sm text-neutral-600 mt-1">
+                    Showing {displayedDateMismatches.length} of {results.dateMismatches.length} discrepancies
+                  </p>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <div className={showAllDateMismatches && results.dateMismatches.length > INITIAL_DISPLAY_COUNT ? "overflow-x-auto max-h-96 overflow-y-auto" : "overflow-x-auto"}>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -542,7 +649,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {results.dateMismatches.map((mismatch, index) => (
+                    {displayedDateMismatches.map((mismatch, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-mono">
                           {mismatch.company1?.transactionNumber || '-'}
@@ -566,6 +673,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                   </TableBody>
                 </Table>
               </div>
+              {renderShowMoreButton(results.dateMismatches.length, showAllDateMismatches, () => setShowAllDateMismatches(!showAllDateMismatches), 'discrepancies')}
             </CardContent>
           </Card>
         </div>
@@ -576,15 +684,22 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
         <Card className="border-l-4 border-blue-500">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-[#1B365D]">
-                Historical Insights ({results.historicalInsights.length})
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-[#1B365D]">
+                  Historical Insights ({results.historicalInsights.length})
+                </h3>
+                {results.historicalInsights.length > INITIAL_DISPLAY_COUNT && (
+                  <p className="text-sm text-neutral-600 mt-1">
+                    Showing {displayedHistoricalInsights.length} of {results.historicalInsights.length} insights
+                  </p>
+                )}
+              </div>
               <ExportHistoricalInsightsButton data={results.historicalInsights} />
             </div>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 gap-4">
-              {results.historicalInsights.map((insight, index) => (
+            <div className={showAllHistoricalInsights && results.historicalInsights.length > INITIAL_DISPLAY_COUNT ? "grid grid-cols-1 gap-4 max-h-96 overflow-y-auto" : "grid grid-cols-1 gap-4"}>
+              {displayedHistoricalInsights.map((insight, index) => (
                 <div key={index} className="grid grid-cols-3 gap-4 p-4 bg-neutral-50 rounded-lg">
                   {/* AP Item */}
                   <div className="border-r border-neutral-200 pr-4">
@@ -624,6 +739,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                 </div>
               ))}
             </div>
+            {renderShowMoreButton(results.historicalInsights.length, showAllHistoricalInsights, () => setShowAllHistoricalInsights(!showAllHistoricalInsights), 'insights')}
           </CardContent>
         </Card>
       )}
