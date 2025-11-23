@@ -7,6 +7,7 @@
  * FIX: Now supports both AR (customers) and AP (suppliers) matching
  * FIX: Added connectionId parameter to prevent infinite loop
  * FIX: Corrected data extraction from nested API response structure
+ * FIX: Properly handles credit notes (ACCRECCREDIT and ACCPAYCREDIT types)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -50,6 +51,7 @@ interface XeroInvoice {
   AmountDue: number;
   AmountPaid: number;
   Reference?: string;
+  IsCreditNote?: boolean; // Flag from backend
 }
 
 interface CustomerSelectorDropdownProps {
@@ -194,6 +196,33 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
     fetchContacts();
   }, [ledgerType, selectedConnectionId, onError, isAR, contactsLabel]);
 
+  /**
+   * Get human-readable type label for invoice/credit note
+   * CRITICAL: Properly identifies all Xero document types including credit notes
+   */
+  const getTypeLabel = (xeroType: string): string => {
+    switch (xeroType) {
+      case 'ACCREC':
+        return 'Invoice';
+      case 'ACCPAY':
+        return 'Bill';
+      case 'ACCRECCREDIT':
+        return 'Sales Credit Note';
+      case 'ACCPAYCREDIT':
+        return 'Purchase Credit Note';
+      default:
+        console.warn(`⚠️ Unknown Xero type: ${xeroType}`);
+        return xeroType; // Return raw type for debugging
+    }
+  };
+
+  /**
+   * Check if a Xero type is a credit note
+   */
+  const isCreditNoteType = (xeroType: string): boolean => {
+    return xeroType === 'ACCRECCREDIT' || xeroType === 'ACCPAYCREDIT';
+  };
+
   const handleLoadData = async () => {
     if (!selectedContact || !ledgerType) return;
 
@@ -230,6 +259,14 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
       
       if (success && Array.isArray(invoicesList)) {
         console.log(`   Raw ${invoiceLabel} found:`, invoicesList.length);
+        
+        // Count document types for better logging
+        const invoiceTypes = invoicesList.reduce((acc: Record<string, number>, inv: any) => {
+          const type = inv?.Type || 'UNKNOWN';
+          acc[type] = (acc[type] || 0) + 1;
+          return acc;
+        }, {});
+        console.log(`   Document type breakdown:`, invoiceTypes);
         
         // Filter out null/undefined/invalid invoices BEFORE transformation
         const validRawInvoices = invoicesList.filter((invoice, index) => {
@@ -270,19 +307,32 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
                 return null;
               }
 
+              // CRITICAL: Detect if this is a credit note
+              const isCreditNote = isCreditNoteType(invoice.Type) || invoice.IsCreditNote === true;
+              
+              // Get the amount - backend already made credit notes negative
+              // But we'll double-check to ensure data integrity
+              let amount = invoice.Total || 0;
+              if (isCreditNote && amount > 0) {
+                console.warn(`⚠️ Credit note at index ${index} has positive amount, converting to negative`);
+                amount = -Math.abs(amount);
+              }
+
               // Use camelCase property names to match TransactionRecord interface
               const transformed = {
                 id: uniqueId,
                 transactionNumber: invoice.InvoiceNumber || '',
-                type: invoice.Type === 'ACCREC' ? 'Invoice' : invoice.Type === 'ACCPAY' ? 'Bill' : 'Credit Note',
-                amount: invoice.Total || 0,
+                type: getTypeLabel(invoice.Type), // Use helper function for clearer labels
+                amount: amount, // Preserve negative amounts for credit notes
                 date: invoice.Date || '',
                 dueDate: invoice.DueDate || '',
                 status: invoice.Status || '',
                 reference: invoice.Reference || '',
                 vendor: invoice.Contact?.Name || selectedContact.Name,
                 xeroId: invoice.InvoiceID || '',
-                source: 'xero' as const
+                source: 'xero' as const,
+                isCreditNote: isCreditNote, // PRESERVE credit note flag
+                xeroType: invoice.Type // Keep original Xero type for debugging
               };
               
               if (!transformed.id || transformed.id === 'undefined') {
@@ -290,12 +340,25 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
                 return null;
               }
               
-              console.log(`   ✅ Transformed ${invoiceLabel.slice(0, -1)} ${index + 1}:`, {
-                id: transformed.id,
-                transactionNumber: transformed.transactionNumber,
-                amount: transformed.amount,
-                date: transformed.date
-              });
+              // Enhanced logging for credit notes
+              if (isCreditNote) {
+                console.log(`   💳 Credit Note ${index + 1}:`, {
+                  id: transformed.id,
+                  transactionNumber: transformed.transactionNumber,
+                  type: transformed.type,
+                  amount: transformed.amount,
+                  xeroType: invoice.Type,
+                  date: transformed.date
+                });
+              } else {
+                console.log(`   ✅ Transformed ${invoiceLabel.slice(0, -1)} ${index + 1}:`, {
+                  id: transformed.id,
+                  transactionNumber: transformed.transactionNumber,
+                  type: transformed.type,
+                  amount: transformed.amount,
+                  date: transformed.date
+                });
+              }
               
               return transformed;
             } catch (transformError) {
@@ -315,7 +378,13 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
             return true;
           });
         
+        // Count credit notes in final data
+        const creditNoteCount = transformedInvoices.filter(inv => inv.isCreditNote).length;
+        const invoiceCount = transformedInvoices.length - creditNoteCount;
+        
         console.log(`   Transformed ${invoiceLabel} count:`, transformedInvoices.length);
+        console.log(`   - Regular ${invoiceLabel}: ${invoiceCount}`);
+        console.log(`   - Credit Notes: ${creditNoteCount}`);
         
         // Final validation with explicit checks
         const validInvoices = transformedInvoices.filter((invoice, index) => {
@@ -373,10 +442,14 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
         console.log('   📤 Passing data to parent:', {
           invoiceCount: dataToPass.invoiceCount,
           customerName: dataToPass.customerName,
+          regularInvoices: invoiceCount,
+          creditNotes: creditNoteCount,
           sampleInvoice: {
             id: firstInvoice.id,
             transactionNumber: firstInvoice.transactionNumber,
+            type: firstInvoice.type,
             amount: firstInvoice.amount,
+            isCreditNote: firstInvoice.isCreditNote,
             date: firstInvoice.date
           }
         });
@@ -458,7 +531,7 @@ export const CustomerSelectorDropdown: React.FC<CustomerSelectorDropdownProps> =
           Select {contactLabel}
         </label>
         <p className="text-small text-neutral-600 mb-3">
-          Choose which {contactLabel.toLowerCase()}'s {invoiceLabel} you want to load
+          Choose which {contactLabel.toLowerCase()}'s {invoiceLabel} you want to load (including credit notes)
         </p>
       </div>
 
