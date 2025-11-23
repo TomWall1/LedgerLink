@@ -1,23 +1,9 @@
 /**
  * DataSourceBox Component
  * 
- * The main box component for AR or AP side of the matching interface.
- * Handles all user interactions for selecting and loading data from Xero or CSV.
- * 
- * Features:
- * - Data source selection (Xero/CSV)
- * - Xero customer/vendor selection with invoice loading
- * - CSV upload with date format selection
- * - Counterparty connection display
- * - Smart state management and error handling
- * - Auto-default to CSV when opposite side loaded but no counterparty
- * 
- * FIXES:
- * - Now properly fetches ONLY the selected customer's/supplier's invoices (no cap)
- * - Correctly shows suppliers on AP side (not customers)
- * - Improved visual styling with better contrast
- * - Fixed CSV button visibility
- * - Auto-switches to CSV when no counterparty found
+ * UPDATED:
+ * - Fixed CSV date parsing to properly handle selected format (DD/MM/YYYY vs MM/DD/YYYY)
+ * - Dates are now correctly parsed and converted to ISO format for matching
  */
 
 import React, { useState, useEffect } from 'react';
@@ -88,7 +74,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   const [loadingXeroInvoices, setLoadingXeroInvoices] = useState(false);
   
   // CSV state
-  const [dateFormat, setDateFormat] = useState<DateFormat>('MM/DD/YYYY');
+  const [dateFormat, setDateFormat] = useState<DateFormat>('DD/MM/YYYY');
   const [uploadingCsv, setUploadingCsv] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
 
@@ -104,24 +90,17 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
 
   /**
    * Load Xero contacts when Xero is selected
-   * FIXED: Now fetches customers for AR, suppliers for AP
    */
   useEffect(() => {
     const loadXeroContacts = async () => {
       if (dataSourceType !== 'xero' || !isXeroConnected || !xeroConnectionId) {
-        console.log('⏭️ Skipping contact load:', { 
-          dataSourceType, 
-          isXeroConnected, 
-          hasConnectionId: !!xeroConnectionId 
-        });
         return;
       }
 
       setLoadingXeroContacts(true);
-      console.log(`📥 Loading Xero ${side === 'AR' ? 'customers' : 'suppliers'} with connection ID:`, xeroConnectionId);
+      console.log(`📥 Loading Xero ${side === 'AR' ? 'customers' : 'suppliers'}`);
 
       try {
-        // FIXED: Use getCustomers for AR, getSuppliers for AP
         const contacts = side === 'AR' 
           ? await xeroService.getCustomers(xeroConnectionId)
           : await xeroService.getSuppliers(xeroConnectionId);
@@ -142,7 +121,6 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
 
   /**
    * Handle Xero contact selection and invoice loading
-   * FIXED: Now fetches ONLY the selected contact's invoices (not all invoices)
    */
   const handleContactSelection = async (contactId: string) => {
     setSelectedContact(contactId);
@@ -156,15 +134,12 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
     console.log(`📥 Loading ${side === 'AR' ? 'invoices' : 'bills'} for ${contact.Name}...`);
 
     try {
-      // FIXED: Use the correct method based on AR/AP side
-      // This now fetches ONLY this contact's invoices (no 100 cap, only open items)
       const invoices = side === 'AR'
         ? await xeroService.getCustomerInvoices(xeroConnectionId, contactId)
         : await xeroService.getSupplierInvoices(xeroConnectionId, contactId);
 
-      console.log(`✅ Loaded ${invoices.length} ${side === 'AR' ? 'invoices' : 'bills'} for ${contact.Name}`);
+      console.log(`✅ Loaded ${invoices.length} items for ${contact.Name}`);
 
-      // Create loaded data source
       const data: LoadedDataSource = {
         type: 'xero',
         invoices: invoices,
@@ -184,12 +159,97 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   };
 
   /**
+   * Parse a date string according to the selected format
+   * FIXED: Now properly converts dates based on selected format
+   */
+  const parseDateWithFormat = (dateStr: string, format: DateFormat): string => {
+    if (!dateStr) return '';
+    
+    let day: number, month: number, year: number;
+    
+    // Remove any whitespace
+    dateStr = dateStr.trim();
+    
+    try {
+      switch (format) {
+        case 'MM/DD/YYYY': {
+          const parts = dateStr.split('/');
+          if (parts.length !== 3) return dateStr;
+          month = parseInt(parts[0]);
+          day = parseInt(parts[1]);
+          year = parseInt(parts[2]);
+          break;
+        }
+        case 'DD/MM/YYYY': {
+          const parts = dateStr.split('/');
+          if (parts.length !== 3) return dateStr;
+          day = parseInt(parts[0]);
+          month = parseInt(parts[1]);
+          year = parseInt(parts[2]);
+          break;
+        }
+        case 'YYYY-MM-DD': {
+          const parts = dateStr.split('-');
+          if (parts.length !== 3) return dateStr;
+          year = parseInt(parts[0]);
+          month = parseInt(parts[1]);
+          day = parseInt(parts[2]);
+          break;
+        }
+        case 'DD-MM-YYYY': {
+          const parts = dateStr.split('-');
+          if (parts.length !== 3) return dateStr;
+          day = parseInt(parts[0]);
+          month = parseInt(parts[1]);
+          year = parseInt(parts[2]);
+          break;
+        }
+        case 'MM-DD-YYYY': {
+          const parts = dateStr.split('-');
+          if (parts.length !== 3) return dateStr;
+          month = parseInt(parts[0]);
+          day = parseInt(parts[1]);
+          year = parseInt(parts[2]);
+          break;
+        }
+        default:
+          return dateStr;
+      }
+      
+      // Validate the parsed values
+      if (isNaN(day) || isNaN(month) || isNaN(year)) {
+        console.warn(`⚠️ Invalid date components: ${dateStr}`);
+        return dateStr;
+      }
+      
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
+        console.warn(`⚠️ Date out of range: ${dateStr}`);
+        return dateStr;
+      }
+      
+      // Create date object and convert to ISO format
+      const date = new Date(year, month - 1, day);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.warn(`⚠️ Invalid date created: ${dateStr}`);
+        return dateStr;
+      }
+      
+      return date.toISOString();
+    } catch (error) {
+      console.error(`❌ Error parsing date "${dateStr}" with format "${format}":`, error);
+      return dateStr;
+    }
+  };
+
+  /**
    * Handle CSV file upload
    */
   const handleCsvUpload = async (file: File) => {
     setCsvFile(file);
     setUploadingCsv(true);
-    console.log(`📤 Uploading CSV: ${file.name}`);
+    console.log(`📤 Uploading CSV: ${file.name} with format: ${dateFormat}`);
 
     try {
       // Validate file
@@ -200,7 +260,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
         return;
       }
 
-      // Read and parse file
+      // Read file
       const text = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target?.result as string);
@@ -209,7 +269,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
       });
 
       // Parse CSV with selected date format
-      const invoices = await parseCSVWithDateFormat(text, dateFormat);
+      const invoices = parseCSVWithDateFormat(text, dateFormat);
 
       if (invoices.length === 0) {
         onError('No valid invoices found in CSV');
@@ -218,8 +278,8 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
       }
 
       console.log(`✅ Parsed ${invoices.length} invoices from CSV`);
+      console.log('   Sample invoice:', invoices[0]);
 
-      // Create loaded data source
       const data: LoadedDataSource = {
         type: 'csv',
         invoices: invoices,
@@ -240,8 +300,9 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
 
   /**
    * Parse CSV with the selected date format
+   * FIXED: Now properly parses dates according to selected format
    */
-  const parseCSVWithDateFormat = async (text: string, format: DateFormat): Promise<any[]> => {
+  const parseCSVWithDateFormat = (text: string, format: DateFormat): any[] => {
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length < 2) {
       throw new Error('CSV must have at least a header row and one data row');
@@ -270,6 +331,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
 
     // Parse headers
     const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
+    console.log('📋 CSV headers:', headers);
     
     // Find column indices
     const transactionNumberIndex = headers.findIndex(h => 
@@ -279,13 +341,22 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
       h.includes('amount') || h.includes('total') || h.includes('value')
     );
     const dateIndex = headers.findIndex(h => h.includes('date') && !h.includes('due'));
+    const statusIndex = headers.findIndex(h => h.includes('status'));
+    const dueDateIndex = headers.findIndex(h => h.includes('due'));
+    const referenceIndex = headers.findIndex(h => h.includes('reference'));
+    const vendorIndex = headers.findIndex(h => h.includes('vendor') || h.includes('customer'));
     
     if (transactionNumberIndex === -1 || amountIndex === -1 || dateIndex === -1) {
       throw new Error('CSV must include transaction number, amount, and date columns');
     }
 
+    console.log(`📍 Column indices - Transaction: ${transactionNumberIndex}, Amount: ${amountIndex}, Date: ${dateIndex}`);
+
     // Parse data rows
     const invoices: any[] = [];
+    let successCount = 0;
+    let failCount = 0;
+    
     for (let i = 1; i < lines.length; i++) {
       const cells = parseCSVLine(lines[i]);
       
@@ -293,20 +364,48 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
       const amountStr = cells[amountIndex];
       const dateStr = cells[dateIndex];
       
-      if (!transactionNumber || !amountStr || !dateStr) continue;
+      if (!transactionNumber || !amountStr || !dateStr) {
+        failCount++;
+        continue;
+      }
       
       const amount = parseFloat(amountStr.replace(/[^0-9.-]/g, ''));
-      if (isNaN(amount)) continue;
+      if (isNaN(amount)) {
+        failCount++;
+        continue;
+      }
+      
+      // Parse date with selected format
+      const parsedDate = parseDateWithFormat(dateStr, format);
+      const parsedDueDate = dueDateIndex >= 0 && cells[dueDateIndex] 
+        ? parseDateWithFormat(cells[dueDateIndex], format)
+        : undefined;
       
       invoices.push({
         id: `csv-${i}`,
-        transactionNumber: transactionNumber,
+        transaction_number: transactionNumber,
+        transaction_type: 'CSV Invoice',
         amount: amount,
-        date: dateStr,
-        status: cells[headers.findIndex(h => h.includes('status'))] || 'UNKNOWN',
-        dueDate: cells[headers.findIndex(h => h.includes('due'))] || undefined,
-        reference: cells[headers.findIndex(h => h.includes('reference'))] || undefined,
-        vendorName: cells[headers.findIndex(h => h.includes('vendor') || h.includes('customer'))] || undefined,
+        issue_date: parsedDate,
+        due_date: parsedDueDate,
+        status: statusIndex >= 0 ? (cells[statusIndex] || 'UNKNOWN') : 'UNKNOWN',
+        reference: referenceIndex >= 0 ? cells[referenceIndex] : undefined,
+        contact_name: vendorIndex >= 0 ? cells[vendorIndex] : undefined,
+        source: 'csv',
+        // Keep original for debugging
+        _original_date: dateStr,
+        _parsed_date: parsedDate
+      });
+      
+      successCount++;
+    }
+
+    console.log(`✅ CSV parsing complete: ${successCount} successful, ${failCount} failed`);
+    if (successCount > 0) {
+      console.log('   First invoice date conversion:', {
+        original: invoices[0]._original_date,
+        parsed: invoices[0]._parsed_date,
+        format: format
       });
     }
 
@@ -480,7 +579,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
             {/* Date Format Selection */}
             <div>
               <label className="block text-body font-medium text-neutral-900 mb-2">
-                Select Date Format
+                Select Date Format in Your CSV
               </label>
               <select
                 value={dateFormat}
@@ -489,15 +588,18 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
                            focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500
                            transition-all duration-short hover:border-neutral-400"
               >
+                <option value="DD/MM/YYYY">DD/MM/YYYY (e.g., 31/01/2024)</option>
                 <option value="MM/DD/YYYY">MM/DD/YYYY (e.g., 01/31/2024)</option>
                 <option value="YYYY-MM-DD">YYYY-MM-DD (e.g., 2024-01-31)</option>
-                <option value="DD/MM/YYYY">DD/MM/YYYY (e.g., 31/01/2024)</option>
                 <option value="DD-MM-YYYY">DD-MM-YYYY (e.g., 31-01-2024)</option>
                 <option value="MM-DD-YYYY">MM-DD-YYYY (e.g., 01-31-2024)</option>
               </select>
+              <p className="text-xs text-neutral-600 mt-1">
+                ⚠️ Important: Select the date format used in YOUR CSV file
+              </p>
             </div>
 
-            {/* File Upload - FIXED: Better contrast and visibility */}
+            {/* File Upload */}
             <div>
               <label className="block text-body font-medium text-neutral-900 mb-2">
                 Upload CSV File
