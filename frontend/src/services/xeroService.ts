@@ -73,6 +73,22 @@ export interface XeroConnectionHealth {
 
 class XeroService {
   /**
+   * Map Xero status to LedgerLink status
+   */
+  private mapXeroStatus(xeroStatus: string): string {
+    const statusMap: Record<string, string> = {
+      'DRAFT': 'open',
+      'SUBMITTED': 'open',
+      'AUTHORISED': 'open',
+      'PAID': 'paid',
+      'VOIDED': 'void',
+      'DELETED': 'void'
+    };
+    
+    return statusMap[xeroStatus] || 'open';
+  }
+
+  /**
    * Initiate Xero OAuth connection
    */
   async initiateConnection(companyId: string): Promise<{ authUrl: string; state: string }> {
@@ -210,7 +226,7 @@ class XeroService {
   
   /**
    * Get invoices for a specific customer
-   * NEW: Fetches only the selected customer's invoices (not all invoices)
+   * FIXED: Properly handles raw Xero API response format with capital case fields
    */
   async getCustomerInvoices(connectionId: string, contactId: string): Promise<TransactionRecord[]> {
     try {
@@ -232,26 +248,38 @@ class XeroService {
       
       const invoices = response.data.invoices || [];
       
-      // Transform to TransactionRecord format
+      // Transform RAW Xero invoices to TransactionRecord format
+      // Backend returns raw Xero data with capital case fields like InvoiceNumber, Total, Date, etc.
       const transformed = invoices.map((invoice: any, index: number) => {
-        const id = invoice.xero_id || invoice.transaction_number || `TEMP-${Date.now()}-${index}`;
+        // Extract Xero fields (they use capital case)
+        const invoiceNumber = invoice.InvoiceNumber || '';
+        const invoiceID = invoice.InvoiceID || '';
+        const contactName = invoice.Contact?.Name || '';
         
         return {
-          id: String(id),
-          transaction_number: invoice.transaction_number || '',
-          transaction_type: invoice.transaction_type || 'ACCREC',
-          amount: invoice.amount || 0,
-          issue_date: invoice.issue_date || '',
-          due_date: invoice.due_date || '',
-          status: invoice.status || '',
-          reference: invoice.reference || '',
-          contact_name: invoice.contact_name || '',
-          xero_id: invoice.xero_id || '',
+          id: String(invoiceID || invoiceNumber || `TEMP-${Date.now()}-${index}`),
+          transaction_number: invoiceNumber,
+          transaction_type: invoice.Type || 'ACCREC',
+          amount: parseFloat(invoice.AmountDue || invoice.Total || 0),
+          issue_date: invoice.Date || '',
+          due_date: invoice.DueDate || '',
+          status: this.mapXeroStatus(invoice.Status || ''),
+          reference: invoice.Reference || '',
+          contact_name: contactName,
+          xero_id: invoiceID,
           source: 'xero' as const
         };
       });
       
-      console.log('✅ [xeroService] Successfully fetched customer invoices:', transformed.length);
+      console.log('✅ [xeroService] Successfully transformed customer invoices:', transformed.length);
+      if (transformed.length > 0) {
+        console.log('   First invoice:', {
+          number: transformed[0].transaction_number,
+          amount: transformed[0].amount,
+          date: transformed[0].issue_date,
+          contact: transformed[0].contact_name
+        });
+      }
       return transformed;
     } catch (error: any) {
       console.error('❌ [xeroService] Failed to fetch customer invoices:', error);
@@ -261,7 +289,7 @@ class XeroService {
   
   /**
    * Get invoices (bills) for a specific supplier
-   * NEW: Fetches only the selected supplier's bills (not all invoices)
+   * FIXED: Properly handles raw Xero API response format with capital case fields
    */
   async getSupplierInvoices(connectionId: string, contactId: string): Promise<TransactionRecord[]> {
     try {
@@ -283,26 +311,38 @@ class XeroService {
       
       const invoices = response.data.invoices || [];
       
-      // Transform to TransactionRecord format
+      // Transform RAW Xero invoices to TransactionRecord format
+      // Backend returns raw Xero data with capital case fields like InvoiceNumber, Total, Date, etc.
       const transformed = invoices.map((invoice: any, index: number) => {
-        const id = invoice.xero_id || invoice.transaction_number || `TEMP-${Date.now()}-${index}`;
+        // Extract Xero fields (they use capital case)
+        const invoiceNumber = invoice.InvoiceNumber || '';
+        const invoiceID = invoice.InvoiceID || '';
+        const contactName = invoice.Contact?.Name || '';
         
         return {
-          id: String(id),
-          transaction_number: invoice.transaction_number || '',
-          transaction_type: invoice.transaction_type || 'ACCPAY',
-          amount: invoice.amount || 0,
-          issue_date: invoice.issue_date || '',
-          due_date: invoice.due_date || '',
-          status: invoice.status || '',
-          reference: invoice.reference || '',
-          contact_name: invoice.contact_name || '',
-          xero_id: invoice.xero_id || '',
+          id: String(invoiceID || invoiceNumber || `TEMP-${Date.now()}-${index}`),
+          transaction_number: invoiceNumber,
+          transaction_type: invoice.Type || 'ACCPAY',
+          amount: parseFloat(invoice.AmountDue || invoice.Total || 0),
+          issue_date: invoice.Date || '',
+          due_date: invoice.DueDate || '',
+          status: this.mapXeroStatus(invoice.Status || ''),
+          reference: invoice.Reference || '',
+          contact_name: contactName,
+          xero_id: invoiceID,
           source: 'xero' as const
         };
       });
       
-      console.log('✅ [xeroService] Successfully fetched supplier bills:', transformed.length);
+      console.log('✅ [xeroService] Successfully transformed supplier bills:', transformed.length);
+      if (transformed.length > 0) {
+        console.log('   First bill:', {
+          number: transformed[0].transaction_number,
+          amount: transformed[0].amount,
+          date: transformed[0].issue_date,
+          contact: transformed[0].contact_name
+        });
+      }
       return transformed;
     } catch (error: any) {
       console.error('❌ [xeroService] Failed to fetch supplier invoices:', error);
