@@ -1,6 +1,10 @@
 /**
  * Xero Frontend Service
  * Handles all Xero API calls from the frontend
+ * 
+ * UPDATED:
+ * - Fixed to properly display Xero transaction types (Receivable Invoice, Credit Note, etc.)
+ * - Ensures credit notes are included and properly labeled
  */
 
 import { apiClient } from './api';
@@ -73,19 +77,34 @@ export interface XeroConnectionHealth {
 
 class XeroService {
   /**
+   * Map Xero transaction type to human-readable format
+   * FIXED: Now properly displays invoice types including credit notes
+   */
+  private mapXeroType(xeroType: string): string {
+    const typeMap: Record<string, string> = {
+      'ACCREC': 'Receivable Invoice',
+      'ACCPAY': 'Payable Invoice',
+      'ACCRECCREDIT': 'Receivable Credit Note',
+      'ACCPAYCREDIT': 'Payable Credit Note',
+    };
+    
+    return typeMap[xeroType] || xeroType;
+  }
+
+  /**
    * Map Xero status to LedgerLink status
    */
   private mapXeroStatus(xeroStatus: string): string {
     const statusMap: Record<string, string> = {
-      'DRAFT': 'open',
-      'SUBMITTED': 'open',
-      'AUTHORISED': 'open',
-      'PAID': 'paid',
-      'VOIDED': 'void',
-      'DELETED': 'void'
+      'DRAFT': 'Draft',
+      'SUBMITTED': 'Submitted',
+      'AUTHORISED': 'Authorised',
+      'PAID': 'Paid',
+      'VOIDED': 'Voided',
+      'DELETED': 'Deleted'
     };
     
-    return statusMap[xeroStatus] || 'open';
+    return statusMap[xeroStatus] || xeroStatus;
   }
 
   /**
@@ -183,7 +202,6 @@ class XeroService {
         throw new Error(response.data.message || 'Failed to fetch customers');
       }
       
-      // Handle the nested data structure properly
       const customers = response.data.data?.customers || [];
       console.log('✅ [xeroService] Customers fetched:', customers.length);
       return customers;
@@ -195,7 +213,6 @@ class XeroService {
   
   /**
    * Get Xero suppliers (contacts marked as suppliers)
-   * NEW: Added to fetch suppliers for AP matching
    */
   async getSuppliers(connectionId: string): Promise<XeroContact[]> {
     try {
@@ -214,7 +231,6 @@ class XeroService {
         throw new Error(response.data.message || 'Failed to fetch suppliers');
       }
       
-      // Handle the nested data structure properly
       const suppliers = response.data.data?.suppliers || [];
       console.log('✅ [xeroService] Suppliers fetched:', suppliers.length);
       return suppliers;
@@ -226,11 +242,11 @@ class XeroService {
   
   /**
    * Get invoices for a specific customer
-   * FIXED: Properly handles raw Xero API response format with capital case fields
+   * FIXED: Now includes credit notes and properly displays their type
    */
   async getCustomerInvoices(connectionId: string, contactId: string): Promise<TransactionRecord[]> {
     try {
-      console.log('🔍 [xeroService] Fetching invoices for customer:', { connectionId, contactId });
+      console.log('🔍 [xeroService] Fetching invoices and credit notes for customer:', { connectionId, contactId });
       
       const response = await apiClient.get(`xero/customers/${contactId}/invoices`, {
         params: { connectionId }
@@ -249,17 +265,25 @@ class XeroService {
       const invoices = response.data.invoices || [];
       
       // Transform RAW Xero invoices to TransactionRecord format
-      // Backend returns raw Xero data with capital case fields like InvoiceNumber, Total, Date, etc.
       const transformed = invoices.map((invoice: any, index: number) => {
-        // Extract Xero fields (they use capital case)
         const invoiceNumber = invoice.InvoiceNumber || '';
         const invoiceID = invoice.InvoiceID || '';
         const contactName = invoice.Contact?.Name || '';
+        const xeroType = invoice.Type || 'ACCREC';
+        
+        // Log credit notes for debugging
+        if (xeroType.includes('CREDIT')) {
+          console.log('   📋 Credit Note found:', {
+            number: invoiceNumber,
+            type: xeroType,
+            amount: invoice.Total
+          });
+        }
         
         return {
           id: String(invoiceID || invoiceNumber || `TEMP-${Date.now()}-${index}`),
           transaction_number: invoiceNumber,
-          transaction_type: invoice.Type || 'ACCREC',
+          transaction_type: this.mapXeroType(xeroType), // NOW SHOWS: "Receivable Invoice" or "Receivable Credit Note"
           amount: parseFloat(invoice.AmountDue || invoice.Total || 0),
           issue_date: invoice.Date || '',
           due_date: invoice.DueDate || '',
@@ -271,15 +295,25 @@ class XeroService {
         };
       });
       
-      console.log('✅ [xeroService] Successfully transformed customer invoices:', transformed.length);
+      const creditNoteCount = transformed.filter(t => t.transaction_type.includes('Credit Note')).length;
+      const invoiceCount = transformed.length - creditNoteCount;
+      
+      console.log('✅ [xeroService] Successfully transformed customer documents:', {
+        total: transformed.length,
+        invoices: invoiceCount,
+        creditNotes: creditNoteCount
+      });
+      
       if (transformed.length > 0) {
-        console.log('   First invoice:', {
+        console.log('   First document:', {
           number: transformed[0].transaction_number,
+          type: transformed[0].transaction_type,
           amount: transformed[0].amount,
           date: transformed[0].issue_date,
           contact: transformed[0].contact_name
         });
       }
+      
       return transformed;
     } catch (error: any) {
       console.error('❌ [xeroService] Failed to fetch customer invoices:', error);
@@ -289,11 +323,11 @@ class XeroService {
   
   /**
    * Get invoices (bills) for a specific supplier
-   * FIXED: Properly handles raw Xero API response format with capital case fields
+   * FIXED: Now includes credit notes and properly displays their type
    */
   async getSupplierInvoices(connectionId: string, contactId: string): Promise<TransactionRecord[]> {
     try {
-      console.log('🔍 [xeroService] Fetching bills for supplier:', { connectionId, contactId });
+      console.log('🔍 [xeroService] Fetching bills and credit notes for supplier:', { connectionId, contactId });
       
       const response = await apiClient.get(`xero/suppliers/${contactId}/invoices`, {
         params: { connectionId }
@@ -312,17 +346,25 @@ class XeroService {
       const invoices = response.data.invoices || [];
       
       // Transform RAW Xero invoices to TransactionRecord format
-      // Backend returns raw Xero data with capital case fields like InvoiceNumber, Total, Date, etc.
       const transformed = invoices.map((invoice: any, index: number) => {
-        // Extract Xero fields (they use capital case)
         const invoiceNumber = invoice.InvoiceNumber || '';
         const invoiceID = invoice.InvoiceID || '';
         const contactName = invoice.Contact?.Name || '';
+        const xeroType = invoice.Type || 'ACCPAY';
+        
+        // Log credit notes for debugging
+        if (xeroType.includes('CREDIT')) {
+          console.log('   📋 Credit Note found:', {
+            number: invoiceNumber,
+            type: xeroType,
+            amount: invoice.Total
+          });
+        }
         
         return {
           id: String(invoiceID || invoiceNumber || `TEMP-${Date.now()}-${index}`),
           transaction_number: invoiceNumber,
-          transaction_type: invoice.Type || 'ACCPAY',
+          transaction_type: this.mapXeroType(xeroType), // NOW SHOWS: "Payable Invoice" or "Payable Credit Note"
           amount: parseFloat(invoice.AmountDue || invoice.Total || 0),
           issue_date: invoice.Date || '',
           due_date: invoice.DueDate || '',
@@ -334,15 +376,25 @@ class XeroService {
         };
       });
       
-      console.log('✅ [xeroService] Successfully transformed supplier bills:', transformed.length);
+      const creditNoteCount = transformed.filter(t => t.transaction_type.includes('Credit Note')).length;
+      const billCount = transformed.length - creditNoteCount;
+      
+      console.log('✅ [xeroService] Successfully transformed supplier documents:', {
+        total: transformed.length,
+        bills: billCount,
+        creditNotes: creditNoteCount
+      });
+      
       if (transformed.length > 0) {
-        console.log('   First bill:', {
+        console.log('   First document:', {
           number: transformed[0].transaction_number,
+          type: transformed[0].transaction_type,
           amount: transformed[0].amount,
           date: transformed[0].issue_date,
           contact: transformed[0].contact_name
         });
       }
+      
       return transformed;
     } catch (error: any) {
       console.error('❌ [xeroService] Failed to fetch supplier invoices:', error);
@@ -372,7 +424,6 @@ class XeroService {
         limit: params.limit || 50
       };
       
-      // Add optional filters
       if (params.contactId) queryParams.contactId = params.contactId;
       if (params.dateFrom) queryParams.dateFrom = params.dateFrom;
       if (params.dateTo) queryParams.dateTo = params.dateTo;
@@ -391,7 +442,6 @@ class XeroService {
       const invoices = response.data.data?.invoices || [];
       const pagination = response.data.data?.pagination || { page: 1, limit: 50, total: 0 };
       
-      // Transform to TransactionRecord format
       const transformed = invoices.map((invoice: any, index: number) => {
         const id = invoice.xero_id || invoice.transaction_number || `TEMP-${Date.now()}-${index}`;
         
@@ -475,7 +525,6 @@ class XeroService {
     const message = urlParams.get('message');
     const connected = urlParams.get('connected');
     
-    // Clean up URL
     if (urlParams.has('success') || urlParams.has('error')) {
       const cleanUrl = window.location.origin + window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);
