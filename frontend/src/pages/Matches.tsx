@@ -11,7 +11,7 @@
  * - Always-visible CSV templates and requirements
  * - Clean, professional design with LedgerLink branding
  * 
- * FIX: Now passes Xero connection ID to DataSourceBox components
+ * FIX: Now correctly uses MongoDB _id as connectionId (not tenantId)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -68,7 +68,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
   
   // Xero connection state
   const [isXeroConnected, setIsXeroConnected] = useState(false);
-  const [xeroConnectionId, setXeroConnectionId] = useState<string | undefined>(undefined); // FIX: Add connection ID
+  const [xeroConnectionId, setXeroConnectionId] = useState<string | undefined>(undefined);
   const [checkingXero, setCheckingXero] = useState(true);
 
   // AR/AP data states
@@ -84,7 +84,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
 
   /**
    * Check if Xero is connected on mount
-   * FIX: Now also stores the connection ID (tenant ID)
+   * FIX: Now correctly uses MongoDB _id instead of tenantId
    */
   useEffect(() => {
     const checkXeroConnection = async () => {
@@ -102,10 +102,11 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
         const hasConnection = connections.length > 0;
         setIsXeroConnected(hasConnection);
         
-        // FIX: Store the first connection's tenant ID for use in DataSourceBox
+        // FIX: Use MongoDB _id (not tenantId) for API calls
         if (hasConnection) {
-          const connectionId = connections[0].tenantId;
-          console.log('📝 Using Xero connection ID:', connectionId);
+          const connectionId = connections[0]._id;  // This is the MongoDB connection ID
+          console.log('📝 Using Xero connection ID (_id):', connectionId);
+          console.log('   Tenant Name:', connections[0].tenantName);
           setXeroConnectionId(connectionId);
         } else {
           setXeroConnectionId(undefined);
@@ -415,7 +416,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
               <CardContent className="p-6">
                 {/* AR and AP Boxes Side by Side */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                  {/* AR Box - FIX: Now passes xeroConnectionId */}
+                  {/* AR Box - Passes MongoDB connection _id */}
                   <DataSourceBox
                     side="AR"
                     title="Accounts Receivable Data"
@@ -429,7 +430,7 @@ export const Matches: React.FC<MatchesProps> = ({ isLoggedIn }) => {
                     onConnectCounterparty={handleConnectCounterparty}
                   />
 
-                  {/* AP Box - FIX: Now passes xeroConnectionId */}
+                  {/* AP Box - Passes MongoDB connection _id */}
                   <DataSourceBox
                     side="AP"
                     title="Accounts Payable Data"
