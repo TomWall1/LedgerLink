@@ -10,8 +10,10 @@
  * - CSV upload with date format selection
  * - Counterparty connection display
  * - Smart state management and error handling
+ * - Auto-default to CSV when opposite side loaded but no counterparty
  * 
  * FIX: Added xeroConnectionId prop to properly fetch contacts from Xero
+ * FIX: Added shouldDefaultToCsv to auto-select CSV when no counterparty
  */
 
 import React, { useState, useEffect } from 'react';
@@ -46,11 +48,12 @@ interface DataSourceBoxProps {
   side: 'AR' | 'AP';
   title: string;
   isXeroConnected: boolean;
-  xeroConnectionId?: string; // FIX: Add connection ID prop
+  xeroConnectionId?: string;
   onDataLoaded: (data: LoadedDataSource) => void;
   onError: (error: string) => void;
   counterpartyConnection?: CounterpartyConnection | null;
   isCounterpartyLocked: boolean;
+  shouldDefaultToCsv?: boolean; // NEW: Auto-select CSV when opposite side has data but no counterparty
   onUseCsvInstead?: () => void;
   onConnectCounterparty?: () => void;
 }
@@ -59,11 +62,12 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   side,
   title,
   isXeroConnected,
-  xeroConnectionId, // FIX: Receive connection ID
+  xeroConnectionId,
   onDataLoaded,
   onError,
   counterpartyConnection,
   isCounterpartyLocked,
+  shouldDefaultToCsv = false, // NEW
   onUseCsvInstead,
   onConnectCounterparty,
 }) => {
@@ -83,6 +87,17 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   const [dateFormat, setDateFormat] = useState<DateFormat>('MM/DD/YYYY');
   const [uploadingCsv, setUploadingCsv] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+
+  /**
+   * NEW: Auto-select CSV when shouldDefaultToCsv is true
+   * This happens when the opposite side has data but no counterparty exists
+   */
+  useEffect(() => {
+    if (shouldDefaultToCsv && !loadedData && !dataSourceType) {
+      console.log(`🔄 ${side} box auto-defaulting to CSV (no counterparty found)`);
+      setDataSourceType('csv');
+    }
+  }, [shouldDefaultToCsv, loadedData, dataSourceType, side]);
 
   /**
    * Load Xero contacts when Xero is selected
