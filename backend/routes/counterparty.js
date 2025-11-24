@@ -5,12 +5,14 @@
  * 
  * UPDATED: Now uses MongoDB-based Xero connections instead of file-based tokens
  * UPDATED: Added graceful error handling for PostgreSQL database operations
+ * UPDATED: Added custom email override functionality for contacts without emails
  */
 
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import auth from '../middleware/auth.js';
 import xeroService from '../services/xeroService.js';
+import ContactEmailOverride from '../models/ContactEmailOverride.js';
 
 const router = express.Router();
 
@@ -46,6 +48,22 @@ router.get('/erp-contacts', auth, async (req, res) => {
         erpConnections: []
       });
     }
+
+    // Get all custom email overrides for this user
+    console.log('📧 STEP 2.5: Fetching custom email overrides...');
+    const emailOverrides = await ContactEmailOverride.find({
+      userId: userId,
+      companyId: companyId,
+      isActive: true
+    });
+    console.log(`✅ STEP 2.5: Found ${emailOverrides.length} custom email overrides`);
+
+    // Create a map for quick lookup of custom emails
+    const emailOverrideMap = new Map();
+    emailOverrides.forEach(override => {
+      const key = `${override.erpConnectionId}-${override.erpContactId}`;
+      emailOverrideMap.set(key, override.customEmail);
+    });
 
     // Get all existing counterparty links for status checking
     console.log('🔗 STEP 3: Fetching existing counterparty links...');
@@ -120,8 +138,16 @@ router.get('/erp-contacts', auth, async (req, res) => {
               contactType = 'vendor';
             }
 
+            // Check for custom email override
+            const overrideKey = `${connection.tenantId}-${contact.ContactID}`;
+            const customEmail = emailOverrideMap.get(overrideKey);
+            
+            // Use custom email if available, otherwise use Xero email
+            const email = customEmail || contact.EmailAddress || '';
+            const hasCustomEmail = !!customEmail;
+
             // Check for invitation/link status
-            const lookupKey = `${contact.Name.toLowerCase()}-${(contact.EmailAddress || '').toLowerCase()}`;
+            const lookupKey = `${contact.Name.toLowerCase()}-${email.toLowerCase()}`;
             const linkInfo = linkStatusMap.get(lookupKey);
 
             // Map status to our system
@@ -151,7 +177,8 @@ router.get('/erp-contacts', auth, async (req, res) => {
               erpType: 'Xero',
               erpContactId: contact.ContactID,
               name: contact.Name,
-              email: contact.EmailAddress || '',
+              email: email,
+              hasCustomEmail: hasCustomEmail,
               type: contactType,
               contactNumber: contact.ContactNumber || '',
               status: status,
@@ -194,6 +221,7 @@ router.get('/erp-contacts', auth, async (req, res) => {
 
     console.log('\n📦 STEP 5: Preparing response...');
     console.log(`   - Total contacts: ${allContacts.length}`);
+    console.log(`   - Contacts with custom emails: ${allContacts.filter(c => c.hasCustomEmail).length}`);
     console.log(`   - Total connections: ${erpConnectionsInfo.length}`);
 
     if (allContacts.length === 0) {
@@ -223,6 +251,148 @@ router.get('/erp-contacts', auth, async (req, res) => {
       error: 'Failed to fetch ERP contacts',
       message: error.message,
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+/**
+ * @route   POST /api/counterparty/contact/email
+ * @desc    Add or update custom email for an ERP contact
+ * @access  Private
+ */
+router.post('/contact/email', auth, async (req, res) => {
+  try {
+    const {
+      erpConnectionId,
+      erpContactId,
+      contactName,
+      customEmail
+    } = req.body;
+
+    const userId = req.user.id;
+    const companyId = req.user.companyId;
+
+    // Validate required fields
+    if (!erpConnectionId || !erpContactId || !contactName || !customEmail) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'erpConnectionId, erpContactId, contactName, and customEmail are required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(customEmail)) {
+      return res.status(400).json({
+        error: 'Invalid email format',
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    console.log(`📧 Setting custom email for contact: ${contactName}`);
+    console.log(`   ERP Connection: ${erpConnectionId}`);
+    console.log(`   Contact ID: ${erpContactId}`);
+    console.log(`   Email: ${customEmail}`);
+
+    // Use findOneAndUpdate with upsert to create or update
+    const emailOverride = await ContactEmailOverride.findOneAndUpdate(
+      {
+        userId: userId,
+        companyId: companyId,
+        erpConnectionId: erpConnectionId,
+        erpContactId: erpContactId
+      },
+      {
+        userId: userId,
+        companyId: companyId,
+        erpConnectionId: erpConnectionId,
+        erpContactId: erpContactId,
+        erpType: 'Xero',
+        contactName: contactName,
+        customEmail: customEmail.toLowerCase().trim(),
+        isActive: true
+      },
+      {
+        upsert: true,
+        new: true,
+        runValidators: true
+      }
+    );
+
+    console.log(`✅ Custom email ${emailOverride.isNew ? 'created' : 'updated'} successfully`);
+
+    res.json({
+      success: true,
+      message: 'Email updated successfully',
+      customEmail: emailOverride.customEmail
+    });
+
+  } catch (error) {
+    console.error('❌ Error saving custom email:', error);
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: error.message
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Failed to save custom email',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   DELETE /api/counterparty/contact/email
+ * @desc    Remove custom email for an ERP contact
+ * @access  Private
+ */
+router.delete('/contact/email', auth, async (req, res) => {
+  try {
+    const { erpConnectionId, erpContactId } = req.body;
+
+    const userId = req.user.id;
+    const companyId = req.user.companyId;
+
+    if (!erpConnectionId || !erpContactId) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'erpConnectionId and erpContactId are required'
+      });
+    }
+
+    console.log(`🗑️ Removing custom email for contact`);
+    console.log(`   ERP Connection: ${erpConnectionId}`);
+    console.log(`   Contact ID: ${erpContactId}`);
+
+    // Delete the custom email override
+    const result = await ContactEmailOverride.deleteOne({
+      userId: userId,
+      companyId: companyId,
+      erpConnectionId: erpConnectionId,
+      erpContactId: erpContactId
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        error: 'Custom email not found'
+      });
+    }
+
+    console.log(`✅ Custom email removed successfully`);
+
+    res.json({
+      success: true,
+      message: 'Custom email removed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error removing custom email:', error);
+    res.status(500).json({
+      error: 'Failed to remove custom email',
+      message: error.message
     });
   }
 });
