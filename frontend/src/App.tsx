@@ -1,4 +1,4 @@
-// Force cache invalidation - v1.0.11 - LOGOUT FUNCTIONALITY ADDED
+// Force cache invalidation - v1.0.12 - ACCEPT INVITE PAGE ADDED
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -14,7 +14,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import Matches from './pages/Matches';
 import { Counterparties } from './pages/Counterparties';
-import { InviteAcceptance } from './components/counterparty/InviteAcceptance';
+import { AcceptInvite } from './pages/AcceptInvite';
 import { Settings } from './pages/Settings';
 
 import './styles/global.css';
@@ -39,7 +39,7 @@ const AppContent: React.FC = () => {
   
   // Check for invite acceptance route
   useEffect(() => {
-    if (location.pathname === '/accept-invite') {
+    if (location.pathname.startsWith('/accept-invite')) {
       setCurrentView('invite-acceptance');
     }
   }, [location.pathname]);
@@ -164,7 +164,7 @@ const AppContent: React.FC = () => {
   if (currentView === 'invite-acceptance') {
     return (
       <ErrorBoundary>
-        <InviteAcceptance />
+        <AcceptInvite />
       </ErrorBoundary>
     );
   }
@@ -289,10 +289,10 @@ const AppContent: React.FC = () => {
                   } 
                 />
                 <Route 
-                  path="/accept-invite" 
+                  path="/accept-invite/:token" 
                   element={
                     <ErrorBoundary>
-                      <InviteAcceptance />
+                      <AcceptInvite />
                     </ErrorBoundary>
                   } 
                 />
@@ -305,7 +305,7 @@ const AppContent: React.FC = () => {
                       <div className="mt-4">
                         <button 
                           onClick={() => navigate('/dashboard')}
-                          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                          className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
                         >
                           Go to Dashboard
                         </button>
