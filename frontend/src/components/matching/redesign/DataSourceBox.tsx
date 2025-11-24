@@ -4,6 +4,7 @@
  * UPDATED:
  * - Fixed CSV date parsing to properly handle selected format (DD/MM/YYYY vs MM/DD/YYYY)
  * - Dates are now correctly parsed and converted to ISO format for matching
+ * - FIXED: CSV parser now detects credit notes (negative amounts) and labels them correctly
  */
 
 import React, { useState, useEffect } from 'react';
@@ -301,6 +302,7 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
   /**
    * Parse CSV with the selected date format
    * FIXED: Now properly parses dates according to selected format
+   * FIXED: Now detects credit notes based on negative amounts
    */
   const parseCSVWithDateFormat = (text: string, format: DateFormat): any[] => {
     const lines = text.split('\n').filter(line => line.trim());
@@ -346,8 +348,8 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
     const referenceIndex = headers.findIndex(h => h.includes('reference'));
     const vendorIndex = headers.findIndex(h => h.includes('vendor') || h.includes('customer'));
     
-    if (transactionNumberIndex === -1 || amountIndex === -1 || dateIndex === -1) {
-      throw new Error('CSV must include transaction number, amount, and date columns');
+    if (amountIndex === -1 || dateIndex === -1) {
+      throw new Error('CSV must include amount and date columns');
     }
 
     console.log(`📍 Column indices - Transaction: ${transactionNumberIndex}, Amount: ${amountIndex}, Date: ${dateIndex}`);
@@ -356,23 +358,35 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
     const invoices: any[] = [];
     let successCount = 0;
     let failCount = 0;
+    let creditNoteCount = 0;
     
     for (let i = 1; i < lines.length; i++) {
       const cells = parseCSVLine(lines[i]);
       
-      const transactionNumber = cells[transactionNumberIndex];
+      // Get transaction number (might be empty for credit notes)
+      const transactionNumber = transactionNumberIndex >= 0 ? cells[transactionNumberIndex] : '';
       const amountStr = cells[amountIndex];
       const dateStr = cells[dateIndex];
       
-      if (!transactionNumber || !amountStr || !dateStr) {
+      // CRITICAL: Don't skip rows without transaction numbers - they might be credit notes
+      // Just require amount and date
+      if (!amountStr || !dateStr) {
+        console.warn(`⚠️ Row ${i + 1}: Missing amount or date, skipping`);
         failCount++;
         continue;
       }
       
       const amount = parseFloat(amountStr.replace(/[^0-9.-]/g, ''));
       if (isNaN(amount)) {
+        console.warn(`⚠️ Row ${i + 1}: Invalid amount "${amountStr}", skipping`);
         failCount++;
         continue;
+      }
+      
+      // FIXED: Detect credit notes based on negative amount
+      const isCreditNote = amount < 0;
+      if (isCreditNote) {
+        creditNoteCount++;
       }
       
       // Parse date with selected format
@@ -381,26 +395,44 @@ export const DataSourceBox: React.FC<DataSourceBoxProps> = ({
         ? parseDateWithFormat(cells[dueDateIndex], format)
         : undefined;
       
-      invoices.push({
+      // Get reference - CRITICAL for credit note matching
+      const reference = referenceIndex >= 0 ? cells[referenceIndex] : undefined;
+      
+      // Create invoice object
+      const invoice = {
         id: `csv-${i}`,
-        transaction_number: transactionNumber,
-        transaction_type: 'CSV Invoice',
-        amount: amount,
+        transaction_number: transactionNumber || reference || `ROW-${i}`, // Use reference as fallback
+        transaction_type: isCreditNote ? 'CSV Credit Note' : 'CSV Invoice', // FIXED: Detect credit notes
+        amount: amount, // Keep as negative for credit notes
         issue_date: parsedDate,
         due_date: parsedDueDate,
         status: statusIndex >= 0 ? (cells[statusIndex] || 'UNKNOWN') : 'UNKNOWN',
-        reference: referenceIndex >= 0 ? cells[referenceIndex] : undefined,
+        reference: reference,
         contact_name: vendorIndex >= 0 ? cells[vendorIndex] : undefined,
         source: 'csv',
         // Keep original for debugging
         _original_date: dateStr,
-        _parsed_date: parsedDate
-      });
+        _parsed_date: parsedDate,
+        _row_number: i + 1
+      };
       
+      invoices.push(invoice);
       successCount++;
+      
+      // Log credit notes for debugging
+      if (isCreditNote && successCount <= 3) {
+        console.log(`   📋 Credit Note detected at row ${i + 1}:`, {
+          transaction_number: invoice.transaction_number,
+          amount: invoice.amount,
+          reference: invoice.reference,
+          date: invoice.issue_date
+        });
+      }
     }
 
     console.log(`✅ CSV parsing complete: ${successCount} successful, ${failCount} failed`);
+    console.log(`   📋 Found ${creditNoteCount} credit notes (negative amounts)`);
+    
     if (successCount > 0) {
       console.log('   First invoice date conversion:', {
         original: invoices[0]._original_date,
