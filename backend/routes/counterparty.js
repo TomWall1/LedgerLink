@@ -7,6 +7,7 @@
  * UPDATED: Added custom email override functionality for contacts without emails
  * UPDATED: Added fallback to use userId as companyId when companyId is not in user object
  * UPDATED: Fixed Xero connection lookup to only filter by userId
+ * UPDATED: Integrated SendGrid email service for invitations
  */
 
 import express from 'express';
@@ -14,6 +15,7 @@ import auth from '../middleware/auth.js';
 import xeroService from '../services/xeroService.js';
 import ContactEmailOverride from '../models/ContactEmailOverride.js';
 import CounterpartyInvitation from '../models/CounterpartyInvitation.js';
+import emailService from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -437,23 +439,32 @@ router.post('/invite', auth, async (req, res) => {
 
     await invitation.save();
 
-    // TODO: Send invitation email
-    // This would typically use a service like SendGrid, AWS SES, etc.
     console.log(`✅ Created invitation with ID: ${invitation._id}`);
-    console.log(`Invitation link: ${process.env.FRONTEND_URL}/accept-invite/${linkToken}`);
+    const inviteUrl = `${process.env.FRONTEND_URL}/accept-invite/${linkToken}`;
+    console.log(`Invitation link: ${inviteUrl}`);
 
-    // For now, log the invitation details
-    console.log('Invitation details:', {
+    // Send invitation email via SendGrid
+    const emailSent = await emailService.sendCounterpartyInvitation({
       to: recipientEmail,
-      from: req.user.email,
-      message: message,
-      inviteUrl: `${process.env.FRONTEND_URL}/accept-invite/${linkToken}`
+      recipientName: contactDetails.name,
+      senderName: req.user.name || req.user.email.split('@')[0],
+      senderEmail: req.user.email,
+      senderCompany: 'Your Company', // TODO: Get from user profile
+      inviteUrl: inviteUrl,
+      message: message
     });
+
+    if (emailSent) {
+      console.log(`✅ Invitation email sent successfully to ${recipientEmail}`);
+    } else {
+      console.warn(`⚠️ Invitation saved but email sending failed for ${recipientEmail}`);
+    }
 
     res.json({
       success: true,
       inviteId: invitation._id.toString(),
-      message: 'Invitation created successfully'
+      message: emailSent ? 'Invitation sent successfully' : 'Invitation created but email delivery failed',
+      emailSent: emailSent
     });
 
   } catch (error) {
@@ -496,12 +507,31 @@ router.post('/invite/resend', auth, async (req, res) => {
     invitation.linkExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Extend by 30 days
     await invitation.save();
 
-    // TODO: Resend invitation email
-    console.log(`✅ Invitation ${inviteId} reminder sent to ${invitation.theirContactEmail}`);
+    console.log(`🔄 Sending reminder email to ${invitation.theirContactEmail}`);
+    
+    const inviteUrl = `${process.env.FRONTEND_URL}/accept-invite/${invitation.linkToken}`;
+    
+    // Send reminder email via SendGrid
+    const emailSent = await emailService.sendInvitationReminder({
+      to: invitation.theirContactEmail,
+      recipientName: invitation.theirContactName,
+      senderName: req.user.name || req.user.email.split('@')[0],
+      senderEmail: req.user.email,
+      senderCompany: 'Your Company', // TODO: Get from user profile
+      inviteUrl: inviteUrl,
+      originalMessage: invitation.invitationMessage
+    });
+
+    if (emailSent) {
+      console.log(`✅ Reminder email sent successfully to ${invitation.theirContactEmail}`);
+    } else {
+      console.warn(`⚠️ Reminder email sending failed for ${invitation.theirContactEmail}`);
+    }
 
     res.json({
       success: true,
-      message: 'Invitation reminder sent successfully'
+      message: emailSent ? 'Invitation reminder sent successfully' : 'Failed to send reminder email',
+      emailSent: emailSent
     });
 
   } catch (error) {
