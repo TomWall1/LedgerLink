@@ -245,6 +245,429 @@ router.get('/erp-contacts', auth, async (req, res) => {
   }
 });
 
-// ... rest of the routes remain the same ...
+/**
+ * @route   POST /api/counterparty/contact/email
+ * @desc    Add or update custom email for an ERP contact
+ * @access  Private
+ */
+router.post('/contact/email', auth, async (req, res) => {
+  try {
+    const {
+      erpConnectionId,
+      erpContactId,
+      contactName,
+      customEmail
+    } = req.body;
+
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
+
+    // Validate required fields
+    if (!erpConnectionId || !erpContactId || !contactName || !customEmail) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'erpConnectionId, erpContactId, contactName, and customEmail are required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(customEmail)) {
+      return res.status(400).json({
+        error: 'Invalid email format',
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    console.log(`📧 Setting custom email for contact: ${contactName}`);
+    console.log(`   ERP Connection: ${erpConnectionId}`);
+    console.log(`   Contact ID: ${erpContactId}`);
+    console.log(`   Email: ${customEmail}`);
+
+    // Use findOneAndUpdate with upsert to create or update
+    const emailOverride = await ContactEmailOverride.findOneAndUpdate(
+      {
+        userId: userId,
+        companyId: companyId,
+        erpConnectionId: erpConnectionId,
+        erpContactId: erpContactId
+      },
+      {
+        userId: userId,
+        companyId: companyId,
+        erpConnectionId: erpConnectionId,
+        erpContactId: erpContactId,
+        erpType: 'Xero',
+        contactName: contactName,
+        customEmail: customEmail.toLowerCase().trim(),
+        isActive: true
+      },
+      {
+        upsert: true,
+        new: true,
+        runValidators: true
+      }
+    );
+
+    console.log(`✅ Custom email ${emailOverride.isNew ? 'created' : 'updated'} successfully`);
+
+    res.json({
+      success: true,
+      message: 'Email updated successfully',
+      customEmail: emailOverride.customEmail
+    });
+
+  } catch (error) {
+    console.error('❌ Error saving custom email:', error);
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: error.message
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Failed to save custom email',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   DELETE /api/counterparty/contact/email
+ * @desc    Remove custom email for an ERP contact
+ * @access  Private
+ */
+router.delete('/contact/email', auth, async (req, res) => {
+  try {
+    const { erpConnectionId, erpContactId } = req.body;
+
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
+
+    if (!erpConnectionId || !erpContactId) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'erpConnectionId and erpContactId are required'
+      });
+    }
+
+    console.log(`🗑️ Removing custom email for contact`);
+    console.log(`   ERP Connection: ${erpConnectionId}`);
+    console.log(`   Contact ID: ${erpContactId}`);
+
+    // Delete the custom email override
+    const result = await ContactEmailOverride.deleteOne({
+      userId: userId,
+      companyId: companyId,
+      erpConnectionId: erpConnectionId,
+      erpContactId: erpContactId
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        error: 'Custom email not found'
+      });
+    }
+
+    console.log(`✅ Custom email removed successfully`);
+
+    res.json({
+      success: true,
+      message: 'Custom email removed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error removing custom email:', error);
+    res.status(500).json({
+      error: 'Failed to remove custom email',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/counterparty/invite
+ * @desc    Send invitation to a counterparty to connect their accounting system
+ * @access  Private
+ */
+router.post('/invite', auth, async (req, res) => {
+  try {
+    const {
+      erpConnectionId,
+      erpContactId,
+      recipientEmail,
+      relationshipType,
+      message,
+      contactDetails
+    } = req.body;
+
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
+
+    console.log(`📧 Creating invitation for ${contactDetails.name} (${recipientEmail})`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Company ID: ${companyId}`);
+
+    // Generate a unique invitation token
+    const crypto = await import('crypto');
+    const linkToken = crypto.randomBytes(32).toString('hex');
+    const linkExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    // Create counterparty invitation in MongoDB
+    const invitation = new CounterpartyInvitation({
+      companyId: companyId,
+      userId: userId,
+      ourCustomerName: contactDetails.name,
+      theirCompanyName: contactDetails.name, // They'll update this when they accept
+      theirSystemType: 'UNKNOWN', // They'll specify when they accept
+      theirContactEmail: recipientEmail.toLowerCase().trim(),
+      theirContactName: contactDetails.name,
+      connectionStatus: 'PENDING',
+      linkToken: linkToken,
+      linkExpiresAt: linkExpiresAt,
+      matchingRules: {},
+      isActive: true,
+      relationshipType: relationshipType || 'customer',
+      erpConnectionId: erpConnectionId,
+      erpContactId: erpContactId,
+      invitationMessage: message
+    });
+
+    await invitation.save();
+
+    // TODO: Send invitation email
+    // This would typically use a service like SendGrid, AWS SES, etc.
+    console.log(`✅ Created invitation with ID: ${invitation._id}`);
+    console.log(`Invitation link: ${process.env.FRONTEND_URL}/accept-invite/${linkToken}`);
+
+    // For now, log the invitation details
+    console.log('Invitation details:', {
+      to: recipientEmail,
+      from: req.user.email,
+      message: message,
+      inviteUrl: `${process.env.FRONTEND_URL}/accept-invite/${linkToken}`
+    });
+
+    res.json({
+      success: true,
+      inviteId: invitation._id.toString(),
+      message: 'Invitation created successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error sending invitation:', error);
+    res.status(500).json({
+      error: 'Failed to send invitation',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/counterparty/invite/resend
+ * @desc    Resend invitation to a counterparty
+ * @access  Private
+ */
+router.post('/invite/resend', auth, async (req, res) => {
+  try {
+    const { inviteId } = req.body;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
+
+    console.log(`🔄 Resending invitation ${inviteId}`);
+
+    // Get the invitation from MongoDB
+    const invitation = await CounterpartyInvitation.findOne({
+      _id: inviteId,
+      companyId: companyId,
+      connectionStatus: 'PENDING',
+      isActive: true
+    });
+
+    if (!invitation) {
+      return res.status(404).json({
+        error: 'Invitation not found or already accepted'
+      });
+    }
+
+    // Update the expiry date
+    invitation.linkExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Extend by 30 days
+    await invitation.save();
+
+    // TODO: Resend invitation email
+    console.log(`✅ Invitation ${inviteId} reminder sent to ${invitation.theirContactEmail}`);
+
+    res.json({
+      success: true,
+      message: 'Invitation reminder sent successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error resending invitation:', error);
+    res.status(500).json({
+      error: 'Failed to resend invitation',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/counterparty/check-link
+ * @desc    Check if a customer/supplier has a linked counterparty account
+ * @access  Private
+ * @query   name - Customer/supplier name from YOUR system
+ * @query   ledgerType - 'AR' or 'AP'
+ */
+router.get('/check-link', auth, async (req, res) => {
+  try {
+    const { name, ledgerType } = req.query;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
+
+    if (!name || !ledgerType) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters: name and ledgerType'
+      });
+    }
+
+    console.log(`🔍 Checking counterparty link for: ${name} (${ledgerType})`);
+
+    // Query CounterpartyInvitation from MongoDB
+    const invitation = await CounterpartyInvitation.findOne({
+      companyId: companyId,
+      ourCustomerName: { $regex: new RegExp(`^${name}$`, 'i') }, // Case-insensitive match
+      connectionStatus: 'LINKED', // Only return if fully linked
+      isActive: true
+    });
+
+    if (invitation) {
+      console.log(`✅ Found linked counterparty:`, invitation.theirCompanyName);
+      return res.json({
+        success: true,
+        linked: true,
+        counterparty: {
+          id: invitation._id.toString(),
+          companyName: invitation.theirCompanyName,
+          erpType: invitation.theirSystemType,
+          contactEmail: invitation.theirContactEmail,
+          contactName: invitation.theirContactName,
+          lastUpdated: invitation.updatedAt
+        }
+      });
+    }
+
+    console.log(`ℹ️ No linked counterparty found for ${name}`);
+    return res.json({
+      success: true,
+      linked: false,
+      counterparty: null
+    });
+
+  } catch (error) {
+    console.error('❌ Error checking counterparty link:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check counterparty link',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/counterparty/:linkId/invoices
+ * @desc    Fetch invoices from a linked counterparty (NOT YET IMPLEMENTED)
+ * @access  Private
+ */
+router.get('/:linkId/invoices', auth, async (req, res) => {
+  try {
+    const { linkId } = req.params;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
+
+    // Verify the invitation/link exists and belongs to this company
+    const invitation = await CounterpartyInvitation.findOne({
+      _id: linkId,
+      companyId: companyId,
+      connectionStatus: 'LINKED',
+      isActive: true
+    });
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Counterparty link not found or not accessible'
+      });
+    }
+
+    // TODO: Implement actual invoice fetching from counterparty's system
+    // This would require:
+    // 1. Secure cross-account data access mechanism
+    // 2. Permission system for counterparties to grant access
+    // 3. Handling different ERP types on the counterparty side
+    
+    res.status(501).json({
+      success: false,
+      error: 'Invoice fetching from counterparties not yet implemented',
+      message: 'This feature requires cross-account data access implementation'
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching counterparty invoices:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch counterparty invoices',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/counterparty/links
+ * @desc    Get all counterparty links for the company
+ * @access  Private
+ */
+router.get('/links', auth, async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
+
+    // Query MongoDB for invitations
+    const invitations = await CounterpartyInvitation.find({
+      companyId: companyId,
+      isActive: true
+    })
+    .select('ourCustomerName theirCompanyName theirSystemType theirContactEmail connectionStatus createdAt updatedAt')
+    .sort({ updatedAt: -1 });
+
+    // Map to match the expected response format
+    const links = invitations.map(inv => ({
+      id: inv._id.toString(),
+      ourCustomerName: inv.ourCustomerName,
+      theirCompanyName: inv.theirCompanyName,
+      theirSystemType: inv.theirSystemType,
+      theirContactEmail: inv.theirContactEmail,
+      connectionStatus: inv.connectionStatus,
+      createdAt: inv.createdAt,
+      updatedAt: inv.updatedAt
+    }));
+
+    res.json({
+      success: true,
+      links: links,
+      count: links.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching counterparty links:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch counterparty links',
+      message: error.message
+    });
+  }
+});
 
 export default router;
