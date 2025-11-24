@@ -6,9 +6,10 @@
  * 
  * UPDATED: Fixed table layout to use full width with properly sized columns
  * FIXED: Removed cramped horizontal scrolling, tables now expand to fill container
+ * ENHANCED: Added detailed credit note tracking for debugging
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -30,6 +31,30 @@ interface MatchingResultsDisplayProps {
 
 const INITIAL_DISPLAY_COUNT = 5; // Show first 5 results by default
 
+/**
+ * Detect if a transaction is a credit note
+ * Credit notes reduce balances and should have negative amounts
+ */
+const isCreditNote = (record: any): boolean => {
+  if (!record) return false;
+  
+  const type = record.transaction_type || record.type || '';
+  const typeStr = typeof type === 'string' ? type.toLowerCase() : '';
+  
+  // Check if type includes "credit" or "credit note"
+  if (typeStr.includes('credit')) {
+    return true;
+  }
+  
+  // Check if amount is negative (credit notes reduce balances)
+  const amount = record.amount || 0;
+  if (amount < 0) {
+    return true;
+  }
+  
+  return false;
+};
+
 export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
   results,
   onStartNew
@@ -47,6 +72,83 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
   const [showAllUnmatchedPayables, setShowAllUnmatchedPayables] = useState(false);
   const [showAllDateMismatches, setShowAllDateMismatches] = useState(false);
   const [showAllHistoricalInsights, setShowAllHistoricalInsights] = useState(false);
+
+  // ENHANCED: Credit Note Tracking - Run once when component mounts
+  useEffect(() => {
+    console.log('\n🔍 ============ CREDIT NOTE TRACKING ============');
+    
+    const perfectMatches = results.perfectMatches || [];
+    const mismatches = results.mismatches || [];
+    const unmatchedCompany1 = results.unmatchedItems?.company1 || [];
+    const unmatchedCompany2 = results.unmatchedItems?.company2 || [];
+    
+    // Track credit notes in perfect matches
+    const creditNotesInPerfectMatches = perfectMatches.filter(match => {
+      const rec1 = match.company1;
+      const rec2 = match.company2;
+      return isCreditNote(rec1) || isCreditNote(rec2);
+    });
+    
+    // Track credit notes in mismatches
+    const creditNotesInMismatches = mismatches.filter(match => {
+      const rec1 = match.company1;
+      const rec2 = match.company2;
+      return isCreditNote(rec1) || isCreditNote(rec2);
+    });
+    
+    // Track credit notes in unmatched items
+    const creditNotesInUnmatched1 = unmatchedCompany1.filter(isCreditNote);
+    const creditNotesInUnmatched2 = unmatchedCompany2.filter(isCreditNote);
+    
+    console.log('📊 CREDIT NOTE SUMMARY:');
+    console.log(`   Perfect Matches: ${creditNotesInPerfectMatches.length} contain credit notes`);
+    console.log(`   Mismatches: ${creditNotesInMismatches.length} contain credit notes`);
+    console.log(`   Unmatched AR: ${creditNotesInUnmatched1.length} credit notes`);
+    console.log(`   Unmatched AP: ${creditNotesInUnmatched2.length} credit notes`);
+    
+    // Log details of each credit note
+    if (creditNotesInPerfectMatches.length > 0) {
+      console.log('\n✅ Credit Notes in PERFECT MATCHES:');
+      creditNotesInPerfectMatches.forEach((match, i) => {
+        const rec1 = match.company1;
+        const rec2 = match.company2;
+        console.log(`   ${i + 1}. AR: ${rec1?.transaction_number} (${rec1?.transaction_type}, ${rec1?.amount})`);
+        console.log(`      AP: ${rec2?.transaction_number} (${rec2?.transaction_type}, ${rec2?.amount})`);
+        console.log(`      References: AR="${rec1?.reference}" / AP="${rec2?.reference}"`);
+      });
+    }
+    
+    if (creditNotesInMismatches.length > 0) {
+      console.log('\n⚠️ Credit Notes in MISMATCHES:');
+      creditNotesInMismatches.forEach((match, i) => {
+        const rec1 = match.company1;
+        const rec2 = match.company2;
+        console.log(`   ${i + 1}. AR: ${rec1?.transaction_number} (${rec1?.transaction_type}, ${rec1?.amount})`);
+        console.log(`      AP: ${rec2?.transaction_number} (${rec2?.transaction_type}, ${rec2?.amount})`);
+        console.log(`      References: AR="${rec1?.reference}" / AP="${rec2?.reference}"`);
+      });
+    }
+    
+    if (creditNotesInUnmatched1.length > 0) {
+      console.log('\n❌ UNMATCHED AR Credit Notes:');
+      creditNotesInUnmatched1.forEach((rec, i) => {
+        console.log(`   ${i + 1}. ${rec.transaction_number} (${rec.transaction_type}, ${rec.amount})`);
+        console.log(`      Reference: "${rec.reference}"`);
+        console.log(`      Date: ${rec.issue_date}, Status: ${rec.status}`);
+      });
+    }
+    
+    if (creditNotesInUnmatched2.length > 0) {
+      console.log('\n❌ UNMATCHED AP Credit Notes:');
+      creditNotesInUnmatched2.forEach((rec, i) => {
+        console.log(`   ${i + 1}. ${rec.transaction_number} (${rec.transaction_type}, ${rec.amount})`);
+        console.log(`      Reference: "${rec.reference}"`);
+        console.log(`      Date: ${rec.issue_date}, Status: ${rec.status}`);
+      });
+    }
+    
+    console.log('============================================\n');
+  }, [results]);
 
   /**
    * Safe number conversion - handles undefined/null
@@ -131,6 +233,19 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
     return (
       <Badge variant="warning" className="text-xs ml-2">
         {percentPaid}% Paid
+      </Badge>
+    );
+  };
+
+  /**
+   * Get credit note badge for display
+   */
+  const getCreditNoteBadge = (record: any) => {
+    if (!isCreditNote(record)) return null;
+    
+    return (
+      <Badge variant="default" className="text-xs ml-2 bg-purple-100 text-purple-700">
+        Credit Note
       </Badge>
     );
   };
@@ -398,18 +513,21 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                     </TableHeader>
                     <TableBody>
                       {displayedPerfectMatches.map((match, index) => {
-                        const record = match.company1?.transactionNumber ? match.company1 : match.company2;
+                        const record = match.company1?.transactionNumber || match.company1?.transaction_number ? match.company1 : match.company2;
                         if (!record) return null;
                         return (
                           <TableRow key={index}>
-                            <TableCell className="font-mono">{record.transactionNumber || '-'}</TableCell>
-                            <TableCell>{record.type || '-'}</TableCell>
+                            <TableCell className="font-mono">{record.transactionNumber || record.transaction_number || '-'}</TableCell>
+                            <TableCell>
+                              {record.type || record.transaction_type || '-'}
+                              {getCreditNoteBadge(record)}
+                            </TableCell>
                             <TableCell className="font-mono">
                               {formatCurrency(record.amount)}
                               {getPartialPaymentBadge(record)}
                             </TableCell>
-                            <TableCell>{formatDate(record.date)}</TableCell>
-                            <TableCell>{formatDate(record.dueDate)}</TableCell>
+                            <TableCell>{formatDate(record.date || record.issue_date)}</TableCell>
+                            <TableCell>{formatDate(record.dueDate || record.due_date)}</TableCell>
                             <TableCell>{getStatusBadge(record.status)}</TableCell>
                           </TableRow>
                         );
@@ -471,9 +589,12 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                         return (
                           <TableRow key={index}>
                             <TableCell className="font-mono">
-                              {mismatch.company1?.transactionNumber || mismatch.company2?.transactionNumber || '-'}
+                              {mismatch.company1?.transactionNumber || mismatch.company1?.transaction_number || mismatch.company2?.transactionNumber || mismatch.company2?.transaction_number || '-'}
                             </TableCell>
-                            <TableCell>{mismatch.company1?.type || mismatch.company2?.type || '-'}</TableCell>
+                            <TableCell>
+                              {mismatch.company1?.type || mismatch.company1?.transaction_type || mismatch.company2?.type || mismatch.company2?.transaction_type || '-'}
+                              {getCreditNoteBadge(mismatch.company1 || mismatch.company2)}
+                            </TableCell>
                             <TableCell className="font-mono">
                               {formatCurrency(amount1)}
                               {mismatch.company1 && getPartialPaymentBadge(mismatch.company1)}
@@ -486,7 +607,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                               {formatCurrency(difference)}
                             </TableCell>
                             <TableCell>
-                              {formatDate(mismatch.company1?.date || mismatch.company2?.date)}
+                              {formatDate(mismatch.company1?.date || mismatch.company1?.issue_date || mismatch.company2?.date || mismatch.company2?.issue_date)}
                             </TableCell>
                             <TableCell>
                               {getStatusBadge(mismatch.company1?.status || mismatch.company2?.status)}
@@ -539,22 +660,25 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-1/5">Transaction #</TableHead>
+                          <TableHead className="w-1/5">Type</TableHead>
                           <TableHead className="w-1/5">Amount</TableHead>
                           <TableHead className="w-1/5">Date</TableHead>
-                          <TableHead className="w-1/5">Due Date</TableHead>
                           <TableHead className="w-1/5">Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {displayedUnmatchedCompany1.map((item, index) => (
                           <TableRow key={index}>
-                            <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
+                            <TableCell className="font-mono">{item.transactionNumber || item.transaction_number || '-'}</TableCell>
+                            <TableCell>
+                              {item.type || item.transaction_type || '-'}
+                              {getCreditNoteBadge(item)}
+                            </TableCell>
                             <TableCell className="font-mono">
                               {formatCurrency(item.amount)}
                               {getPartialPaymentBadge(item)}
                             </TableCell>
-                            <TableCell>{formatDate(item.date)}</TableCell>
-                            <TableCell>{formatDate(item.dueDate)}</TableCell>
+                            <TableCell>{formatDate(item.date || item.issue_date)}</TableCell>
                             <TableCell>{getStatusBadge(item.status)}</TableCell>
                           </TableRow>
                         ))}
@@ -577,7 +701,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                   <h4 className="text-md font-medium text-neutral-900">
                     Unmatched Payables ({unmatchedCompany2.length})
                   </h4>
-                  {unmatchedCompany2.length > INITIAL_DISPLAY_COUNT && (
+                  {unmatchedCompany2.length > 0 && (
                     <p className="text-sm text-neutral-600 mt-1">
                       Showing {displayedUnmatchedCompany2.length} of {unmatchedCompany2.length} items
                     </p>
@@ -592,22 +716,25 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-1/5">Transaction #</TableHead>
+                          <TableHead className="w-1/5">Type</TableHead>
                           <TableHead className="w-1/5">Amount</TableHead>
                           <TableHead className="w-1/5">Date</TableHead>
-                          <TableHead className="w-1/5">Due Date</TableHead>
                           <TableHead className="w-1/5">Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {displayedUnmatchedCompany2.map((item, index) => (
                           <TableRow key={index}>
-                            <TableCell className="font-mono">{item.transactionNumber || '-'}</TableCell>
+                            <TableCell className="font-mono">{item.transactionNumber || item.transaction_number || '-'}</TableCell>
+                            <TableCell>
+                              {item.type || item.transaction_type || '-'}
+                              {getCreditNoteBadge(item)}
+                            </TableCell>
                             <TableCell className="font-mono">
                               {formatCurrency(item.amount)}
                               {getPartialPaymentBadge(item)}
                             </TableCell>
-                            <TableCell>{formatDate(item.date)}</TableCell>
-                            <TableCell>{formatDate(item.dueDate)}</TableCell>
+                            <TableCell>{formatDate(item.date || item.issue_date)}</TableCell>
                             <TableCell>{getStatusBadge(item.status)}</TableCell>
                           </TableRow>
                         ))}
@@ -661,9 +788,9 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                       {displayedDateMismatches.map((mismatch, index) => (
                         <TableRow key={index}>
                           <TableCell className="font-mono">
-                            {mismatch.company1?.transactionNumber || '-'}
+                            {mismatch.company1?.transactionNumber || mismatch.company1?.transaction_number || '-'}
                           </TableCell>
-                          <TableCell>{mismatch.company1?.type || '-'}</TableCell>
+                          <TableCell>{mismatch.company1?.type || mismatch.company1?.transaction_type || '-'}</TableCell>
                           <TableCell className="font-mono">
                             {formatCurrency(mismatch.company1?.amount)}
                           </TableCell>
@@ -715,9 +842,9 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                   <div className="border-r border-neutral-200 pr-4">
                     <div className="text-xs font-medium text-neutral-600 mb-2">AP Item</div>
                     <div className="space-y-1">
-                      <div className="font-mono text-sm">{insight.apItem?.transactionNumber || '-'}</div>
+                      <div className="font-mono text-sm">{insight.apItem?.transactionNumber || insight.apItem?.transaction_number || '-'}</div>
                       <div className="text-sm font-medium">{formatCurrency(insight.apItem?.amount)}</div>
-                      <div className="text-xs text-neutral-600">{formatDate(insight.apItem?.date)}</div>
+                      <div className="text-xs text-neutral-600">{formatDate(insight.apItem?.date || insight.apItem?.issue_date)}</div>
                     </div>
                   </div>
 
@@ -725,7 +852,7 @@ export const MatchingResultsDisplay: React.FC<MatchingResultsDisplayProps> = ({
                   <div className="border-r border-neutral-200 pr-4">
                     <div className="text-xs font-medium text-neutral-600 mb-2">AR Historical Match</div>
                     <div className="space-y-1">
-                      <div className="font-mono text-sm">{insight.historicalMatch?.transactionNumber || '-'}</div>
+                      <div className="font-mono text-sm">{insight.historicalMatch?.transactionNumber || insight.historicalMatch?.transaction_number || '-'}</div>
                       <div className="text-sm">
                         Original: {formatCurrency(insight.historicalMatch?.original_amount)}
                       </div>
