@@ -5,6 +5,7 @@
  * UPDATED: Now uses MongoDB for ALL data storage (Xero connections, invitations, email overrides)
  * UPDATED: Removed PostgreSQL/Prisma dependency
  * UPDATED: Added custom email override functionality for contacts without emails
+ * UPDATED: Added fallback to use userId as companyId when companyId is not in user object
  */
 
 import express from 'express';
@@ -24,8 +25,8 @@ router.get('/erp-contacts', auth, async (req, res) => {
   console.log('\n========== ERP CONTACTS FETCH REQUEST ==========');
   
   try {
-    const userId = req.user.id;
-    const companyId = req.user.companyId;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
 
     console.log(`📋 STEP 1: Request initiated`);
     console.log(`   - User ID: ${userId}`);
@@ -255,8 +256,8 @@ router.post('/contact/email', auth, async (req, res) => {
       customEmail
     } = req.body;
 
-    const userId = req.user.id;
-    const companyId = req.user.companyId;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
 
     // Validate required fields
     if (!erpConnectionId || !erpContactId || !contactName || !customEmail) {
@@ -339,8 +340,8 @@ router.delete('/contact/email', auth, async (req, res) => {
   try {
     const { erpConnectionId, erpContactId } = req.body;
 
-    const userId = req.user.id;
-    const companyId = req.user.companyId;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
 
     if (!erpConnectionId || !erpContactId) {
       return res.status(400).json({
@@ -399,10 +400,12 @@ router.post('/invite', auth, async (req, res) => {
       contactDetails
     } = req.body;
 
-    const companyId = req.user.companyId;
-    const userId = req.user.id;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
 
     console.log(`📧 Creating invitation for ${contactDetails.name} (${recipientEmail})`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Company ID: ${companyId}`);
 
     // Generate a unique invitation token
     const crypto = await import('crypto');
@@ -467,7 +470,8 @@ router.post('/invite', auth, async (req, res) => {
 router.post('/invite/resend', auth, async (req, res) => {
   try {
     const { inviteId } = req.body;
-    const companyId = req.user.companyId;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
 
     console.log(`🔄 Resending invitation ${inviteId}`);
 
@@ -516,7 +520,8 @@ router.post('/invite/resend', auth, async (req, res) => {
 router.get('/check-link', auth, async (req, res) => {
   try {
     const { name, ledgerType } = req.query;
-    const companyId = req.user.companyId;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
 
     if (!name || !ledgerType) {
       return res.status(400).json({
@@ -576,7 +581,8 @@ router.get('/check-link', auth, async (req, res) => {
 router.get('/:linkId/invoices', auth, async (req, res) => {
   try {
     const { linkId } = req.params;
-    const companyId = req.user.companyId;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
 
     // Verify the invitation/link exists and belongs to this company
     const invitation = await CounterpartyInvitation.findOne({
@@ -622,7 +628,8 @@ router.get('/:linkId/invoices', auth, async (req, res) => {
  */
 router.get('/links', auth, async (req, res) => {
   try {
-    const companyId = req.user.companyId;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
 
     // Query MongoDB for invitations
     const invitations = await CounterpartyInvitation.find({
