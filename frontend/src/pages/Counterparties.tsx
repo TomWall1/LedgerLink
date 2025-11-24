@@ -14,6 +14,7 @@ interface ERPContact {
   erpContactId: string;
   name: string;
   email: string;
+  hasCustomEmail?: boolean;
   type: 'customer' | 'vendor' | 'both';
   contactNumber: string;
   status: 'linked' | 'pending' | 'accepted' | 'unlinked';
@@ -34,6 +35,11 @@ interface InviteFormData {
   message: string;
 }
 
+interface EmailFormData {
+  contact: ERPContact | null;
+  email: string;
+}
+
 export const Counterparties: React.FC = () => {
   const [erpContacts, setErpContacts] = useState<ERPContact[]>([]);
   const [erpConnections, setErpConnections] = useState<ERPConnection[]>([]);
@@ -43,6 +49,15 @@ export const Counterparties: React.FC = () => {
     contact: null,
     message: ''
   });
+  
+  // Email management states
+  const [emailModal, setEmailModal] = useState(false);
+  const [emailForm, setEmailForm] = useState<EmailFormData>({
+    contact: null,
+    email: ''
+  });
+  const [savingEmail, setSavingEmail] = useState(false);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'customer' | 'vendor'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'unlinked' | 'pending' | 'linked'>('all');
@@ -124,6 +139,50 @@ export const Counterparties: React.FC = () => {
   const handleRefresh = async () => {
     setLoading(true);
     await checkXeroConnection();
+  };
+
+  // Handle email modal open
+  const handleAddEmailClick = (contact: ERPContact) => {
+    setEmailForm({
+      contact,
+      email: contact.email || ''
+    });
+    setEmailModal(true);
+  };
+
+  // Handle save email
+  const handleSaveEmail = async () => {
+    if (!emailForm.contact || !emailForm.email) return;
+
+    // Simple email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailForm.email)) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
+    setSavingEmail(true);
+    try {
+      await apiClient.post('/counterparty/contact/email', {
+        erpConnectionId: emailForm.contact.erpConnectionId,
+        erpContactId: emailForm.contact.erpContactId,
+        contactName: emailForm.contact.name,
+        customEmail: emailForm.email
+      });
+
+      // Refresh the contacts list
+      await fetchERPContacts();
+      
+      setEmailModal(false);
+      setEmailForm({ contact: null, email: '' });
+      
+      alert('Email saved successfully!');
+    } catch (error: any) {
+      console.error('Error saving email:', error);
+      alert(error.response?.data?.message || error.message || 'Failed to save email');
+    } finally {
+      setSavingEmail(false);
+    }
   };
 
   const handleInviteClick = (contact: ERPContact) => {
@@ -502,7 +561,7 @@ export const Counterparties: React.FC = () => {
                     <TableHead>Type</TableHead>
                     <TableHead>System</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="w-40">Actions</TableHead>
+                    <TableHead className="w-48">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -531,7 +590,26 @@ export const Counterparties: React.FC = () => {
                           </div>
                         </TableCell>
                         <TableCell className="text-neutral-600">
-                          {contact.email || <span className="text-neutral-400 italic">No email</span>}
+                          <div className="flex items-center gap-2">
+                            {contact.email ? (
+                              <>
+                                <span>{contact.email}</span>
+                                {contact.hasCustomEmail && (
+                                  <button
+                                    onClick={() => handleAddEmailClick(contact)}
+                                    className="text-primary-600 hover:text-primary-700"
+                                    title="Edit custom email"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-neutral-400 italic">No email</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           {getTypeBadge(contact.type)}
@@ -543,7 +621,24 @@ export const Counterparties: React.FC = () => {
                         </TableCell>
                         <TableCell>{getStatusBadge(contact.status)}</TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-1">
+                          <div className="flex items-center gap-2">
+                            {/* Show Add Email button if no email */}
+                            {!contact.email && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleAddEmailClick(contact)}
+                                leftIcon={
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                }
+                              >
+                                Add Email
+                              </Button>
+                            )}
+                            
+                            {/* Show Invite button if has email and not invited */}
                             {contact.status === 'unlinked' && contact.email && (
                               <Button
                                 variant="primary"
@@ -553,6 +648,8 @@ export const Counterparties: React.FC = () => {
                                 Invite
                               </Button>
                             )}
+                            
+                            {/* Show resend button if pending */}
                             {(contact.status === 'pending' || contact.status === 'accepted') && (
                               <Button
                                 variant="ghost"
@@ -565,13 +662,12 @@ export const Counterparties: React.FC = () => {
                                 </svg>
                               </Button>
                             )}
+                            
+                            {/* Show Connected badge if linked */}
                             {contact.status === 'linked' && (
                               <Badge variant="success" size="sm">
                                 Connected
                               </Badge>
-                            )}
-                            {!contact.email && (
-                              <span className="text-xs text-neutral-400 italic">No email available</span>
                             )}
                           </div>
                         </TableCell>
@@ -592,6 +688,82 @@ export const Counterparties: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Email Modal */}
+      <Modal
+        isOpen={emailModal}
+        onClose={() => {
+          setEmailModal(false);
+          setEmailForm({ contact: null, email: '' });
+        }}
+        title={`${emailForm.contact?.email ? 'Edit' : 'Add'} Email for ${emailForm.contact?.name || 'Contact'}`}
+        description="Enter the email address for this contact to send invitations"
+      >
+        {emailForm.contact && (
+          <div className="space-y-4">
+            {/* Contact Info */}
+            <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-neutral-600">Name:</span>
+                  <p className="font-medium text-neutral-900">{emailForm.contact.name}</p>
+                </div>
+                <div>
+                  <span className="text-neutral-600">Type:</span>
+                  <p className="font-medium text-neutral-900 capitalize">{emailForm.contact.type}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Email Input */}
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Email Address *
+              </label>
+              <Input
+                type="email"
+                value={emailForm.email}
+                onChange={(e) => setEmailForm({ ...emailForm, email: e.target.value })}
+                placeholder="email@example.com"
+                className="w-full"
+              />
+              <p className="text-xs text-neutral-500 mt-1">
+                This email will be used to send invitation for system connection
+              </p>
+            </div>
+
+            {/* Note about custom emails */}
+            <div className="bg-primary-50 border border-primary-200 rounded-lg p-3">
+              <p className="text-small text-primary-700">
+                💡 This email is stored in LedgerLink only and won't change your Xero data
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex space-x-3 pt-4">
+              <Button
+                variant="primary"
+                onClick={handleSaveEmail}
+                disabled={savingEmail || !emailForm.email}
+                className="flex-1"
+              >
+                {savingEmail ? 'Saving...' : 'Save Email'}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setEmailModal(false);
+                  setEmailForm({ contact: null, email: '' });
+                }}
+                disabled={savingEmail}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Invite Modal */}
       <Modal
