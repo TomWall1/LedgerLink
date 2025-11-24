@@ -2,5 +2,11 @@
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/build",
   "framework": null,
-  "cache": false
+  "cache": false,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
