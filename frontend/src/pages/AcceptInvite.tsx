@@ -38,19 +38,25 @@ export const AcceptInvite: React.FC = () => {
       try {
         console.log(`📧 Fetching invitation details for token: ${token}`);
         
-        // TODO: Replace with actual API endpoint when backend is ready
-        // For now, show a coming soon message
+        // Call the backend API
+        const response = await fetch(`https://ledgerlink.onrender.com/api/counterparty/invite/${token}`);
         
-        // Simulated data for demonstration
-        setInvitation({
-          inviterName: 'Thomas Wall',
-          inviterEmail: 'thomasjameswall1@gmail.com',
-          inviterCompany: 'Your Company',
-          recipientName: 'Hooli',
-          message: "Hi Hooli,\n\nI'd like to connect our accounting systems to streamline our invoice reconciliation process. This will help us both save time and reduce errors.\n\nLooking forward to working together!",
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          isExpired: false
-        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('❌ API error:', errorData);
+          setError(errorData.message || 'This invitation link is invalid or has expired.');
+          setLoading(false);
+          return;
+        }
+
+        const data = await response.json();
+        console.log('✅ Invitation data received:', data);
+        
+        if (data.success && data.invitation) {
+          setInvitation(data.invitation);
+        } else {
+          setError('Failed to load invitation details.');
+        }
         
         setLoading(false);
       } catch (err) {
