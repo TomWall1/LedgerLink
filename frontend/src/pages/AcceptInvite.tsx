@@ -17,8 +17,11 @@ interface InvitationDetails {
 }
 
 export const AcceptInvite: React.FC = () => {
-  const { token } = useParams<{ token: string }>();
+  const { token: paramToken } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  
+  // Extract token from URL if useParams doesn't work (when component is rendered outside Routes)
+  const token = paramToken || window.location.pathname.split('/').pop() || '';
   
   const [loading, setLoading] = useState(true);
   const [invitation, setInvitation] = useState<InvitationDetails | null>(null);
@@ -29,7 +32,7 @@ export const AcceptInvite: React.FC = () => {
   // Fetch invitation details on mount
   useEffect(() => {
     const fetchInvitationDetails = async () => {
-      if (!token) {
+      if (!token || token.length < 10) {
         setError('Invalid invitation link');
         setLoading(false);
         return;
