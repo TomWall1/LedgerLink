@@ -151,39 +151,93 @@ CounterpartyInviteSchema.methods.isValid = function() {
   return this.status === 'pending' && this.expiresAt > new Date();
 };
 
-// Accept the invitation
-CounterpartyInviteSchema.methods.accept = async function(recipientCompanyId) {
+// =============================================================================
+// UPDATED: Accept invitation with recipient's ERP contact linkage
+// =============================================================================
+CounterpartyInviteSchema.methods.accept = async function(acceptanceData) {
+  // acceptanceData should contain:
+  // {
+  //   recipientCompanyId: ObjectId,
+  //   recipientErpConnectionId: ObjectId,  // NEW: Required
+  //   recipientErpContactId: String,       // NEW: Required
+  //   recipientErpContactDetails: Object   // NEW: Optional but recommended
+  // }
+  
   if (!this.isValid()) {
     throw new Error('Invitation is no longer valid');
+  }
+  
+  const { 
+    recipientCompanyId, 
+    recipientErpConnectionId, 
+    recipientErpContactId,
+    recipientErpContactDetails 
+  } = acceptanceData;
+  
+  // Validate required fields
+  if (!recipientCompanyId) {
+    throw new Error('Recipient company ID is required');
+  }
+  
+  if (!recipientErpConnectionId || !recipientErpContactId) {
+    throw new Error('Recipient must select which contact in their ERP represents the sender');
   }
   
   this.status = 'accepted';
   this.recipientCompany = recipientCompanyId;
   this.respondedAt = new Date();
   
-  // Create the company link after accepting
+  // Create the company link after accepting - NOW WITH BOTH SIDES' ERP INFO
   const CompanyLink = mongoose.model('CompanyLink');
   
   // Check if link already exists
   const existingLink = await CompanyLink.findOne({
     $or: [
-      { requestingCompany: this.senderCompany, targetCompany: recipientCompanyId },
-      { requestingCompany: recipientCompanyId, targetCompany: this.senderCompany }
-    ],
-    erpConnection: this.erpConnection,
-    erpContactId: this.erpContactId
+      { 
+        requestingCompany: this.senderCompany, 
+        targetCompany: recipientCompanyId,
+        erpConnection: this.erpConnection,
+        erpContactId: this.erpContactId
+      },
+      { 
+        requestingCompany: recipientCompanyId, 
+        targetCompany: this.senderCompany,
+        targetErpConnection: recipientErpConnectionId,
+        targetErpContactId: recipientErpContactId
+      }
+    ]
   });
   
-  if (!existingLink) {
+  if (existingLink) {
+    // Update existing link with recipient's ERP info if not already set
+    if (!existingLink.targetErpConnection || !existingLink.targetErpContactId) {
+      existingLink.targetErpConnection = recipientErpConnectionId;
+      existingLink.targetErpContactId = recipientErpContactId;
+      if (recipientErpContactDetails) {
+        existingLink.targetErpContactDetails = recipientErpContactDetails;
+      }
+      await existingLink.save();
+    }
+  } else {
+    // Create new link with BOTH sides' ERP information
     await CompanyLink.create({
       requestingCompany: this.senderCompany,
       targetCompany: recipientCompanyId,
       status: 'approved',
       relationshipType: this.relationshipType,
+      
+      // Sender's (requesting company) ERP info
       erpConnection: this.erpConnection,
       erpContactId: this.erpContactId,
       erpContactDetails: this.erpContactDetails,
+      
+      // Recipient's (target company) ERP info - NEW!
+      targetErpConnection: recipientErpConnectionId,
+      targetErpContactId: recipientErpContactId,
+      targetErpContactDetails: recipientErpContactDetails || {},
+      
       approvedAt: new Date(),
+      fromInvite: this._id,
     });
   }
   
