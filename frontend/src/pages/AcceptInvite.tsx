@@ -1,10 +1,11 @@
 /**
- * Accept Invite Page
- * Handles counterparty invitation acceptance flow
+ * Accept Invite Page - UPDATED
+ * Handles counterparty invitation acceptance flow with ERP contact linkage
  */
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ERPContactSelector } from '../components/ERPContactSelector';
 
 interface InvitationDetails {
   inviterName: string;
@@ -16,6 +17,8 @@ interface InvitationDetails {
   isExpired: boolean;
 }
 
+type AcceptanceStep = 'viewing' | 'selecting-contact' | 'accepting' | 'success';
+
 export const AcceptInvite: React.FC = () => {
   const { token: paramToken } = useParams<{ token: string }>();
   const navigate = useNavigate();
@@ -26,8 +29,11 @@ export const AcceptInvite: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [invitation, setInvitation] = useState<InvitationDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [accepting, setAccepting] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [step, setStep] = useState<AcceptanceStep>('viewing');
+  
+  // Store selected ERP contact info
+  const [selectedErpConnectionId, setSelectedErpConnectionId] = useState<string | null>(null);
+  const [selectedErpContactId, setSelectedErpContactId] = useState<string | null>(null);
 
   // Fetch invitation details on mount
   useEffect(() => {
@@ -42,7 +48,7 @@ export const AcceptInvite: React.FC = () => {
         console.log(`📧 Fetching invitation details for token: ${token}`);
         
         // Call the backend API
-        const response = await fetch(`https://ledgerlink.onrender.com/api/counterparty/invite/${token}`);
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/counterparty/invite/${token}`);
         
         if (!response.ok) {
           const errorData = await response.json();
@@ -72,30 +78,72 @@ export const AcceptInvite: React.FC = () => {
     fetchInvitationDetails();
   }, [token]);
 
-  const handleAccept = async () => {
-    setAccepting(true);
+  const handleInitialAccept = () => {
+    // Check if user is logged in
+    const authToken = localStorage.getItem('token');
+    
+    if (!authToken) {
+      // Redirect to login/register with invitation code
+      navigate(`/register?flow=invite-acceptance&code=${token}`);
+      return;
+    }
+    
+    // User is logged in, proceed to ERP contact selection
+    setStep('selecting-contact');
+  };
+
+  const handleERPContactSelected = async (erpConnectionId: string, erpContactId: string) => {
+    setSelectedErpConnectionId(erpConnectionId);
+    setSelectedErpContactId(erpContactId);
+    
+    // Proceed with acceptance
+    await handleFinalAccept(erpConnectionId, erpContactId);
+  };
+
+  const handleFinalAccept = async (erpConnectionId: string, erpContactId: string) => {
+    setStep('accepting');
+    
     try {
-      console.log('✅ Accepting invitation...');
+      console.log('✅ Accepting invitation with ERP contact:', {
+        inviteCode: token,
+        recipientErpConnectionId: erpConnectionId,
+        recipientErpContactId: erpContactId
+      });
       
-      // TODO: Implement actual acceptance logic
-      // This will involve:
-      // 1. Creating/logging in the user
-      // 2. Connecting their accounting system
-      // 3. Updating invitation status to ACCEPTED
+      const authToken = localStorage.getItem('token');
       
-      // For now, show success message
-      setSuccess(true);
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/counterparty/invite/accept`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inviteCode: token,
+          recipientErpConnectionId: erpConnectionId,
+          recipientErpContactId: erpContactId
+        })
+      });
       
-      // Redirect to registration/login after 3 seconds
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to accept invitation');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Invitation accepted successfully:', data);
+      
+      setStep('success');
+      
+      // Redirect to counterparties page after 3 seconds
       setTimeout(() => {
-        navigate('/register?flow=invite-acceptance&token=' + token);
+        navigate('/counterparties');
       }, 3000);
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('❌ Error accepting invitation:', err);
-      setError('Failed to accept invitation. Please try again.');
-    } finally {
-      setAccepting(false);
+      setError(err.message || 'Failed to accept invitation. Please try again.');
+      setStep('viewing');
     }
   };
 
@@ -103,6 +151,10 @@ export const AcceptInvite: React.FC = () => {
     // TODO: Implement decline logic
     console.log('❌ Invitation declined');
     navigate('/');
+  };
+
+  const handleCancelSelection = () => {
+    setStep('viewing');
   };
 
   // Loading state
@@ -118,7 +170,7 @@ export const AcceptInvite: React.FC = () => {
   }
 
   // Error state
-  if (error || !invitation) {
+  if (error && !invitation) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-secondary-50 px-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-xl p-8 text-center">
@@ -131,7 +183,7 @@ export const AcceptInvite: React.FC = () => {
             Invalid Invitation
           </h2>
           <p className="text-neutral-600 mb-6">
-            {error || 'This invitation link is invalid or has expired.'}
+            {error}
           </p>
           <button
             onClick={() => navigate('/')}
@@ -145,7 +197,7 @@ export const AcceptInvite: React.FC = () => {
   }
 
   // Success state
-  if (success) {
+  if (step === 'success') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-secondary-50 px-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-xl p-8 text-center">
@@ -157,8 +209,11 @@ export const AcceptInvite: React.FC = () => {
           <h2 className="text-2xl font-bold text-neutral-900 mb-2">
             Invitation Accepted!
           </h2>
-          <p className="text-neutral-600 mb-6">
-            Redirecting you to complete your account setup...
+          <p className="text-neutral-600 mb-4">
+            You're now connected with {invitation?.inviterCompany}
+          </p>
+          <p className="text-sm text-neutral-500 mb-6">
+            Redirecting to your counterparties page...
           </p>
           <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
@@ -166,7 +221,41 @@ export const AcceptInvite: React.FC = () => {
     );
   }
 
-  // Main invitation display
+  // Accepting state
+  if (step === 'accepting') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-secondary-50 px-4">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-xl p-8 text-center">
+          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-2xl font-bold text-neutral-900 mb-2">
+            Accepting Invitation...
+          </h2>
+          <p className="text-neutral-600">
+            Creating connection with {invitation?.inviterCompany}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ERP Contact Selection step
+  if (step === 'selecting-contact') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50 py-12 px-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white rounded-xl shadow-xl p-8">
+            <ERPContactSelector
+              inviteCode={token}
+              onContactSelected={handleERPContactSelected}
+              onCancel={handleCancelSelection}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main invitation display (viewing step)
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
@@ -181,7 +270,7 @@ export const AcceptInvite: React.FC = () => {
             You've been invited to LedgerLink
           </h1>
           <p className="text-neutral-600">
-            {invitation.inviterName} wants to connect with you
+            {invitation?.inviterName} wants to connect with you
           </p>
         </div>
 
@@ -191,30 +280,32 @@ export const AcceptInvite: React.FC = () => {
           <div className="flex items-start mb-6 pb-6 border-b border-neutral-200">
             <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-primary-700 font-semibold text-lg">
-                {invitation.inviterName.charAt(0)}
+                {invitation?.inviterName.charAt(0)}
               </span>
             </div>
             <div className="ml-4 flex-grow">
               <h3 className="font-semibold text-neutral-900">
-                {invitation.inviterName}
+                {invitation?.inviterName}
               </h3>
               <p className="text-sm text-neutral-600">
-                {invitation.inviterEmail}
+                {invitation?.inviterEmail}
               </p>
               <p className="text-sm text-neutral-500">
-                {invitation.inviterCompany}
+                {invitation?.inviterCompany}
               </p>
             </div>
           </div>
 
           {/* Recipient Info */}
-          <div className="mb-6">
-            <p className="text-sm text-neutral-500 mb-1">Invited as:</p>
-            <p className="font-medium text-neutral-900">{invitation.recipientName}</p>
-          </div>
+          {invitation?.recipientName && (
+            <div className="mb-6">
+              <p className="text-sm text-neutral-500 mb-1">Invited as:</p>
+              <p className="font-medium text-neutral-900">{invitation.recipientName}</p>
+            </div>
+          )}
 
           {/* Personal Message */}
-          {invitation.message && (
+          {invitation?.message && (
             <div className="bg-neutral-50 border-l-4 border-secondary-500 p-4 rounded-r-lg mb-6">
               <p className="text-sm font-medium text-neutral-700 mb-2">Personal message:</p>
               <p className="text-neutral-600 whitespace-pre-wrap">
@@ -256,8 +347,20 @@ export const AcceptInvite: React.FC = () => {
             </ul>
           </div>
 
+          {/* Error message if any */}
+          {error && (
+            <div className="bg-error-50 border border-error-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 text-error-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-error-700 text-sm">{error}</p>
+              </div>
+            </div>
+          )}
+
           {/* Expiration Notice */}
-          {!invitation.isExpired && (
+          {!invitation?.isExpired && invitation?.expiresAt && (
             <div className="text-sm text-neutral-500 text-center mb-6">
               This invitation expires on {new Date(invitation.expiresAt).toLocaleDateString()}
             </div>
@@ -267,31 +370,24 @@ export const AcceptInvite: React.FC = () => {
           <div className="flex gap-4">
             <button
               onClick={handleDecline}
-              disabled={accepting}
+              disabled={step !== 'viewing'}
               className="flex-1 bg-neutral-100 text-neutral-700 py-3 px-6 rounded-lg font-semibold hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Decline
             </button>
             <button
-              onClick={handleAccept}
-              disabled={accepting || invitation.isExpired}
-              className="flex-1 bg-primary-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              onClick={handleInitialAccept}
+              disabled={invitation?.isExpired || step !== 'viewing'}
+              className="flex-1 bg-primary-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {accepting ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Accepting...
-                </>
-              ) : (
-                'Accept Invitation'
-              )}
+              Accept Invitation
             </button>
           </div>
         </div>
 
         {/* Footer */}
         <div className="text-center text-sm text-neutral-500">
-          <p>Questions? Reply to the invitation email or contact {invitation.inviterEmail}</p>
+          <p>Questions? Reply to the invitation email or contact {invitation?.inviterEmail}</p>
         </div>
       </div>
     </div>

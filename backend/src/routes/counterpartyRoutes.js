@@ -10,6 +10,129 @@ import { fetchXeroContacts } from '../services/xeroService.js';
 
 const router = express.Router();
 
+// =============================================================================
+// NEW ENDPOINT: Get available ERP contacts for linking during invitation acceptance
+// =============================================================================
+router.get('/invite/:inviteCode/available-contacts', authenticateToken, async (req, res) => {
+  try {
+    const { inviteCode } = req.params;
+    
+    // Get the invitation details
+    const invite = await CounterpartyInvite.findOne({ inviteCode })
+      .populate('senderCompany');
+    
+    if (!invite) {
+      return res.status(404).json({ error: 'Invitation not found' });
+    }
+    
+    if (invite.status !== 'pending') {
+      return res.status(400).json({ error: 'Invitation is no longer pending' });
+    }
+    
+    if (!invite.isValid()) {
+      return res.status(400).json({ error: 'Invitation has expired' });
+    }
+    
+    // Get the user's company
+    const user = await User.findById(req.user.id).populate('company');
+    
+    if (!user || !user.company) {
+      return res.status(400).json({ 
+        error: 'You must set up your company profile before accepting invitations',
+        requiresCompanySetup: true
+      });
+    }
+    
+    // Get user's ERP connections
+    const erpConnections = await ERPConnection.find({
+      company: user.company._id,
+      status: 'connected'
+    });
+    
+    if (erpConnections.length === 0) {
+      return res.status(400).json({
+        error: 'You must connect an accounting system before accepting invitations',
+        requiresErpConnection: true
+      });
+    }
+    
+    // Fetch contacts from all connected ERPs
+    const allContacts = [];
+    
+    for (const connection of erpConnections) {
+      if (connection.platform === 'Xero') {
+        try {
+          const xeroContacts = await fetchXeroContacts(connection._id);
+          
+          // Filter contacts based on invitation type
+          // If sender invited you as a customer, you need to find them in your vendors
+          // If sender invited you as a vendor, you need to find them in your customers
+          const filteredContacts = xeroContacts.filter(contact => {
+            if (invite.relationshipType === 'customer') {
+              // Sender is your customer, so find them in your customers
+              return contact.isCustomer;
+            } else if (invite.relationshipType === 'vendor') {
+              // Sender is your vendor, so find them in your vendors (suppliers)
+              return contact.isSupplier;
+            } else {
+              // 'both' relationship - show all contacts
+              return true;
+            }
+          });
+          
+          // Format contacts for response
+          const formattedContacts = filteredContacts.map(contact => ({
+            erpConnectionId: connection._id,
+            erpType: 'xero',
+            erpContactId: contact.contactID,
+            name: contact.name,
+            email: contact.emailAddress || '',
+            type: contact.isCustomer && contact.isSupplier ? 'both' : 
+                  contact.isCustomer ? 'customer' : 'vendor',
+            contactNumber: contact.contactNumber || '',
+            accountNumber: contact.accountNumber || '',
+            metadata: {
+              taxNumber: contact.taxNumber,
+              bankAccountDetails: contact.bankAccountDetails
+            }
+          }));
+          
+          allContacts.push(...formattedContacts);
+        } catch (error) {
+          console.error('Error fetching Xero contacts:', error);
+        }
+      }
+      
+      // Add other ERP integrations here (QuickBooks, etc.)
+    }
+    
+    res.json({
+      success: true,
+      invitation: {
+        senderCompany: {
+          name: invite.senderCompany.name,
+          email: invite.senderCompany.email
+        },
+        relationshipType: invite.relationshipType,
+        message: invite.message
+      },
+      availableContacts: allContacts,
+      erpConnections: erpConnections.map(conn => ({
+        id: conn._id,
+        platform: conn.platform,
+        name: conn.connectionName,
+        status: conn.status
+      })),
+      hint: allContacts.length > 0 
+        ? `Select which contact in your ${erpConnections[0].platform} represents "${invite.senderCompany.name}"`
+        : 'No matching contacts found. You may need to add this company to your accounting system first.'
+    });
+  } catch (error) {
+    console.error('Error fetching available contacts:', error);
+    res.status(500).json({ error: 'Failed to fetch available contacts' });
+  }
+});
+
 // Get customers and vendors from connected ERPs
 router.get('/erp-contacts', authenticateToken, async (req, res) => {
   try {
@@ -36,7 +159,6 @@ router.get('/erp-contacts', authenticateToken, async (req, res) => {
       
       if (connection.platform === 'Xero') {
         try {
-          // FIXED: Fetch contacts directly from Xero service instead of HTTP call
           console.log('   [CounterpartyRoutes] Fetching Xero contacts using service...');
           const xeroContacts = await fetchXeroContacts();
           console.log('   [CounterpartyRoutes] ✅ Received', xeroContacts.length, 'contacts from service');
@@ -165,7 +287,7 @@ router.post('/invite', authenticateToken, async (req, res) => {
     
     await invite.save();
     
-    // Send invitation email (implement email service)
+    // Send invitation email
     try {
       await sendInvitationEmail({
         to: recipientEmail,
@@ -251,10 +373,24 @@ router.get('/invites/received', authenticateToken, async (req, res) => {
   }
 });
 
-// Accept invitation
+// =============================================================================
+// UPDATED: Accept invitation - NOW REQUIRES RECIPIENT ERP CONTACT INFO
+// =============================================================================
 router.post('/invite/accept', authenticateToken, async (req, res) => {
   try {
-    const { inviteCode } = req.body;
+    const { 
+      inviteCode, 
+      recipientErpConnectionId,  // NEW: Required
+      recipientErpContactId      // NEW: Required
+    } = req.body;
+    
+    // Validate required fields
+    if (!recipientErpConnectionId || !recipientErpContactId) {
+      return res.status(400).json({ 
+        error: 'You must select which contact in your accounting system represents the sender',
+        requiresErpContact: true
+      });
+    }
     
     const user = await User.findById(req.user.id).populate('company');
     
@@ -282,8 +418,51 @@ router.post('/invite/accept', authenticateToken, async (req, res) => {
       });
     }
     
-    // Accept the invitation
-    await invite.accept(user.company._id);
+    // Verify the recipient's ERP connection belongs to their company
+    const recipientErpConnection = await ERPConnection.findOne({
+      _id: recipientErpConnectionId,
+      company: user.company._id,
+      status: 'connected'
+    });
+    
+    if (!recipientErpConnection) {
+      return res.status(400).json({ 
+        error: 'Invalid ERP connection. Please ensure your accounting system is properly connected.' 
+      });
+    }
+    
+    // Get recipient's ERP contact details (optional but recommended)
+    let recipientErpContactDetails = {};
+    try {
+      if (recipientErpConnection.platform === 'Xero') {
+        const xeroContacts = await fetchXeroContacts(recipientErpConnectionId);
+        const matchingContact = xeroContacts.find(c => c.contactID === recipientErpContactId);
+        if (matchingContact) {
+          recipientErpContactDetails = {
+            name: matchingContact.name,
+            email: matchingContact.emailAddress || '',
+            type: matchingContact.isCustomer && matchingContact.isSupplier ? 'both' : 
+                  matchingContact.isCustomer ? 'customer' : 'vendor',
+            contactNumber: matchingContact.contactNumber || '',
+            metadata: {
+              accountNumber: matchingContact.accountNumber,
+              taxNumber: matchingContact.taxNumber
+            }
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('Could not fetch recipient ERP contact details:', error);
+      // Continue anyway - details are optional
+    }
+    
+    // Accept the invitation with recipient's ERP contact info
+    await invite.accept({
+      recipientCompanyId: user.company._id,
+      recipientErpConnectionId,
+      recipientErpContactId,
+      recipientErpContactDetails
+    });
     
     res.json({
       success: true,
@@ -374,13 +553,17 @@ router.get('/linked', authenticateToken, async (req, res) => {
       ],
       status: 'approved'
     })
-    .populate(['requestingCompany', 'targetCompany', 'erpConnection'])
+    .populate(['requestingCompany', 'targetCompany', 'erpConnection', 'targetErpConnection'])
     .sort({ approvedAt: -1 });
     
     // Format the links with counterparty info
     const formattedLinks = links.map(link => {
       const isRequester = link.requestingCompany._id.toString() === user.company._id.toString();
       const counterparty = isRequester ? link.targetCompany : link.requestingCompany;
+      
+      // Get ERP info for both sides
+      const myErpInfo = link.getErpContactForCompany(user.company._id);
+      const counterpartyErpInfo = link.getCounterpartyErpContact(user.company._id);
       
       return {
         id: link._id,
@@ -390,8 +573,13 @@ router.get('/linked', authenticateToken, async (req, res) => {
           email: counterparty.email
         },
         relationshipType: link.relationshipType,
-        erpConnection: link.erpConnection,
-        erpContactDetails: link.erpContactDetails,
+        myErpConnection: myErpInfo?.erpConnection,
+        myErpContactId: myErpInfo?.erpContactId,
+        myErpContactDetails: myErpInfo?.erpContactDetails,
+        counterpartyErpConnection: counterpartyErpInfo?.erpConnection,
+        counterpartyErpContactId: counterpartyErpInfo?.erpContactId,
+        counterpartyErpContactDetails: counterpartyErpInfo?.erpContactDetails,
+        isFullyLinked: link.isFullyLinked,
         status: link.status,
         permissions: link.permissions,
         stats: link.stats,
