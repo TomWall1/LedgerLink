@@ -22,21 +22,47 @@ const CompanyLinkSchema = new mongoose.Schema({
     required: true,
   },
   
-  // ERP-specific fields for counterparty linking
+  // =================================================================
+  // ERP FIELDS FOR REQUESTING COMPANY (sender/inviter)
+  // =================================================================
   erpConnection: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ERPConnection',
     default: null,
   },
   
-  // The specific customer/vendor ID from the ERP
+  // The specific customer/vendor ID from the requesting company's ERP
   erpContactId: {
     type: String,
     default: null,
   },
   
-  // Store the ERP contact details for reference
+  // Store the ERP contact details for reference (requesting side)
   erpContactDetails: {
+    name: String,
+    email: String,
+    type: { type: String, enum: ['customer', 'vendor', 'both'] },
+    contactNumber: String,
+    metadata: { type: Map, of: mongoose.Schema.Types.Mixed },
+  },
+  
+  // =================================================================
+  // ERP FIELDS FOR TARGET COMPANY (recipient/invitee) - NEW!
+  // =================================================================
+  targetErpConnection: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ERPConnection',
+    default: null,
+  },
+  
+  // The specific customer/vendor ID from the target company's ERP - NEW!
+  targetErpContactId: {
+    type: String,
+    default: null,
+  },
+  
+  // Store the target company's ERP contact details for reference - NEW!
+  targetErpContactDetails: {
     name: String,
     email: String,
     type: { type: String, enum: ['customer', 'vendor', 'both'] },
@@ -92,13 +118,15 @@ CompanyLinkSchema.pre('save', function (next) {
 });
 
 // Create a compound index to ensure uniqueness of the company link
-// Now includes ERP connection and contact ID for granular linking
+// Now includes BOTH sides' ERP connection and contact IDs for granular linking
 CompanyLinkSchema.index(
   { 
     requestingCompany: 1, 
     targetCompany: 1,
     erpConnection: 1,
-    erpContactId: 1
+    erpContactId: 1,
+    targetErpConnection: 1,
+    targetErpContactId: 1
   },
   { unique: true }
 );
@@ -107,8 +135,15 @@ CompanyLinkSchema.index(
 CompanyLinkSchema.index({ requestingCompany: 1, status: 1 });
 CompanyLinkSchema.index({ targetCompany: 1, status: 1 });
 CompanyLinkSchema.index({ erpConnection: 1 });
+CompanyLinkSchema.index({ targetErpConnection: 1 }); // NEW
 
-// Virtual to determine if this is an ERP-specific link
+// Virtual to determine if this is an ERP-specific link with BOTH sides connected
+CompanyLinkSchema.virtual('isFullyLinked').get(function() {
+  return !!this.erpConnection && !!this.erpContactId &&
+         !!this.targetErpConnection && !!this.targetErpContactId;
+});
+
+// Virtual to determine if requesting side has ERP link (backward compatibility)
 CompanyLinkSchema.virtual('isErpSpecific').get(function() {
   return !!this.erpConnection && !!this.erpContactId;
 });
@@ -130,6 +165,48 @@ CompanyLinkSchema.methods.getCounterparty = function(companyId) {
     return this.targetCompany;
   } else if (this.targetCompany.toString() === companyIdStr) {
     return this.requestingCompany;
+  }
+  return null;
+};
+
+// NEW: Method to get ERP contact info for a given company
+CompanyLinkSchema.methods.getErpContactForCompany = function(companyId) {
+  const companyIdStr = companyId.toString();
+  
+  if (this.requestingCompany.toString() === companyIdStr) {
+    return {
+      erpConnection: this.erpConnection,
+      erpContactId: this.erpContactId,
+      erpContactDetails: this.erpContactDetails
+    };
+  } else if (this.targetCompany.toString() === companyIdStr) {
+    return {
+      erpConnection: this.targetErpConnection,
+      erpContactId: this.targetErpContactId,
+      erpContactDetails: this.targetErpContactDetails
+    };
+  }
+  return null;
+};
+
+// NEW: Method to get counterparty's ERP contact info
+CompanyLinkSchema.methods.getCounterpartyErpContact = function(companyId) {
+  const companyIdStr = companyId.toString();
+  
+  if (this.requestingCompany.toString() === companyIdStr) {
+    // This is the requesting company, return target's ERP info
+    return {
+      erpConnection: this.targetErpConnection,
+      erpContactId: this.targetErpContactId,
+      erpContactDetails: this.targetErpContactDetails
+    };
+  } else if (this.targetCompany.toString() === companyIdStr) {
+    // This is the target company, return requesting company's ERP info
+    return {
+      erpConnection: this.erpConnection,
+      erpContactId: this.erpContactId,
+      erpContactDetails: this.erpContactDetails
+    };
   }
   return null;
 };
