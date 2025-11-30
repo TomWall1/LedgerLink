@@ -10,6 +10,7 @@
  * UPDATED: Integrated SendGrid email service for invitations
  * UPDATED: Added GET /api/counterparty/invite/:token endpoint for accept invite page
  * UPDATED: Added POST /api/counterparty/invite/:token/accept endpoint for accepting invitations
+ * UPDATED: Added POST /api/counterparty/invite/:inviteId/cancel endpoint for cancelling invitations
  */
 
 import express from 'express';
@@ -620,6 +621,67 @@ router.post('/invite/:token/accept', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to accept invitation',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/counterparty/invite/:inviteId/cancel
+ * @desc    Cancel an invitation (marks it as inactive so a new one can be sent)
+ * @access  Private
+ */
+router.post('/invite/:inviteId/cancel', auth, async (req, res) => {
+  try {
+    const { inviteId } = req.params;
+    const userId = req.user.id || req.user._id?.toString();
+    const companyId = req.user.companyId || userId;
+
+    console.log(`🚫 Cancelling invitation ${inviteId}`);
+
+    // Find the invitation
+    const invitation = await CounterpartyInvitation.findOne({
+      _id: inviteId,
+      companyId: companyId,
+      isActive: true
+    });
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+
+    // Don't allow cancelling already linked invitations
+    if (invitation.connectionStatus === 'LINKED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot cancel a linked connection',
+        message: 'This invitation has already been completed and the systems are linked.'
+      });
+    }
+
+    // Mark invitation as inactive (soft delete)
+    invitation.isActive = false;
+    invitation.connectionStatus = 'CANCELLED';
+    invitation.cancelledAt = new Date();
+    await invitation.save();
+
+    console.log(`✅ Invitation cancelled successfully`);
+    console.log(`   Contact: ${invitation.theirContactName}`);
+    console.log(`   Email: ${invitation.theirContactEmail}`);
+
+    res.json({
+      success: true,
+      message: 'Invitation cancelled successfully. You can now send a new invitation to this contact.'
+    });
+
+  } catch (error) {
+    console.error('❌ Error cancelling invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to cancel invitation',
       message: error.message
     });
   }
