@@ -74,16 +74,30 @@ export const AcceptInvite: React.FC = () => {
 
   const handleAccept = async () => {
     setAccepting(true);
+    
     try {
       console.log('✅ Accepting invitation...');
       
-      // TODO: Implement actual acceptance logic
-      // This will involve:
-      // 1. Creating/logging in the user
-      // 2. Connecting their accounting system
-      // 3. Updating invitation status to ACCEPTED
+      // Call the backend acceptance endpoint
+      const response = await fetch(`https://ledgerlink.onrender.com/api/counterparty/invite/${token}/accept`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
-      // For now, show success message
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        console.error('❌ Error accepting invitation:', data);
+        setError(data.message || 'Failed to accept invitation. Please try again.');
+        setAccepting(false);
+        return;
+      }
+      
+      console.log('✅ Invitation accepted successfully:', data);
+      
+      // Show success message
       setSuccess(true);
       
       // Redirect to registration/login after 3 seconds
@@ -94,13 +108,11 @@ export const AcceptInvite: React.FC = () => {
     } catch (err) {
       console.error('❌ Error accepting invitation:', err);
       setError('Failed to accept invitation. Please try again.');
-    } finally {
       setAccepting(false);
     }
   };
 
   const handleDecline = () => {
-    // TODO: Implement decline logic
     console.log('❌ Invitation declined');
     navigate('/');
   };
