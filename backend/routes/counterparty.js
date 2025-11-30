@@ -9,6 +9,7 @@
  * UPDATED: Fixed Xero connection lookup to only filter by userId
  * UPDATED: Integrated SendGrid email service for invitations
  * UPDATED: Added GET /api/counterparty/invite/:token endpoint for accept invite page
+ * UPDATED: Added POST /api/counterparty/invite/:token/accept endpoint for accepting invitations
  */
 
 import express from 'express';
@@ -540,6 +541,85 @@ router.get('/invite/:token', async (req, res) => {
     console.error('❌ Error fetching invitation details:', error);
     res.status(500).json({
       error: 'Failed to fetch invitation details',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/counterparty/invite/:token/accept
+ * @desc    Accept an invitation (can be called by non-authenticated users)
+ * @access  Public
+ */
+router.post('/invite/:token/accept', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    console.log(`✅ Accepting invitation for token: ${token.substring(0, 10)}...`);
+
+    // Find the invitation by token
+    const invitation = await CounterpartyInvitation.findOne({
+      linkToken: token,
+      isActive: true
+    });
+
+    if (!invitation) {
+      console.log(`❌ Invitation not found for token`);
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found',
+        message: 'This invitation link is invalid or has been deactivated.'
+      });
+    }
+
+    // Check if invitation has expired
+    const isExpired = new Date() > new Date(invitation.linkExpiresAt);
+    
+    if (isExpired) {
+      console.log(`⏰ Invitation has expired: ${invitation.linkExpiresAt}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Invitation expired',
+        message: 'This invitation has expired. Please contact the sender for a new invitation.'
+      });
+    }
+
+    // Check if already accepted/linked
+    if (invitation.connectionStatus === 'ACCEPTED' || invitation.connectionStatus === 'LINKED') {
+      console.log(`ℹ️ Invitation already ${invitation.connectionStatus.toLowerCase()}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Invitation already processed',
+        message: `This invitation has already been ${invitation.connectionStatus.toLowerCase()}.`,
+        status: invitation.connectionStatus
+      });
+    }
+
+    // Update invitation status to ACCEPTED
+    invitation.connectionStatus = 'ACCEPTED';
+    invitation.acceptedAt = new Date();
+    await invitation.save();
+
+    console.log(`✅ Invitation accepted successfully`);
+    console.log(`   Contact: ${invitation.theirContactName}`);
+    console.log(`   Email: ${invitation.theirContactEmail}`);
+
+    // Return success with next steps
+    res.json({
+      success: true,
+      message: 'Invitation accepted successfully',
+      nextSteps: {
+        requiresRegistration: true,
+        recipientEmail: invitation.theirContactEmail,
+        recipientName: invitation.theirContactName
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error accepting invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to accept invitation',
       message: error.message
     });
   }
