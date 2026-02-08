@@ -28,6 +28,15 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  phone: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  timezone: {
+    type: String,
+    default: 'America/New_York'
+  },
   preferences: {
     dateFormat: {
       type: String,
@@ -43,6 +52,24 @@ const userSchema = new mongoose.Schema({
       enum: ['light', 'dark'],
       default: 'light'
     }
+  },
+  settings: {
+    matchingRules: {
+      dateToleranceDays: { type: Number, min: 0, max: 30, default: 7 },
+      amountTolerancePercent: { type: Number, min: 0, max: 10, default: 2 },
+      requireExactMatch: { type: Boolean, default: false },
+      autoProcessMatches: { type: Boolean, default: true },
+      confidenceThreshold: { type: Number, min: 50, max: 100, default: 85 },
+      enableFuzzyMatching: { type: Boolean, default: true }
+    },
+    notifications: {
+      emailMatches: { type: Boolean, default: true },
+      emailDiscrepancies: { type: Boolean, default: true },
+      emailSystemUpdates: { type: Boolean, default: true },
+      emailReports: { type: Boolean, default: false },
+      pushEnabled: { type: Boolean, default: false },
+      weeklyDigest: { type: Boolean, default: true }
+    }
   }
 }, {
   timestamps: true
@@ -57,6 +84,8 @@ userSchema.virtual('profile').get(function() {
     id: this._id,
     name: this.name,
     email: this.email,
+    phone: this.phone,
+    timezone: this.timezone,
     lastLogin: this.lastLogin,
     preferences: this.preferences,
     createdAt: this.createdAt,

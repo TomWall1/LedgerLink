@@ -142,18 +142,21 @@ router.get('/profile', auth, async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     // Return wrapped in 'user' property to match frontend expectations
     res.json({
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone || '',
+        timezone: user.timezone || 'America/New_York',
+        preferences: user.preferences,
         createdAt: user.createdAt,
         lastLogin: user.lastLogin
       }
     });
-    
+
   } catch (error) {
     console.error('Error fetching user profile:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -163,22 +166,17 @@ router.get('/profile', auth, async (req, res) => {
 // Update user profile
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, phone, timezone } = req.body;
     const userId = req.userId;
-    
-    // Validate input
-    if (!name && !email) {
-      return res.status(400).json({ error: 'Name or email is required to update' });
-    }
-    
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     // Check if email is already taken by another user
     if (email && email.toLowerCase() !== user.email) {
-      const existingUser = await User.findOne({ 
+      const existingUser = await User.findOne({
         email: email.toLowerCase(),
         _id: { $ne: userId }
       });
@@ -187,26 +185,145 @@ router.put('/profile', auth, async (req, res) => {
       }
       user.email = email.toLowerCase().trim();
     }
-    
-    if (name) {
+
+    if (name !== undefined) {
       user.name = name.trim();
     }
-    
+    if (phone !== undefined) {
+      user.phone = phone.trim();
+    }
+    if (timezone !== undefined) {
+      user.timezone = timezone;
+    }
+
     await user.save();
-    
+
     res.json({
       message: 'Profile updated successfully',
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone || '',
+        timezone: user.timezone || 'America/New_York',
         createdAt: user.createdAt,
         lastLogin: user.lastLogin
       }
     });
-    
+
   } catch (error) {
     console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get user settings
+router.get('/settings', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('settings');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Return settings with defaults for users who don't have them yet
+    const defaults = {
+      matchingRules: {
+        dateToleranceDays: 7,
+        amountTolerancePercent: 2,
+        requireExactMatch: false,
+        autoProcessMatches: true,
+        confidenceThreshold: 85,
+        enableFuzzyMatching: true
+      },
+      notifications: {
+        emailMatches: true,
+        emailDiscrepancies: true,
+        emailSystemUpdates: true,
+        emailReports: false,
+        pushEnabled: false,
+        weeklyDigest: true
+      }
+    };
+
+    res.json({
+      settings: {
+        matchingRules: { ...defaults.matchingRules, ...(user.settings?.matchingRules?.toObject?.() || user.settings?.matchingRules || {}) },
+        notifications: { ...defaults.notifications, ...(user.settings?.notifications?.toObject?.() || user.settings?.notifications || {}) }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching settings:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update user settings
+router.put('/settings', auth, async (req, res) => {
+  try {
+    const { matchingRules, notifications } = req.body;
+    const userId = req.userId;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Initialize settings if they don't exist
+    if (!user.settings) {
+      user.settings = { matchingRules: {}, notifications: {} };
+    }
+
+    // Merge matching rules
+    if (matchingRules) {
+      if (matchingRules.dateToleranceDays !== undefined) {
+        const val = Number(matchingRules.dateToleranceDays);
+        if (val < 0 || val > 30) return res.status(400).json({ error: 'dateToleranceDays must be 0-30' });
+        user.settings.matchingRules.dateToleranceDays = val;
+      }
+      if (matchingRules.amountTolerancePercent !== undefined) {
+        const val = Number(matchingRules.amountTolerancePercent);
+        if (val < 0 || val > 10) return res.status(400).json({ error: 'amountTolerancePercent must be 0-10' });
+        user.settings.matchingRules.amountTolerancePercent = val;
+      }
+      if (matchingRules.confidenceThreshold !== undefined) {
+        const val = Number(matchingRules.confidenceThreshold);
+        if (val < 50 || val > 100) return res.status(400).json({ error: 'confidenceThreshold must be 50-100' });
+        user.settings.matchingRules.confidenceThreshold = val;
+      }
+      if (matchingRules.requireExactMatch !== undefined) {
+        user.settings.matchingRules.requireExactMatch = Boolean(matchingRules.requireExactMatch);
+      }
+      if (matchingRules.autoProcessMatches !== undefined) {
+        user.settings.matchingRules.autoProcessMatches = Boolean(matchingRules.autoProcessMatches);
+      }
+      if (matchingRules.enableFuzzyMatching !== undefined) {
+        user.settings.matchingRules.enableFuzzyMatching = Boolean(matchingRules.enableFuzzyMatching);
+      }
+    }
+
+    // Merge notifications
+    if (notifications) {
+      const boolFields = ['emailMatches', 'emailDiscrepancies', 'emailSystemUpdates', 'emailReports', 'pushEnabled', 'weeklyDigest'];
+      for (const field of boolFields) {
+        if (notifications[field] !== undefined) {
+          user.settings.notifications[field] = Boolean(notifications[field]);
+        }
+      }
+    }
+
+    await user.save();
+
+    res.json({
+      message: 'Settings updated successfully',
+      settings: {
+        matchingRules: user.settings.matchingRules,
+        notifications: user.settings.notifications
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating settings:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../hooks/useToast';
+import settingsService from '../services/settingsService';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/Card';
@@ -11,19 +13,23 @@ export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [deleteAccountModal, setDeleteAccountModal] = useState(false);
   const [resetPasswordModal, setResetPasswordModal] = useState(false);
-  const { logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
+  const { addToast } = useToast();
   const navigate = useNavigate();
-  
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
   // Profile settings
   const [profile, setProfile] = useState({
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john@example.com',
-    company: 'Example Corp',
-    phone: '+1 (555) 123-4567',
+    firstName: '',
+    lastName: '',
+    email: '',
+    company: '',
+    phone: '',
     timezone: 'America/New_York'
   });
-  
+
   // Matching settings
   const [matchingSettings, setMatchingSettings] = useState({
     dateToleranceDays: 7,
@@ -33,7 +39,7 @@ export const Settings: React.FC = () => {
     confidenceThreshold: 85,
     enableFuzzyMatching: true
   });
-  
+
   // Notification settings
   const [notifications, setNotifications] = useState({
     emailMatches: true,
@@ -43,15 +49,60 @@ export const Settings: React.FC = () => {
     pushEnabled: false,
     weeklyDigest: true
   });
-  
-  // Security settings
-  const [security, setSecurity] = useState({
+
+  // Security settings (static - no backend)
+  const [security] = useState({
     twoFactorEnabled: false,
     sessionTimeout: 24,
     lastPasswordChange: '2024-01-15',
     activeDevices: 3
   });
-  
+
+  // Password form
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordError, setPasswordError] = useState('');
+
+  // Delete account form
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+
+  // Populate profile from auth user
+  useEffect(() => {
+    if (user) {
+      const nameParts = (user.name || '').split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      setProfile({
+        firstName,
+        lastName,
+        email: user.email || '',
+        company: user.company || user.companyName || '',
+        phone: user.phone || '',
+        timezone: user.timezone || 'America/New_York'
+      });
+    }
+  }, [user]);
+
+  // Fetch settings on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const settings = await settingsService.getSettings();
+        setMatchingSettings(settings.matchingRules);
+        setNotifications(settings.notifications);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   const tabs = [
     { id: 'profile', name: 'Profile', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,13 +131,101 @@ export const Settings: React.FC = () => {
       </svg>
     )}
   ];
-  
-  const handleSaveProfile = () => {
-    console.log('Saving profile:', profile);
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      const name = `${profile.firstName} ${profile.lastName}`.trim();
+      await settingsService.updateProfile({
+        name,
+        email: profile.email,
+        phone: profile.phone,
+        timezone: profile.timezone
+      });
+      await refreshUser();
+      addToast({ title: 'Profile updated', description: 'Your profile has been saved successfully.', variant: 'success' });
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Failed to update profile';
+      addToast({ title: 'Error', description: message, variant: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
   };
-  
-  const handleSaveMatchingSettings = () => {
-    console.log('Saving matching settings:', matchingSettings);
+
+  const handleSaveMatchingSettings = async () => {
+    setIsSaving(true);
+    try {
+      await settingsService.updateSettings({ matchingRules: matchingSettings });
+      addToast({ title: 'Matching rules updated', description: 'Your matching settings have been saved.', variant: 'success' });
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Failed to update matching settings';
+      addToast({ title: 'Error', description: message, variant: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveNotifications = async () => {
+    setIsSaving(true);
+    try {
+      await settingsService.updateSettings({ notifications });
+      addToast({ title: 'Notifications updated', description: 'Your notification preferences have been saved.', variant: 'success' });
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Failed to update notifications';
+      addToast({ title: 'Error', description: message, variant: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError('');
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setPasswordError('All fields are required');
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await settingsService.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      addToast({ title: 'Password changed', description: 'Your password has been updated successfully.', variant: 'success' });
+      setResetPasswordModal(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Failed to change password';
+      setPasswordError(message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    if (!deletePassword) {
+      addToast({ title: 'Error', description: 'Password is required to delete your account.', variant: 'error' });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await settingsService.deleteAccount(deletePassword);
+      await logout();
+      navigate('/login');
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Failed to delete account';
+      addToast({ title: 'Error', description: message, variant: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -97,229 +236,253 @@ export const Settings: React.FC = () => {
       console.error('Logout error:', error);
     }
   };
-  
-  const renderProfileTab = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Input
-          label="First Name"
-          value={profile.firstName}
-          onChange={(e) => setProfile(prev => ({ ...prev, firstName: e.target.value }))}
-        />
-        <Input
-          label="Last Name"
-          value={profile.lastName}
-          onChange={(e) => setProfile(prev => ({ ...prev, lastName: e.target.value }))}
-        />
-      </div>
-      
-      <Input
-        label="Email Address"
-        type="email"
-        value={profile.email}
-        onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
-        helperText="This email is used for notifications and account recovery"
-      />
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Input
-          label="Company"
-          value={profile.company}
-          onChange={(e) => setProfile(prev => ({ ...prev, company: e.target.value }))}
-        />
-        <Input
-          label="Phone Number"
-          value={profile.phone}
-          onChange={(e) => setProfile(prev => ({ ...prev, phone: e.target.value }))}
-        />
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-2">
-          Timezone
-        </label>
-        <select
-          value={profile.timezone}
-          onChange={(e) => setProfile(prev => ({ ...prev, timezone: e.target.value }))}
-          className="input w-full"
-        >
-          <option value="America/New_York">Eastern Time (ET)</option>
-          <option value="America/Chicago">Central Time (CT)</option>
-          <option value="America/Denver">Mountain Time (MT)</option>
-          <option value="America/Los_Angeles">Pacific Time (PT)</option>
-          <option value="Europe/London">London (GMT)</option>
-          <option value="Europe/Paris">Paris (CET)</option>
-          <option value="Asia/Tokyo">Tokyo (JST)</option>
-        </select>
-      </div>
-      
-      <div className="flex justify-end">
-        <Button variant="primary" onClick={handleSaveProfile}>
-          Save Changes
-        </Button>
-      </div>
+
+  const renderLoadingSkeleton = () => (
+    <div className="space-y-6 animate-pulse">
+      <div className="h-10 bg-neutral-200 rounded w-1/2"></div>
+      <div className="h-10 bg-neutral-200 rounded w-full"></div>
+      <div className="h-10 bg-neutral-200 rounded w-3/4"></div>
+      <div className="h-10 bg-neutral-200 rounded w-2/3"></div>
     </div>
   );
-  
-  const renderMatchingTab = () => (
-    <div className="space-y-6">
-      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
-        <h4 className="font-medium text-primary-900 mb-2">Matching Algorithm Settings</h4>
-        <p className="text-small text-primary-700">
-          Configure how LedgerLink matches invoices between your systems and counterparties.
-        </p>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Date Tolerance (days)
-          </label>
-          <input
-            type="number"
-            min="0"
-            max="30"
-            value={matchingSettings.dateToleranceDays}
-            onChange={(e) => setMatchingSettings(prev => ({ ...prev, dateToleranceDays: parseInt(e.target.value) || 0 }))}
-            className="input w-full"
+
+  const renderProfileTab = () => {
+    if (isLoading) return renderLoadingSkeleton();
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Input
+            label="First Name"
+            value={profile.firstName}
+            onChange={(e) => setProfile(prev => ({ ...prev, firstName: e.target.value }))}
           />
-          <p className="text-xs text-neutral-500 mt-1">
-            Allow date differences within this range
-          </p>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Amount Tolerance (%)
-          </label>
-          <input
-            type="number"
-            min="0"
-            max="10"
-            step="0.1"
-            value={matchingSettings.amountTolerancePercent}
-            onChange={(e) => setMatchingSettings(prev => ({ ...prev, amountTolerancePercent: parseFloat(e.target.value) || 0 }))}
-            className="input w-full"
+          <Input
+            label="Last Name"
+            value={profile.lastName}
+            onChange={(e) => setProfile(prev => ({ ...prev, lastName: e.target.value }))}
           />
-          <p className="text-xs text-neutral-500 mt-1">
-            Allow amount differences within this percentage
-          </p>
         </div>
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-2">
-          Confidence Threshold (%)
-        </label>
-        <input
-          type="range"
-          min="50"
-          max="100"
-          value={matchingSettings.confidenceThreshold}
-          onChange={(e) => setMatchingSettings(prev => ({ ...prev, confidenceThreshold: parseInt(e.target.value) }))}
-          className="w-full"
+
+        <Input
+          label="Email Address"
+          type="email"
+          value={profile.email}
+          onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
+          helperText="This email is used for notifications and account recovery"
         />
-        <div className="flex justify-between text-small text-neutral-600 mt-1">
-          <span>50%</span>
-          <span className="font-medium">Current: {matchingSettings.confidenceThreshold}%</span>
-          <span>100%</span>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Input
+            label="Company"
+            value={profile.company}
+            disabled
+          />
+          <Input
+            label="Phone Number"
+            value={profile.phone}
+            onChange={(e) => setProfile(prev => ({ ...prev, phone: e.target.value }))}
+          />
         </div>
-        <p className="text-xs text-neutral-500 mt-1">
-          Minimum confidence required for automatic matches
-        </p>
-      </div>
-      
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-body font-medium text-neutral-900">Auto-process High Confidence Matches</h4>
-            <p className="text-small text-neutral-600">Automatically mark matches above threshold as processed</p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={matchingSettings.autoProcessMatches}
-              onChange={(e) => setMatchingSettings(prev => ({ ...prev, autoProcessMatches: e.target.checked }))}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
+            Timezone
           </label>
+          <select
+            value={profile.timezone}
+            onChange={(e) => setProfile(prev => ({ ...prev, timezone: e.target.value }))}
+            className="input w-full"
+          >
+            <option value="America/New_York">Eastern Time (ET)</option>
+            <option value="America/Chicago">Central Time (CT)</option>
+            <option value="America/Denver">Mountain Time (MT)</option>
+            <option value="America/Los_Angeles">Pacific Time (PT)</option>
+            <option value="Europe/London">London (GMT)</option>
+            <option value="Europe/Paris">Paris (CET)</option>
+            <option value="Asia/Tokyo">Tokyo (JST)</option>
+          </select>
         </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-body font-medium text-neutral-900">Enable Fuzzy Matching</h4>
-            <p className="text-small text-neutral-600">Match similar invoice numbers and references</p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={matchingSettings.enableFuzzyMatching}
-              onChange={(e) => setMatchingSettings(prev => ({ ...prev, enableFuzzyMatching: e.target.checked }))}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-          </label>
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-body font-medium text-neutral-900">Require Exact Match</h4>
-            <p className="text-small text-neutral-600">Only match invoices with identical numbers and amounts</p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={matchingSettings.requireExactMatch}
-              onChange={(e) => setMatchingSettings(prev => ({ ...prev, requireExactMatch: e.target.checked }))}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-          </label>
+
+        <div className="flex justify-end">
+          <Button variant="primary" onClick={handleSaveProfile} disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
         </div>
       </div>
-      
-      <div className="flex justify-end">
-        <Button variant="primary" onClick={handleSaveMatchingSettings}>
-          Save Matching Settings
-        </Button>
-      </div>
-    </div>
-  );
-  
-  const renderNotificationsTab = () => (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-h3 text-neutral-900 mb-4">Email Notifications</h3>
+    );
+  };
+
+  const renderMatchingTab = () => {
+    if (isLoading) return renderLoadingSkeleton();
+    return (
+      <div className="space-y-6">
+        <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+          <h4 className="font-medium text-primary-900 mb-2">Matching Algorithm Settings</h4>
+          <p className="text-small text-primary-700">
+            Configure how LedgerLink matches invoices between your systems and counterparties.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Date Tolerance (days)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="30"
+              value={matchingSettings.dateToleranceDays}
+              onChange={(e) => setMatchingSettings(prev => ({ ...prev, dateToleranceDays: parseInt(e.target.value) || 0 }))}
+              className="input w-full"
+            />
+            <p className="text-xs text-neutral-500 mt-1">
+              Allow date differences within this range
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Amount Tolerance (%)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="10"
+              step="0.1"
+              value={matchingSettings.amountTolerancePercent}
+              onChange={(e) => setMatchingSettings(prev => ({ ...prev, amountTolerancePercent: parseFloat(e.target.value) || 0 }))}
+              className="input w-full"
+            />
+            <p className="text-xs text-neutral-500 mt-1">
+              Allow amount differences within this percentage
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
+            Confidence Threshold (%)
+          </label>
+          <input
+            type="range"
+            min="50"
+            max="100"
+            value={matchingSettings.confidenceThreshold}
+            onChange={(e) => setMatchingSettings(prev => ({ ...prev, confidenceThreshold: parseInt(e.target.value) }))}
+            className="w-full"
+          />
+          <div className="flex justify-between text-small text-neutral-600 mt-1">
+            <span>50%</span>
+            <span className="font-medium">Current: {matchingSettings.confidenceThreshold}%</span>
+            <span>100%</span>
+          </div>
+          <p className="text-xs text-neutral-500 mt-1">
+            Minimum confidence required for automatic matches
+          </p>
+        </div>
+
         <div className="space-y-4">
-          {[
-            { key: 'emailMatches', label: 'New Matches Found', description: 'Get notified when new invoice matches are detected' },
-            { key: 'emailDiscrepancies', label: 'Discrepancies Detected', description: 'Alert when unmatched transactions are found' },
-            { key: 'emailReports', label: 'Report Generation', description: 'Notification when reports are ready for download' },
-            { key: 'emailSystemUpdates', label: 'System Updates', description: 'Important system maintenance and feature updates' },
-            { key: 'weeklyDigest', label: 'Weekly Digest', description: 'Summary of reconciliation activity and metrics' }
-          ].map((notification) => (
-            <div key={notification.key} className="flex items-center justify-between">
-              <div>
-                <h4 className="text-body font-medium text-neutral-900">{notification.label}</h4>
-                <p className="text-small text-neutral-600">{notification.description}</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={notifications[notification.key as keyof typeof notifications] as boolean}
-                  onChange={(e) => setNotifications(prev => ({ ...prev, [notification.key]: e.target.checked }))}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-              </label>
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-body font-medium text-neutral-900">Auto-process High Confidence Matches</h4>
+              <p className="text-small text-neutral-600">Automatically mark matches above threshold as processed</p>
             </div>
-          ))}
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={matchingSettings.autoProcessMatches}
+                onChange={(e) => setMatchingSettings(prev => ({ ...prev, autoProcessMatches: e.target.checked }))}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-body font-medium text-neutral-900">Enable Fuzzy Matching</h4>
+              <p className="text-small text-neutral-600">Match similar invoice numbers and references</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={matchingSettings.enableFuzzyMatching}
+                onChange={(e) => setMatchingSettings(prev => ({ ...prev, enableFuzzyMatching: e.target.checked }))}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-body font-medium text-neutral-900">Require Exact Match</h4>
+              <p className="text-small text-neutral-600">Only match invoices with identical numbers and amounts</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={matchingSettings.requireExactMatch}
+                onChange={(e) => setMatchingSettings(prev => ({ ...prev, requireExactMatch: e.target.checked }))}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button variant="primary" onClick={handleSaveMatchingSettings} disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save Matching Settings'}
+          </Button>
         </div>
       </div>
-    </div>
-  );
-  
+    );
+  };
+
+  const renderNotificationsTab = () => {
+    if (isLoading) return renderLoadingSkeleton();
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-h3 text-neutral-900 mb-4">Email Notifications</h3>
+          <div className="space-y-4">
+            {[
+              { key: 'emailMatches', label: 'New Matches Found', description: 'Get notified when new invoice matches are detected' },
+              { key: 'emailDiscrepancies', label: 'Discrepancies Detected', description: 'Alert when unmatched transactions are found' },
+              { key: 'emailReports', label: 'Report Generation', description: 'Notification when reports are ready for download' },
+              { key: 'emailSystemUpdates', label: 'System Updates', description: 'Important system maintenance and feature updates' },
+              { key: 'weeklyDigest', label: 'Weekly Digest', description: 'Summary of reconciliation activity and metrics' }
+            ].map((notification) => (
+              <div key={notification.key} className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-body font-medium text-neutral-900">{notification.label}</h4>
+                  <p className="text-small text-neutral-600">{notification.description}</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifications[notification.key as keyof typeof notifications] as boolean}
+                    onChange={(e) => setNotifications(prev => ({ ...prev, [notification.key]: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button variant="primary" onClick={handleSaveNotifications} disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save Notification Preferences'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   const renderSecurityTab = () => (
     <div className="space-y-6">
       <Card>
@@ -337,7 +500,7 @@ export const Settings: React.FC = () => {
                 Change Password
               </Button>
             </div>
-            
+
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-body font-medium text-neutral-900">Two-Factor Authentication</h4>
@@ -345,8 +508,8 @@ export const Settings: React.FC = () => {
                   {security.twoFactorEnabled ? 'Enabled - Your account has an extra layer of security' : 'Add an extra layer of security to your account'}
                 </p>
               </div>
-              <Button 
-                variant={security.twoFactorEnabled ? "ghost" : "primary"} 
+              <Button
+                variant={security.twoFactorEnabled ? "ghost" : "primary"}
                 size="sm"
               >
                 {security.twoFactorEnabled ? 'Manage' : 'Enable'}
@@ -355,7 +518,7 @@ export const Settings: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader>
           <h3 className="text-h3 text-neutral-900">Active Sessions</h3>
@@ -371,12 +534,12 @@ export const Settings: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-neutral-900">Current Session</p>
-                  <p className="text-xs text-neutral-600">Chrome on Windows • Active now</p>
+                  <p className="text-xs text-neutral-600">Chrome on Windows - Active now</p>
                 </div>
               </div>
               <Badge variant="success">Current</Badge>
             </div>
-            
+
             <div className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-b-0">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center">
@@ -386,12 +549,12 @@ export const Settings: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-neutral-900">Mobile App</p>
-                  <p className="text-xs text-neutral-600">iPhone • 2 hours ago</p>
+                  <p className="text-xs text-neutral-600">iPhone - 2 hours ago</p>
                 </div>
               </div>
               <Button variant="ghost" size="sm">Revoke</Button>
             </div>
-            
+
             <div className="flex items-center justify-between py-2">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center">
@@ -401,7 +564,7 @@ export const Settings: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-neutral-900">Safari on macOS</p>
-                  <p className="text-xs text-neutral-600">MacBook Pro • 1 day ago</p>
+                  <p className="text-xs text-neutral-600">MacBook Pro - 1 day ago</p>
                 </div>
               </div>
               <Button variant="ghost" size="sm">Revoke</Button>
@@ -431,7 +594,7 @@ export const Settings: React.FC = () => {
       </Card>
     </div>
   );
-  
+
   const renderBillingTab = () => (
     <div className="space-y-6">
       <Card>
@@ -456,7 +619,7 @@ export const Settings: React.FC = () => {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-body text-neutral-900">Payment method</span>
-              <span className="text-body text-neutral-900">•••• 4242</span>
+              <span className="text-body text-neutral-900">---- 4242</span>
             </div>
           </div>
         </CardContent>
@@ -471,7 +634,7 @@ export const Settings: React.FC = () => {
           </div>
         </CardFooter>
       </Card>
-      
+
       <Card>
         <CardHeader>
           <h3 className="text-h3 text-neutral-900">Usage This Month</h3>
@@ -501,7 +664,7 @@ export const Settings: React.FC = () => {
       </Card>
     </div>
   );
-  
+
   const renderDangerZone = () => (
     <Card className="border-error">
       <CardHeader>
@@ -527,7 +690,7 @@ export const Settings: React.FC = () => {
       </CardContent>
     </Card>
   );
-  
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -537,7 +700,7 @@ export const Settings: React.FC = () => {
           Manage your account preferences, security settings, and system configuration.
         </p>
       </div>
-      
+
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar */}
         <div className="w-full lg:w-64 flex-shrink-0">
@@ -558,7 +721,7 @@ export const Settings: React.FC = () => {
             ))}
           </nav>
         </div>
-        
+
         {/* Content */}
         <div className="flex-1 min-w-0">
           <Card>
@@ -575,7 +738,7 @@ export const Settings: React.FC = () => {
               {activeTab === 'billing' && renderBillingTab()}
             </CardContent>
           </Card>
-          
+
           {activeTab === 'security' && (
             <div className="mt-8">
               {renderDangerZone()}
@@ -583,46 +746,69 @@ export const Settings: React.FC = () => {
           )}
         </div>
       </div>
-      
+
       {/* Reset Password Modal */}
       <Modal
         isOpen={resetPasswordModal}
-        onClose={() => setResetPasswordModal(false)}
+        onClose={() => {
+          setResetPasswordModal(false);
+          setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+          setPasswordError('');
+        }}
         title="Change Password"
         description="Enter your current password and choose a new one"
       >
         <div className="space-y-4">
+          {passwordError && (
+            <div className="bg-error-50 border border-error-200 rounded-lg p-3">
+              <p className="text-small text-error-700">{passwordError}</p>
+            </div>
+          )}
           <Input
             label="Current Password"
             type="password"
             placeholder="Enter current password"
+            value={passwordForm.currentPassword}
+            onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
           />
           <Input
             label="New Password"
             type="password"
             placeholder="Enter new password"
+            value={passwordForm.newPassword}
+            onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
           />
           <Input
             label="Confirm New Password"
             type="password"
             placeholder="Confirm new password"
+            value={passwordForm.confirmPassword}
+            onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
           />
-          
+
           <div className="flex space-x-3 pt-4">
-            <Button variant="primary" className="flex-1">
-              Update Password
+            <Button variant="primary" className="flex-1" onClick={handleChangePassword} disabled={isSaving}>
+              {isSaving ? 'Updating...' : 'Update Password'}
             </Button>
-            <Button variant="ghost" onClick={() => setResetPasswordModal(false)} className="flex-1">
+            <Button variant="ghost" onClick={() => {
+              setResetPasswordModal(false);
+              setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+              setPasswordError('');
+            }} className="flex-1">
               Cancel
             </Button>
           </div>
         </div>
       </Modal>
-      
+
       {/* Delete Account Modal */}
       <Modal
         isOpen={deleteAccountModal}
-        onClose={() => setDeleteAccountModal(false)}
+        onClose={() => {
+          setDeleteAccountModal(false);
+          setDeleteConfirmText('');
+          setDeletePassword('');
+        }}
         title="Delete Account"
         description="This action cannot be undone. All your data will be permanently deleted."
       >
@@ -630,24 +816,43 @@ export const Settings: React.FC = () => {
           <div className="bg-error-50 border border-error-200 rounded-lg p-4">
             <h4 className="font-medium text-error-900 mb-2">This will permanently delete:</h4>
             <ul className="text-small text-error-700 space-y-1">
-              <li>• Your account and profile</li>
-              <li>• All reconciliation data and reports</li>
-              <li>• Connected system integrations</li>
-              <li>• Counterparty relationships</li>
+              <li>- Your account and profile</li>
+              <li>- All reconciliation data and reports</li>
+              <li>- Connected system integrations</li>
+              <li>- Counterparty relationships</li>
             </ul>
           </div>
-          
+
           <Input
             label='Type "DELETE" to confirm'
             placeholder="DELETE"
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
             helperText="This confirmation is required to proceed with account deletion"
           />
-          
+
+          <Input
+            label="Enter your password"
+            type="password"
+            placeholder="Your account password"
+            value={deletePassword}
+            onChange={(e) => setDeletePassword(e.target.value)}
+          />
+
           <div className="flex space-x-3 pt-4">
-            <Button variant="destructive" className="flex-1">
-              Delete Account
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={handleDeleteAccount}
+              disabled={deleteConfirmText !== 'DELETE' || !deletePassword || isSaving}
+            >
+              {isSaving ? 'Deleting...' : 'Delete Account'}
             </Button>
-            <Button variant="ghost" onClick={() => setDeleteAccountModal(false)} className="flex-1">
+            <Button variant="ghost" onClick={() => {
+              setDeleteAccountModal(false);
+              setDeleteConfirmText('');
+              setDeletePassword('');
+            }} className="flex-1">
               Cancel
             </Button>
           </div>
