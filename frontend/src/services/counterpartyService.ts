@@ -51,6 +51,26 @@ interface LinksResponse {
   count: number;
 }
 
+/**
+ * Received invitation from another company
+ */
+interface ReceivedInvitation {
+  id: string;
+  senderCompanyName: string;
+  ourCustomerName: string;
+  invitationMessage: string;
+  connectionStatus: string;
+  relationshipType: string;
+  createdAt: string;
+  linkExpiresAt: string;
+  linkToken: string;
+}
+
+interface ReceivedInvitationsResponse {
+  success: boolean;
+  invitations: ReceivedInvitation[];
+}
+
 class CounterpartyService {
   /**
    * Check if a customer/supplier has a linked counterparty account
@@ -127,8 +147,39 @@ class CounterpartyService {
   }
 
   /**
+   * Get invitations received by the logged-in user
+   */
+  async getReceivedInvitations(): Promise<ReceivedInvitationsResponse> {
+    try {
+      const response = await apiClient.get<ReceivedInvitationsResponse>(
+        '/counterparty/invitations/received'
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching received invitations:', error);
+      return { success: false, invitations: [] };
+    }
+  }
+
+  /**
+   * Accept a received invitation by its link token
+   */
+  async acceptInvitation(token: string): Promise<{ success: boolean; message?: string }> {
+    const response = await apiClient.post(`/counterparty/invite/${token}/accept`);
+    return response.data;
+  }
+
+  /**
+   * Decline a received invitation by its ID
+   */
+  async declineInvitation(id: string): Promise<{ success: boolean; message?: string }> {
+    const response = await apiClient.post(`/counterparty/invitations/${id}/decline`);
+    return response.data;
+  }
+
+  /**
    * Get all counterparty links for the current company
-   * 
+   *
    * @returns Promise with array of all counterparty links
    */
   async getAllLinks(): Promise<LinksResponse> {

@@ -767,6 +767,119 @@ router.post('/invite/resend', auth, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/counterparty/invitations/received
+ * @desc    Get invitations sent TO the logged-in user's email
+ * @access  Private
+ */
+router.get('/invitations/received', auth, async (req, res) => {
+  try {
+    const userEmail = req.user.email?.toLowerCase();
+    const { status } = req.query;
+
+    if (!userEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'User email not available'
+      });
+    }
+
+    console.log(`📥 Fetching received invitations for: ${userEmail}`);
+
+    const query = {
+      theirContactEmail: userEmail,
+      isActive: true
+    };
+
+    if (status) {
+      query.connectionStatus = status;
+    }
+
+    const invitations = await CounterpartyInvitation.find(query)
+      .select('senderCompanyName ourCustomerName invitationMessage connectionStatus relationshipType createdAt linkExpiresAt linkToken')
+      .sort({ createdAt: -1 });
+
+    console.log(`✅ Found ${invitations.length} received invitations`);
+
+    res.json({
+      success: true,
+      invitations: invitations.map(inv => ({
+        id: inv._id.toString(),
+        senderCompanyName: inv.senderCompanyName,
+        ourCustomerName: inv.ourCustomerName,
+        invitationMessage: inv.invitationMessage || '',
+        connectionStatus: inv.connectionStatus,
+        relationshipType: inv.relationshipType,
+        createdAt: inv.createdAt,
+        linkExpiresAt: inv.linkExpiresAt,
+        linkToken: inv.linkToken
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching received invitations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch received invitations',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/counterparty/invitations/:id/decline
+ * @desc    Decline a received invitation
+ * @access  Private
+ */
+router.post('/invitations/:id/decline', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userEmail = req.user.email?.toLowerCase();
+
+    if (!userEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'User email not available'
+      });
+    }
+
+    console.log(`🚫 Declining invitation ${id} for user ${userEmail}`);
+
+    const invitation = await CounterpartyInvitation.findOne({
+      _id: id,
+      theirContactEmail: userEmail,
+      connectionStatus: 'PENDING',
+      isActive: true
+    });
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found or not eligible for decline'
+      });
+    }
+
+    invitation.connectionStatus = 'DECLINED';
+    invitation.declinedAt = new Date();
+    await invitation.save();
+
+    console.log(`✅ Invitation declined successfully`);
+
+    res.json({
+      success: true,
+      message: 'Invitation declined successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error declining invitation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to decline invitation',
+      message: error.message
+    });
+  }
+});
+
+/**
  * @route   GET /api/counterparty/check-link
  * @desc    Check if a customer/supplier has a linked counterparty account
  * @access  Private

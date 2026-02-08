@@ -7,6 +7,7 @@ import { Modal } from '../components/ui/Modal';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table';
 import apiClient from '../services/api';
 import { xeroService } from '../services/xeroService';
+import { counterpartyService } from '../services/counterpartyService';
 
 interface ERPContact {
   erpConnectionId: string;
@@ -40,6 +41,18 @@ interface EmailFormData {
   email: string;
 }
 
+interface ReceivedInvitation {
+  id: string;
+  senderCompanyName: string;
+  ourCustomerName: string;
+  invitationMessage: string;
+  connectionStatus: string;
+  relationshipType: string;
+  createdAt: string;
+  linkExpiresAt: string;
+  linkToken: string;
+}
+
 export const Counterparties: React.FC = () => {
   const [erpContacts, setErpContacts] = useState<ERPContact[]>([]);
   const [erpConnections, setErpConnections] = useState<ERPConnection[]>([]);
@@ -63,6 +76,14 @@ export const Counterparties: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'unlinked' | 'pending' | 'linked'>('all');
   const [sending, setSending] = useState(false);
   
+  // Tab and received invitations states
+  const [activeTab, setActiveTab] = useState<'contacts' | 'received'>('contacts');
+  const [receivedInvitations, setReceivedInvitations] = useState<ReceivedInvitation[]>([]);
+  const [loadingReceived, setLoadingReceived] = useState(false);
+  const [declineModal, setDeclineModal] = useState(false);
+  const [declineTarget, setDeclineTarget] = useState<ReceivedInvitation | null>(null);
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
   // New states for connection checking
   const [isXeroConnected, setIsXeroConnected] = useState(false);
   const [checkingConnection, setCheckingConnection] = useState(true);
@@ -242,6 +263,66 @@ export const Counterparties: React.FC = () => {
   };
 
 
+  // Fetch received invitations
+  const fetchReceivedInvitations = async () => {
+    setLoadingReceived(true);
+    try {
+      const response = await counterpartyService.getReceivedInvitations();
+      setReceivedInvitations(response.invitations || []);
+    } catch (error) {
+      console.error('Error fetching received invitations:', error);
+    } finally {
+      setLoadingReceived(false);
+    }
+  };
+
+  // Fetch received invitations when switching to received tab
+  useEffect(() => {
+    if (activeTab === 'received') {
+      fetchReceivedInvitations();
+    }
+  }, [activeTab]);
+
+  // Also fetch count on mount for badge
+  useEffect(() => {
+    fetchReceivedInvitations();
+  }, []);
+
+  const handleAcceptReceived = async (invitation: ReceivedInvitation) => {
+    setActionInProgress(invitation.id);
+    try {
+      await counterpartyService.acceptInvitation(invitation.linkToken);
+      await fetchReceivedInvitations();
+      alert('Invitation accepted successfully!');
+    } catch (error: any) {
+      console.error('Error accepting invitation:', error);
+      alert(error.response?.data?.message || 'Failed to accept invitation');
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleDeclineConfirm = async () => {
+    if (!declineTarget) return;
+    setActionInProgress(declineTarget.id);
+    try {
+      await counterpartyService.declineInvitation(declineTarget.id);
+      setDeclineModal(false);
+      setDeclineTarget(null);
+      await fetchReceivedInvitations();
+      alert('Invitation declined.');
+    } catch (error: any) {
+      console.error('Error declining invitation:', error);
+      alert(error.response?.data?.message || 'Failed to decline invitation');
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const pendingReceivedCount = receivedInvitations.filter(
+    inv => inv.connectionStatus === 'PENDING'
+  ).length;
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'linked':
@@ -378,8 +459,39 @@ export const Counterparties: React.FC = () => {
         </Card>
       )}
 
+      {/* Tab Bar */}
+      {!checkingConnection && !loading && (
+        <div className="flex border-b border-neutral-200 mb-6">
+          <button
+            onClick={() => setActiveTab('contacts')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'contacts'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-neutral-500 hover:text-neutral-700'
+            }`}
+          >
+            Your Contacts
+          </button>
+          <button
+            onClick={() => setActiveTab('received')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'received'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-neutral-500 hover:text-neutral-700'
+            }`}
+          >
+            Received Invitations
+            {pendingReceivedCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-primary-600 rounded-full">
+                {pendingReceivedCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Error Message */}
-      {errorMessage && (
+      {errorMessage && activeTab === 'contacts' && (
         <Card className="mb-6">
           <CardContent className="p-4">
             <div className="flex items-start space-x-3">
@@ -418,7 +530,7 @@ export const Counterparties: React.FC = () => {
       )}
 
       {/* Stats */}
-      {!checkingConnection && !loading && isXeroConnected && (
+      {!checkingConnection && !loading && isXeroConnected && activeTab === 'contacts' && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
@@ -456,7 +568,7 @@ export const Counterparties: React.FC = () => {
       )}
 
       {/* No ERP Connections State */}
-      {!loading && !checkingConnection && !isXeroConnected && (
+      {!loading && !checkingConnection && !isXeroConnected && activeTab === 'contacts' && (
         <Card>
           <CardContent className="p-12 text-center">
             <svg className="w-16 h-16 mx-auto mb-4 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -483,7 +595,7 @@ export const Counterparties: React.FC = () => {
       )}
 
       {/* ERP Contacts Table */}
-      {!loading && !checkingConnection && isXeroConnected && (
+      {!loading && !checkingConnection && isXeroConnected && activeTab === 'contacts' && (
         <Card>
           <CardHeader>
             <div className="space-y-4">
@@ -689,6 +801,181 @@ export const Counterparties: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Received Invitations Tab */}
+      {!loading && !checkingConnection && activeTab === 'received' && (
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-h3 text-neutral-900">Received Invitations</h2>
+                <p className="text-body text-neutral-600 mt-1">
+                  Invitations from other companies to connect accounting systems
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchReceivedInvitations}
+                disabled={loadingReceived}
+                leftIcon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                }
+              >
+                Refresh
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {loadingReceived ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                <p className="text-neutral-600">Loading received invitations...</p>
+              </div>
+            ) : receivedInvitations.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>From</TableHead>
+                    <TableHead>They Call You</TableHead>
+                    <TableHead>Message</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Expires</TableHead>
+                    <TableHead className="w-48">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {receivedInvitations.map((invitation) => {
+                    const isExpired = new Date(invitation.linkExpiresAt) < new Date();
+                    const isPending = invitation.connectionStatus === 'PENDING' && !isExpired;
+
+                    return (
+                      <TableRow key={invitation.id}>
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-medium">
+                              {(invitation.senderCompanyName || '?')[0].toUpperCase()}
+                            </div>
+                            <span className="font-medium text-neutral-900">
+                              {invitation.senderCompanyName || 'Unknown Company'}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-neutral-600">
+                          {invitation.ourCustomerName}
+                        </TableCell>
+                        <TableCell className="text-neutral-600 max-w-[200px]">
+                          <span className="truncate block">
+                            {invitation.invitationMessage
+                              ? invitation.invitationMessage.substring(0, 60) + (invitation.invitationMessage.length > 60 ? '...' : '')
+                              : '-'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {invitation.connectionStatus === 'LINKED' ? (
+                            <Badge variant="success">Linked</Badge>
+                          ) : invitation.connectionStatus === 'DECLINED' ? (
+                            <Badge variant="error">Declined</Badge>
+                          ) : isExpired ? (
+                            <Badge variant="default">Expired</Badge>
+                          ) : (
+                            <Badge variant="warning">Pending</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-neutral-600 text-sm">
+                          {new Date(invitation.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-neutral-600 text-sm">
+                          {new Date(invitation.linkExpiresAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          {isPending ? (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleAcceptReceived(invitation)}
+                                disabled={actionInProgress === invitation.id}
+                              >
+                                {actionInProgress === invitation.id ? 'Processing...' : 'Accept'}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-error-600 hover:text-error-700 hover:bg-error-50"
+                                onClick={() => {
+                                  setDeclineTarget(invitation);
+                                  setDeclineModal(true);
+                                }}
+                                disabled={actionInProgress === invitation.id}
+                              >
+                                Decline
+                              </Button>
+                            </div>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="p-8 text-center">
+                <svg className="w-12 h-12 mx-auto mb-3 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <p className="text-neutral-600">No invitations received yet</p>
+                <p className="text-sm text-neutral-500 mt-1">
+                  When other companies invite you to connect, they'll appear here.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Decline Confirmation Modal */}
+      <Modal
+        isOpen={declineModal}
+        onClose={() => {
+          setDeclineModal(false);
+          setDeclineTarget(null);
+        }}
+        title="Decline Invitation"
+        description={`Are you sure you want to decline the invitation from ${declineTarget?.senderCompanyName || 'this company'}?`}
+      >
+        <div className="space-y-4">
+          <div className="bg-warning-50 border border-warning-200 rounded-lg p-4">
+            <p className="text-sm text-warning-700">
+              This action cannot be undone. The sender will need to send a new invitation if you change your mind.
+            </p>
+          </div>
+          <div className="flex space-x-3 pt-2">
+            <Button
+              variant="primary"
+              className="flex-1 bg-error-600 hover:bg-error-700"
+              onClick={handleDeclineConfirm}
+              disabled={actionInProgress === declineTarget?.id}
+            >
+              {actionInProgress === declineTarget?.id ? 'Declining...' : 'Decline Invitation'}
+            </Button>
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => {
+                setDeclineModal(false);
+                setDeclineTarget(null);
+              }}
+              disabled={actionInProgress === declineTarget?.id}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Email Modal */}
       <Modal

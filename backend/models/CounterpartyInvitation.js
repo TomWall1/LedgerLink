@@ -124,6 +124,11 @@ const counterpartyInvitationSchema = new mongoose.Schema({
   // When they linked their system (if applicable)
   linkedAt: {
     type: Date
+  },
+
+  // When they declined (if applicable)
+  declinedAt: {
+    type: Date
   }
 }, {
   timestamps: true
@@ -133,6 +138,9 @@ const counterpartyInvitationSchema = new mongoose.Schema({
 counterpartyInvitationSchema.index({ companyId: 1, theirContactEmail: 1 });
 counterpartyInvitationSchema.index({ companyId: 1, connectionStatus: 1 });
 counterpartyInvitationSchema.index({ linkToken: 1, linkExpiresAt: 1 });
+
+// Index for received invitations queries
+counterpartyInvitationSchema.index({ theirContactEmail: 1, connectionStatus: 1, isActive: 1 });
 
 // Index for finding invitations by customer name
 counterpartyInvitationSchema.index({ 
