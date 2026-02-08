@@ -42,7 +42,7 @@ export const AcceptInvite: React.FC = () => {
         console.log(`📧 Fetching invitation details for token: ${token}`);
         
         // Call the backend API
-        const response = await fetch(`https://ledgerlink.onrender.com/api/counterparty/invite/${token}`);
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/counterparty/invite/${token}`);
         
         if (!response.ok) {
           const errorData = await response.json();
@@ -79,7 +79,7 @@ export const AcceptInvite: React.FC = () => {
       console.log('✅ Accepting invitation...');
       
       // Call the backend acceptance endpoint
-      const response = await fetch(`https://ledgerlink.onrender.com/api/counterparty/invite/${token}/accept`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/counterparty/invite/${token}/accept`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

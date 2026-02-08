@@ -18,6 +18,7 @@ import auth from '../middleware/auth.js';
 import xeroService from '../services/xeroService.js';
 import ContactEmailOverride from '../models/ContactEmailOverride.js';
 import CounterpartyInvitation from '../models/CounterpartyInvitation.js';
+import User from '../models/User.js';
 import emailService from '../services/emailService.js';
 
 const router = express.Router();
@@ -411,9 +412,14 @@ router.post('/invite', auth, async (req, res) => {
     const userId = req.user.id || req.user._id?.toString();
     const companyId = req.user.companyId || userId; // Fallback to userId if companyId not set
 
+    // Fetch sender's company name
+    const sender = await User.findById(userId).select('companyName');
+    const senderCompanyName = sender?.companyName || req.user.name || 'A LedgerLink user';
+
     console.log(`📧 Creating invitation for ${contactDetails.name} (${recipientEmail})`);
     console.log(`   User ID: ${userId}`);
     console.log(`   Company ID: ${companyId}`);
+    console.log(`   Sender Company: ${senderCompanyName}`);
 
     // Generate a unique invitation token
     const crypto = await import('crypto');
@@ -437,6 +443,7 @@ router.post('/invite', auth, async (req, res) => {
       relationshipType: relationshipType || 'customer',
       erpConnectionId: erpConnectionId,
       erpContactId: erpContactId,
+      senderCompanyName: senderCompanyName,
       invitationMessage: message
     });
 
@@ -452,7 +459,7 @@ router.post('/invite', auth, async (req, res) => {
       recipientName: contactDetails.name,
       senderName: req.user.name || req.user.email.split('@')[0],
       senderEmail: req.user.email,
-      senderCompany: 'Your Company', // TODO: Get from user profile
+      senderCompany: senderCompanyName,
       inviteUrl: inviteUrl,
       message: message
     });
@@ -529,7 +536,7 @@ router.get('/invite/:token', async (req, res) => {
       invitation: {
         inviterName: invitation.ourCustomerName,
         inviterEmail: invitation.theirContactEmail,
-        inviterCompany: 'Your Company', // TODO: Get from user who sent invite
+        inviterCompany: invitation.senderCompanyName || 'A LedgerLink user',
         recipientName: invitation.theirContactName,
         message: invitation.invitationMessage || '',
         expiresAt: invitation.linkExpiresAt,
@@ -596,9 +603,10 @@ router.post('/invite/:token/accept', async (req, res) => {
       });
     }
 
-    // Update invitation status to ACCEPTED
-    invitation.connectionStatus = 'ACCEPTED';
+    // Update invitation status to LINKED
+    invitation.connectionStatus = 'LINKED';
     invitation.acceptedAt = new Date();
+    invitation.linkedAt = new Date();
     await invitation.save();
 
     console.log(`✅ Invitation accepted successfully`);
@@ -718,17 +726,21 @@ router.post('/invite/resend', auth, async (req, res) => {
     invitation.linkExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Extend by 30 days
     await invitation.save();
 
+    // Fetch sender's company name
+    const sender = await User.findById(userId).select('companyName');
+    const senderCompanyName = sender?.companyName || req.user.name || 'A LedgerLink user';
+
     console.log(`🔄 Sending reminder email to ${invitation.theirContactEmail}`);
-    
+
     const inviteUrl = `${process.env.FRONTEND_URL}/accept-invite/${invitation.linkToken}`;
-    
+
     // Send reminder email via SendGrid
     const emailSent = await emailService.sendInvitationReminder({
       to: invitation.theirContactEmail,
       recipientName: invitation.theirContactName,
       senderName: req.user.name || req.user.email.split('@')[0],
       senderEmail: req.user.email,
-      senderCompany: 'Your Company', // TODO: Get from user profile
+      senderCompany: senderCompanyName,
       inviteUrl: inviteUrl,
       originalMessage: invitation.invitationMessage
     });

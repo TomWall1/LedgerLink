@@ -105,6 +105,12 @@ const counterpartyInvitationSchema = new mongoose.Schema({
     type: String
   },
   
+  // Company name of the sender (stored at send time)
+  senderCompanyName: {
+    type: String,
+    default: ''
+  },
+
   // Custom invitation message
   invitationMessage: {
     type: String

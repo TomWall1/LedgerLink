@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: 'America/New_York'
   },
+  companyName: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   preferences: {
     dateFormat: {
       type: String,
@@ -86,6 +91,7 @@ userSchema.virtual('profile').get(function() {
     email: this.email,
     phone: this.phone,
     timezone: this.timezone,
+    companyName: this.companyName,
     lastLogin: this.lastLogin,
     preferences: this.preferences,
     createdAt: this.createdAt,

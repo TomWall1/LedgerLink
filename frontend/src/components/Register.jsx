@@ -70,7 +70,7 @@ const Register = ({ onRegisterSuccess, onSwitchToLogin, onBackToLanding }) => {
     setErrors({});
     
     try {
-      const result = await register(formData.email, formData.password, formData.companyName);
+      const result = await register(formData.companyName, formData.email, formData.password, formData.companyName);
       
       if (!result.success) {
         setErrors({

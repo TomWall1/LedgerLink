@@ -56,13 +56,14 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const register = async (email, password, companyName) => {
+  const register = async (name, email, password, companyName) => {
     try {
       // FIXED: Changed from /api/auth/register to /api/users/register
-      const response = await api.post('/api/users/register', { 
-        email, 
-        password, 
-        companyName 
+      const response = await api.post('/api/users/register', {
+        name,
+        email,
+        password,
+        companyName
       });
       
       const { token, user } = response.data;

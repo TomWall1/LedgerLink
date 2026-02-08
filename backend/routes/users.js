@@ -9,7 +9,7 @@ const router = express.Router();
 // Register new user
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, companyName } = req.body;
     
     // Validate input
     if (!name || !email || !password) {
@@ -34,7 +34,8 @@ router.post('/register', async (req, res) => {
     const user = new User({
       name: name.trim(),
       email: email.toLowerCase().trim(),
-      password: hashedPassword
+      password: hashedPassword,
+      companyName: companyName ? companyName.trim() : ''
     });
     
     await user.save();
@@ -53,6 +54,7 @@ router.post('/register', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        companyName: user.companyName,
         createdAt: user.createdAt
       }
     });
@@ -151,6 +153,7 @@ router.get('/profile', auth, async (req, res) => {
         email: user.email,
         phone: user.phone || '',
         timezone: user.timezone || 'America/New_York',
+        companyName: user.companyName || '',
         preferences: user.preferences,
         createdAt: user.createdAt,
         lastLogin: user.lastLogin
@@ -166,7 +169,7 @@ router.get('/profile', auth, async (req, res) => {
 // Update user profile
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { name, email, phone, timezone } = req.body;
+    const { name, email, phone, timezone, companyName } = req.body;
     const userId = req.userId;
 
     const user = await User.findById(userId);
@@ -195,6 +198,9 @@ router.put('/profile', auth, async (req, res) => {
     if (timezone !== undefined) {
       user.timezone = timezone;
     }
+    if (companyName !== undefined) {
+      user.companyName = companyName.trim();
+    }
 
     await user.save();
 
@@ -206,6 +212,7 @@ router.put('/profile', auth, async (req, res) => {
         email: user.email,
         phone: user.phone || '',
         timezone: user.timezone || 'America/New_York',
+        companyName: user.companyName || '',
         createdAt: user.createdAt,
         lastLogin: user.lastLogin
       }
