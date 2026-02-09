@@ -8,6 +8,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import apiClient from '../services/api';
 import { xeroService } from '../services/xeroService';
 import { counterpartyService } from '../services/counterpartyService';
+import { useToast } from '../hooks/useToast';
 
 interface ERPContact {
   erpConnectionId: string;
@@ -54,6 +55,7 @@ interface ReceivedInvitation {
 }
 
 export const Counterparties: React.FC = () => {
+  const { addToast } = useToast();
   const [erpContacts, setErpContacts] = useState<ERPContact[]>([]);
   const [erpConnections, setErpConnections] = useState<ERPConnection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,7 +180,7 @@ export const Counterparties: React.FC = () => {
     // Simple email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(emailForm.email)) {
-      alert('Please enter a valid email address');
+      addToast({ title: 'Invalid email', description: 'Please enter a valid email address', variant: 'error' });
       return;
     }
 
@@ -197,10 +199,10 @@ export const Counterparties: React.FC = () => {
       setEmailModal(false);
       setEmailForm({ contact: null, email: '' });
       
-      alert('Email saved successfully!');
+      addToast({ title: 'Email saved', variant: 'success' });
     } catch (error: any) {
       console.error('Error saving email:', error);
-      alert(error.response?.data?.message || error.message || 'Failed to save email');
+      addToast({ title: 'Error', description: error.response?.data?.message || error.message || 'Failed to save email', variant: 'error' });
     } finally {
       setSavingEmail(false);
     }
@@ -238,10 +240,10 @@ export const Counterparties: React.FC = () => {
       setInviteModal(false);
       setInviteForm({ contact: null, message: '' });
       
-      alert('Invitation sent successfully!');
+      addToast({ title: 'Invitation sent', description: 'Your invitation has been sent successfully', variant: 'success' });
     } catch (error: any) {
       console.error('Error sending invitation:', error);
-      alert(error.response?.data?.error || error.message || 'Failed to send invitation');
+      addToast({ title: 'Error', description: error.response?.data?.error || error.message || 'Failed to send invitation', variant: 'error' });
     } finally {
       setSending(false);
     }
@@ -255,10 +257,10 @@ export const Counterparties: React.FC = () => {
         inviteId: contact.inviteId
       });
 
-      alert('Invitation reminder sent!');
+      addToast({ title: 'Reminder sent', variant: 'success' });
     } catch (error) {
       console.error('Error resending invitation:', error);
-      alert('Failed to resend invitation');
+      addToast({ title: 'Error', description: 'Failed to resend invitation', variant: 'error' });
     }
   };
 
@@ -293,10 +295,10 @@ export const Counterparties: React.FC = () => {
     try {
       await counterpartyService.acceptInvitation(invitation.linkToken);
       await fetchReceivedInvitations();
-      alert('Invitation accepted successfully!');
+      addToast({ title: 'Invitation accepted', description: 'You are now connected', variant: 'success' });
     } catch (error: any) {
       console.error('Error accepting invitation:', error);
-      alert(error.response?.data?.message || 'Failed to accept invitation');
+      addToast({ title: 'Error', description: error.response?.data?.message || 'Failed to accept invitation', variant: 'error' });
     } finally {
       setActionInProgress(null);
     }
@@ -310,10 +312,10 @@ export const Counterparties: React.FC = () => {
       setDeclineModal(false);
       setDeclineTarget(null);
       await fetchReceivedInvitations();
-      alert('Invitation declined.');
+      addToast({ title: 'Invitation declined', variant: 'success' });
     } catch (error: any) {
       console.error('Error declining invitation:', error);
-      alert(error.response?.data?.message || 'Failed to decline invitation');
+      addToast({ title: 'Error', description: error.response?.data?.message || 'Failed to decline invitation', variant: 'error' });
     } finally {
       setActionInProgress(null);
     }

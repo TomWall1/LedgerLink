@@ -10,6 +10,7 @@ export interface SidebarProps {
   onTabChange: (tab: string) => void;
   isLoggedIn: boolean;
   isMobile: boolean;
+  badges?: Record<string, number>;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -19,7 +20,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onTabChange,
   isLoggedIn,
-  isMobile
+  isMobile,
+  badges
 }) => {
   const navigate = useNavigate();
 
@@ -143,7 +145,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                     {item.icon}
                   </span>
                   {(!isCollapsed || isMobile) && (
-                    <span className="ml-3">{item.label}</span>
+                    <>
+                      <span className="ml-3">{item.label}</span>
+                      {badges?.[item.id] != null && badges[item.id] > 0 && (
+                        <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-primary-600 rounded-full">
+                          {badges[item.id]}
+                        </span>
+                      )}
+                    </>
                   )}
                 </button>
               </li>

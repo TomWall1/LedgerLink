@@ -13,6 +13,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import MatchingStats from '../components/matching/MatchingStats';
 import matchingService from '../services/matchingService';
+import { counterpartyService } from '../services/counterpartyService';
 import { formatCurrency, formatDate, formatPercentage } from '../utils/format';
 import { MatchingHistoryResponse } from '../types/matching';
 
@@ -33,17 +34,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // State for pending invitations
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
+
   // Load dashboard data on component mount
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
         setLoading(true);
         setError(null);
-        
+
         // Fetch matching history and statistics
         const data = await matchingService.getMatchingHistory(10);
         setDashboardData(data);
-        
+
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
@@ -53,7 +57,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     };
 
     loadDashboardData();
+    loadPendingInvitations();
   }, []);
+
+  const loadPendingInvitations = async () => {
+    try {
+      const response = await counterpartyService.getReceivedInvitations();
+      const pending = (response.invitations || []).filter(
+        (inv: any) => inv.connectionStatus === 'PENDING' && new Date(inv.linkExpiresAt) > new Date()
+      );
+      setPendingInvitations(pending);
+    } catch (err) {
+      console.error('Failed to load pending invitations:', err);
+    }
+  };
 
   // Calculate derived statistics
   const stats = dashboardData?.statistics;
@@ -256,6 +273,63 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending Invitations Card */}
+      {pendingInvitations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-h3 text-neutral-900">Pending Invitations</h2>
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-white bg-primary-600 rounded-full">
+                  {pendingInvitations.length}
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/counterparties')}
+              >
+                View All
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingInvitations.slice(0, 3).map((inv: any) => (
+              <div
+                key={inv.id}
+                className="flex items-center justify-between p-3 border border-neutral-200 rounded-lg"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xs font-medium">
+                    {(inv.senderCompanyName || '?')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-medium text-neutral-900 text-sm">
+                      {inv.senderCompanyName || 'Unknown Company'}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      Received {new Date(inv.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigate('/counterparties')}
+                >
+                  Review
+                </Button>
+              </div>
+            ))}
+            {pendingInvitations.length > 3 && (
+              <p className="text-sm text-neutral-500 text-center pt-1">
+                and {pendingInvitations.length - 3} more
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

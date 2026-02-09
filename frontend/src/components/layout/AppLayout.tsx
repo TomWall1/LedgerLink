@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { TopNav } from './TopNav';
 import { Sidebar } from './Sidebar';
 import { ToastContainer } from '../ui/Toast';
 import { useToast } from '../../hooks/useToast';
 import { cn } from '../../utils/cn';
+import { counterpartyService } from '../../services/counterpartyService';
 
 export interface AppLayoutProps {
   children: React.ReactNode;
@@ -40,7 +42,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [sidebarBadges, setSidebarBadges] = useState<Record<string, number>>({});
   const { toasts, removeToast } = useToast();
+  const location = useLocation();
   
   // DIAGNOSTIC: Track prop changes
   useEffect(() => {
@@ -55,6 +59,31 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     console.log('🔍 DIAGNOSTIC: AppLayout user changed to:', user?.name || 'none');
   }, [user]);
   
+  // Fetch pending invitation count for sidebar badge
+  const fetchPendingCount = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const response = await counterpartyService.getReceivedInvitations();
+      const pendingCount = (response.invitations || []).filter(
+        (inv: any) => inv.connectionStatus === 'PENDING' && new Date(inv.linkExpiresAt) > new Date()
+      ).length;
+      setSidebarBadges(prev => ({ ...prev, counterparties: pendingCount }));
+    } catch (error) {
+      console.error('Failed to fetch pending invitation count:', error);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 60000);
+    return () => clearInterval(interval);
+  }, [fetchPendingCount]);
+
+  // Re-fetch when route changes (e.g. after accepting an invitation)
+  useEffect(() => {
+    fetchPendingCount();
+  }, [location.pathname, fetchPendingCount]);
+
   // Handle responsive behavior
   useEffect(() => {
     const handleResize = () => {
@@ -130,6 +159,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         onTabChange={wrappedOnTabChange}
         isLoggedIn={isLoggedIn}
         isMobile={isMobile}
+        badges={sidebarBadges}
       />
       
       {/* Main Content */}

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://ledgerlink.onrender.com',
+  baseURL: process.env.REACT_APP_API_URL?.replace(/\/api\/?$/, '') || 'http://localhost:5001',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
