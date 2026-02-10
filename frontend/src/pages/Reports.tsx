@@ -30,7 +30,7 @@ interface ReportTemplate {
 export const Reports: React.FC = () => {
   const [generateModal, setGenerateModal] = useState<{ open: boolean; template?: ReportTemplate }>({ open: false });
   const [selectedDateRange, setSelectedDateRange] = useState('last_30_days');
-  const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'csv'>('pdf');
+  const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'csv'>('csv');
   const [selectedCounterparty, setSelectedCounterparty] = useState('');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
@@ -476,10 +476,9 @@ export const Reports: React.FC = () => {
                 </label>
                 <select
                   value={selectedFormat}
-                  onChange={(e) => setSelectedFormat(e.target.value as 'pdf' | 'csv')}
+                  onChange={(e) => setSelectedFormat(e.target.value as 'csv')}
                   className="input w-full"
                 >
-                  <option value="pdf">PDF Report</option>
                   <option value="csv">CSV Data Export</option>
                 </select>
               </div>
