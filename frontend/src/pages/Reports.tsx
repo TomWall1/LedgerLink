@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardHeader, CardContent, CardFooter } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { reportService, BackendReport } from '../services/reportService';
 
 interface Report {
   id: string;
@@ -35,25 +36,43 @@ export const Reports: React.FC = () => {
   const [customDateTo, setCustomDateTo] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // Real reports will be fetched from backend
   const [reports, setReports] = useState<Report[]>([]);
 
-  useEffect(() => {
-    // TODO: Fetch real reports from backend
-    // const fetchReports = async () => {
-    //   setLoading(true);
-    //   try {
-    //     const response = await fetch('/api/reports');
-    //     const data = await response.json();
-    //     setReports(data);
-    //   } catch (error) {
-    //     console.error('Failed to fetch reports:', error);
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
-    // fetchReports();
+  const formatFileSize = (bytes: number): string => {
+    if (!bytes || bytes === 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const mapBackendReport = (r: BackendReport): Report => ({
+    id: r._id,
+    name: r.name,
+    type: r.type,
+    description: r.description,
+    dateRange: r.dateRange?.displayLabel || '',
+    status: r.status,
+    generatedAt: r.generatedAt ? new Date(r.generatedAt).toLocaleDateString() : undefined,
+    fileSize: r.fileSize ? formatFileSize(r.fileSize) : undefined,
+  });
+
+  const fetchReports = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await reportService.getReports();
+      if (response.success && response.reports) {
+        setReports(response.reports.map(mapBackendReport));
+      }
+    } catch (error) {
+      console.error('Failed to fetch reports:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
   
   const reportTemplates: ReportTemplate[] = [
     {
@@ -146,50 +165,51 @@ export const Reports: React.FC = () => {
     }
   };
   
-  const handleGenerateReport = () => {
+  const handleGenerateReport = async () => {
     if (!generateModal.template) return;
-    
-    // TODO: Generate report via backend API
-    const newReport: Report = {
-      id: Date.now().toString(),
-      name: `${generateModal.template.name} - ${new Date().toLocaleDateString()}`,
-      type: generateModal.template.type,
-      description: generateModal.template.description,
-      dateRange: selectedDateRange === 'custom' 
-        ? `${customDateFrom} - ${customDateTo}`
-        : selectedDateRange.replace('_', ' '),
-      status: 'generating'
-    };
-    
-    setReports(prev => [newReport, ...prev]);
-    setGenerateModal({ open: false });
-    
-    // Simulate report generation for now
-    setTimeout(() => {
-      setReports(prev => 
-        prev.map(r => 
-          r.id === newReport.id
-            ? {
-                ...r,
-                status: 'ready' as const,
-                generatedAt: 'Just now',
-                fileSize: '1.8 MB',
-                downloadUrl: '#'
-              }
-            : r
-        )
-      );
-    }, 3000);
+
+    const reportName = `${generateModal.template.name} - ${new Date().toLocaleDateString()}`;
+
+    try {
+      const response = await reportService.generateReport({
+        name: reportName,
+        type: generateModal.template.type,
+        description: generateModal.template.description,
+        dateRange: selectedDateRange,
+        format: selectedFormat,
+        customDateFrom: selectedDateRange === 'custom' ? customDateFrom : undefined,
+        customDateTo: selectedDateRange === 'custom' ? customDateTo : undefined,
+        counterpartyId: selectedCounterparty || undefined,
+      });
+
+      if (response.success && response.report) {
+        setReports(prev => [mapBackendReport(response.report), ...prev]);
+      }
+
+      setGenerateModal({ open: false });
+
+      // Poll for completion after a few seconds
+      setTimeout(() => fetchReports(), 5000);
+    } catch (error) {
+      console.error('Failed to generate report:', error);
+    }
   };
   
-  const handleDownload = (report: Report) => {
-    // TODO: Implement actual file download
-    console.log('Downloading report:', report.name);
+  const handleDownload = async (report: Report) => {
+    try {
+      await reportService.downloadReport(report.id, report.name);
+    } catch (error) {
+      console.error('Failed to download report:', error);
+    }
   };
   
-  const handleDelete = (reportId: string) => {
-    // TODO: Delete via backend API
-    setReports(prev => prev.filter(r => r.id !== reportId));
+  const handleDelete = async (reportId: string) => {
+    try {
+      await reportService.deleteReport(reportId);
+      setReports(prev => prev.filter(r => r.id !== reportId));
+    } catch (error) {
+      console.error('Failed to delete report:', error);
+    }
   };
   
   const readyReports = reports.filter(r => r.status === 'ready').length;

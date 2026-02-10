@@ -16,6 +16,7 @@ import Matches from './pages/Matches';
 import { Counterparties } from './pages/Counterparties';
 import { AcceptInvite } from './pages/AcceptInvite';
 import { Settings } from './pages/Settings';
+import { Reports } from './pages/Reports';
 
 import './styles/global.css';
 
@@ -270,15 +271,13 @@ const AppContent: React.FC = () => {
                     </ErrorBoundary>
                   } 
                 />
-                <Route 
-                  path="/reports" 
+                <Route
+                  path="/reports"
                   element={
-                    <div className="p-8">
-                      <h1 className="text-2xl font-bold mb-4">Reports</h1>
-                      <p className="text-gray-600">Reporting and analytics functionality</p>
-                      <p className="text-sm text-gray-500 mt-2">This feature is available in the full version</p>
-                    </div>
-                  } 
+                    <ErrorBoundary>
+                      <Reports />
+                    </ErrorBoundary>
+                  }
                 />
                 <Route 
                   path="/settings" 

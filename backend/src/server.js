@@ -8,6 +8,7 @@ import xeroRoutes from '../routes/xero.js';
 import transactionRoutes from '../routes/transactions.js';
 import counterpartyRoutes from '../routes/counterparty.js';
 import matchingRoutes from '../routes/matching.js';
+import reportRoutes from '../routes/reports.js';
 import { errorHandler } from './middleware/errorMiddleware.js';
 
 // Load environment variables
@@ -133,7 +134,8 @@ app.get('/', (req, res) => {
       xero: '/api/xero',
       transactions: '/api/transactions',
       counterparty: '/api/counterparty',
-      matching: '/api/matching'
+      matching: '/api/matching',
+      reports: '/api/reports'
     }
   });
 });
@@ -160,7 +162,8 @@ app.get('/api/test', (req, res) => {
       xero: '/api/xero',
       transactions: '/api/transactions',
       counterparty: '/api/counterparty',
-      matching: '/api/matching'
+      matching: '/api/matching',
+      reports: '/api/reports'
     }
   });
 });
@@ -171,6 +174,7 @@ app.use('/api/xero', xeroRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/counterparty', counterpartyRoutes);
 app.use('/api/matching', matchingRoutes);
+app.use('/api/reports', reportRoutes);
 
 // 404 handler for unknown routes
 app.all('*', (req, res) => {
@@ -186,7 +190,8 @@ app.all('*', (req, res) => {
       xero: '/api/xero/*',
       transactions: '/api/transactions/*',
       counterparty: '/api/counterparty/*',
-      matching: '/api/matching/*'
+      matching: '/api/matching/*',
+      reports: '/api/reports/*'
     }
   });
 });
